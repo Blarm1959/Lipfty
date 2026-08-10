@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#163b30">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Lipfty">
+  <meta name="application-name" content="Lipfty">
+  <meta name="description" content="Lipfty is a shared-piece 4×4 strategy game: place, move, jump and make four in a row.">
+  <title>Lipfty</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/lipfty-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/lipfty-180.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">Shared-piece strategy</p>
+        <h1>Lipfty</h1>
+      </div>
+      <span class="version" id="app-version">v0.1.0</span>
+      <button class="icon-button" id="help-button" type="button" aria-label="How to play">?</button>
+    </header>
+
+    <main class="game-layout">
+      <section class="turn-card" aria-live="polite">
+        <div>
+          <span class="turn-label">Current turn</span>
+          <strong id="current-player">Player 1</strong>
+        </div>
+        <p id="status">Place a piece, or move any piece already on the board.</p>
+      </section>
+
+      <section class="game-stage">
+        <aside class="reserve-panel">
+          <h2>Pieces to place</h2>
+          <div class="reserve-grid">
+            <button class="reserve-button" id="place-black" type="button">
+              <span class="piece piece--black"></span>
+              <span><strong>Black</strong><small id="black-remaining">6 remaining</small></span>
+            </button>
+            <button class="reserve-button" id="place-white" type="button">
+              <span class="piece piece--white"></span>
+              <span><strong>White</strong><small id="white-remaining">6 remaining</small></span>
+            </button>
+          </div>
+          <p class="panel-help">Choose a colour, then choose an empty square. Nobody owns either colour.</p>
+        </aside>
+
+        <section class="board-section">
+          <div class="board-frame">
+            <div class="board" id="board" role="grid" aria-label="Lipfty four by four board"></div>
+          </div>
+          <div class="jump-controls" id="jump-controls" hidden>
+            <strong>Multi-jump in progress</strong>
+            <button class="button button--primary" id="finish-jump" type="button">Finish turn</button>
+          </div>
+        </section>
+
+        <aside class="rules-panel">
+          <h2>Turn choices</h2>
+          <p><strong>Place</strong> any remaining black or white piece.</p>
+          <p><strong>Move</strong> any board piece one square in any direction.</p>
+          <p><strong>Jump</strong> over an adjacent piece into the empty square beyond. Continue jumping as often as you want.</p>
+          <p class="panel-help">You cannot move the piece your opponent moved on their previous turn.</p>
+        </aside>
+      </section>
+
+      <section class="action-bar">
+        <button class="button button--primary" id="new-game" type="button">New game</button>
+        <button class="button button--secondary" id="cancel-action" type="button">Cancel selection</button>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="help-dialog">
+    <div class="dialog-heading">
+      <div><p class="eyebrow">How to play</p><h2>Lipfty</h2></div>
+      <button class="dialog-close" id="close-help" type="button" aria-label="Close">×</button>
+    </div>
+    <div class="rules-copy">
+      <p>Lipfty is played on a 4×4 board with six black and six white pieces. The pieces belong to both players.</p>
+      <p>On your turn, either place one unused piece, move any legal board piece one adjacent square, or jump over an adjacent piece into the empty square immediately beyond it.</p>
+      <p>Movement and jumping can be horizontal, vertical or diagonal. Jumps do not capture. After a jump you may continue jumping with the same piece, changing direction if you wish.</p>
+      <p>You may not move the piece your opponent moved on their immediately preceding turn. A newly placed piece is not protected.</p>
+      <p><strong>Win by being the player who creates four pieces of the same colour in a complete row, column or main diagonal.</strong></p>
+    </div>
+  </dialog>
+
+  <script src="js/rules.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

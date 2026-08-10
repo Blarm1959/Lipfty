@@ -1,0 +1,14 @@
+global.window = global;
+require("../js/rules.js");
+const assert = require("node:assert/strict");
+const R = global.LipftyRules;
+const piece = colour => ({ colour });
+let board = Array(16).fill(null);
+[0,1,2,3].forEach(i => board[i] = piece("black"));
+assert.deepEqual(R.checkWin(board), { line: [0,1,2,3], colour: "black" });
+board = Array(16).fill(null);
+board[0] = piece("white");
+assert.deepEqual(R.adjacentDestinations(board, 0).sort((a,b)=>a-b), [1,4,5]);
+board[1] = piece("black");
+assert.equal(R.jumpDestinations(board, 0).some(j => j.to === 2 && j.over === 1), true);
+console.log("Lipfty rules tests passed.");
