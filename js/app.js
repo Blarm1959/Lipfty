@@ -1,3 +1,4 @@
+  const mobileVersionElement = document.getElementById("mobile-version");
 (function () {
   "use strict";
 
