@@ -88,6 +88,11 @@
 
       // The exact piece moved by the opponent on the preceding turn is protected.
       opponentProtectedPieceId: null,
+      endgameStarted: false,
+      endgameTurns: 0,
+      pendingReplacement: null,
+      replacementForbiddenIndex: null,
+      jumpRemovalDone: false,
 
       winner: null,
       winningCells: []
@@ -229,6 +234,7 @@
     }
 
     if (message) setStatus(message);
+    else if (state.pendingReplacement) setStatus(`Replace the ${colourTitle(state.pendingReplacement.colour)} piece on an empty square, but not where it was removed.`);
     else if (state.jumpInProgress) setStatus("Jump again with the same piece, or finish your turn.");
     else if (state.choosingColour) setStatus(colourPrompt());
     else setStatus(actionPrompt());
@@ -246,7 +252,7 @@
     }
 
     if (!state.choosingColour && isComputer(state.currentPlayer)) {
-      flowTimer = setTimeout(computerPlayTurn, 450);
+      flowTimer = setTimeout(state.pendingReplacement ? computerReplacePiece : computerPlayTurn, 450);
     }
   }
 
@@ -284,8 +290,24 @@
 
   function finishTurn(movedPieceId, actionWasMove) {
     if (checkAndFinishWin(movedPieceId)) return;
-
     const finishingPlayer = state.currentPlayer;
+
+    if (state.endgameStarted) {
+      state.endgameTurns += 1;
+      if (state.endgameTurns >= 24) {
+        state.winner = "draw";
+        state.winningCells = [];
+        clearSelection();
+        jumpControls.hidden = true;
+        setStatus("Draw — 24 end-game turns completed.");
+        render();
+        return;
+      }
+    } else if (!piecesRemain()) {
+      state.endgameStarted = true;
+      state.endgameTurns = 0;
+    }
+
     state.opponentProtectedPieceId = movedPieceId || null;
     state.currentPlayer = otherPlayer(finishingPlayer);
     state.assignedColour = null;
@@ -294,9 +316,14 @@
     state.jumpPieceIndex = null;
     state.jumpVisited = [];
     state.jumpPreviousIndex = null;
+    state.jumpRemovalDone = false;
     jumpControls.hidden = true;
 
-    if (piecesRemain()) {
+    if (state.pendingReplacement) {
+      state.forcedPlacement = true;
+      state.choosingColour = false;
+      state.colourChooser = null;
+    } else if (piecesRemain()) {
       state.forcedPlacement = !!actionWasMove;
       state.choosingColour = true;
       state.colourChooser = finishingPlayer;
@@ -305,9 +332,19 @@
       state.choosingColour = false;
       state.colourChooser = null;
     }
-
     resetMoveTimer();
     processFlow();
+  }
+
+  function replaceJumpedPiece(index) {
+    if (!state.pendingReplacement || state.board[index] || index === state.replacementForbiddenIndex) return false;
+    state.board[index] = state.pendingReplacement;
+    state.pendingReplacement = null;
+    state.replacementForbiddenIndex = null;
+    state.forcedPlacement = false;
+    clearSelection();
+    finishTurn(null, false);
+    return true;
   }
 
   function placePiece(index) {
@@ -379,6 +416,16 @@
     state.board[from] = null;
     state.selectedPieceIndex = to;
 
+    if (isJump && state.endgameStarted && !state.jumpRemovalDone && !state.pendingReplacement) {
+      const jump = rules.jumpDestinations(state.board.map((p,i)=>i===from?piece:p), from).find(j => j.to === to);
+      if (jump && state.board[jump.over]) {
+        state.pendingReplacement = state.board[jump.over];
+        state.replacementForbiddenIndex = jump.over;
+        state.board[jump.over] = null;
+        state.jumpRemovalDone = true;
+      }
+    }
+
     if (checkAndFinishWin(piece.id)) return;
 
     if (!isJump) {
@@ -416,6 +463,16 @@
     if (computerBusy || isComputer(state.currentPlayer) || state.winner !== null || state.choosingColour) return;
 
     const piece = state.board[index];
+
+    if (!piece && state.selectedPieceIndex === null && state.pendingReplacement) {
+      if (index === state.replacementForbiddenIndex) {
+        setStatus("That piece cannot be replaced on the square it was removed from.");
+        render();
+        return;
+      }
+      replaceJumpedPiece(index);
+      return;
+    }
 
     // With no piece selected, an empty square means "place" during the opening.
     if (!piece && state.selectedPieceIndex === null && piecesRemain() &&
@@ -565,6 +622,22 @@
     }, 250);
   }
 
+  function computerReplacePiece() {
+    if (!state.pendingReplacement || !isComputer(state.currentPlayer)) return;
+    computerBusy = true;
+    setStatus("Computer is replacing the jumped piece…");
+    render();
+    const options = [];
+    for (let i=0;i<16;i+=1) if (!state.board[i] && i !== state.replacementForbiddenIndex) options.push(i);
+    if (!options.length) { computerBusy=false; setStatus("No legal replacement square."); render(); return; }
+    let best = options[0];
+    for (const i of options) {
+      const b=cloneBoard(state.board); b[i]=state.pendingReplacement;
+      if (rules.checkWin(b,{allow2x2:settings.allow2x2,allowCorners:settings.allowCorners})) { best=i; break; }
+    }
+    flowTimer=setTimeout(()=>{computerBusy=false;replaceJumpedPiece(best);},300);
+  }
+
   function computerPlayTurn() {
     if (state.winner !== null || state.choosingColour || !isComputer(state.currentPlayer)) return;
 
@@ -593,8 +666,15 @@
       }
 
       const piece = state.board[action.from];
+      const firstJumpOver = action.type === "jump" ? action.over : null;
       state.board[action.to] = piece;
       state.board[action.from] = null;
+      if (action.type === "jump" && state.endgameStarted && firstJumpOver !== null && state.board[firstJumpOver]) {
+        state.pendingReplacement = state.board[firstJumpOver];
+        state.replacementForbiddenIndex = firstJumpOver;
+        state.board[firstJumpOver] = null;
+        state.jumpRemovalDone = true;
+      }
 
       if (checkAndFinishWin(piece.id)) {
         computerBusy = false;
@@ -665,6 +745,9 @@
       if (state.legalJumps.has(index)) cell.classList.add("board-cell--jump");
 
       if (!computerBusy && !state.choosingColour && !isComputer(state.currentPlayer) &&
+          state.pendingReplacement && !state.board[index] && index !== state.replacementForbiddenIndex) {
+        cell.classList.add("board-cell--place");
+      } else if (!computerBusy && !state.choosingColour && !isComputer(state.currentPlayer) &&
           piecesRemain() && state.assignedColour && !state.board[index] &&
           state.remaining[state.assignedColour] > 0 && state.selectedPieceIndex === null) {
         cell.classList.add("board-cell--place");
@@ -694,14 +777,19 @@
   }
 
   function render() {
-    currentPlayerElement.textContent = state.winner !== null
-      ? `${participantName(state.winner)} wins`
-      : participantName(state.currentPlayer);
+    currentPlayerElement.textContent = state.winner === "draw"
+      ? "Draw"
+      : state.winner !== null ? `${participantName(state.winner)} wins` : participantName(state.currentPlayer);
 
     blackRemainingElement.textContent = `${state.remaining.black} remaining`;
     document.getElementById("colour1-name").textContent = COLOURS[settings.colour1][0];
     whiteRemainingElement.textContent = `${state.remaining.white} remaining`;
     document.getElementById("colour2-name").textContent = COLOURS[settings.colour2][0];
+
+    const phaseHelp=document.getElementById("phase-help");
+    if(phaseHelp) phaseHelp.textContent=state.endgameStarted
+      ? `End game · ${state.endgameTurns} / 24 turns${state.pendingReplacement ? " · jumped piece must be replaced" : ""}`
+      : "While pieces remain, the player who just finished chooses the colour the opponent must use. The highlighted colour is the one to play.";
 
     const humanChooser =
       state.winner === null &&
