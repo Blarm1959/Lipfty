@@ -298,6 +298,7 @@
       state.colourChooser = null;
     }
 
+    resetMoveTimer();
     processFlow();
   }
 
@@ -729,6 +730,7 @@
     checkpoints = [];
     state = freshState();
     applyPieceColours();
+    resetMoveTimer();
 
     if (settings.mode === "computer") {
       let starter = settings.starter;
@@ -768,6 +770,21 @@
     finishTurn(movedPieceId, true);
   });
 
+  // g10 move timer — Quarto-style display. Expiry does not force a move.
+  let moveTimerInterval=null, moveTimerRemaining=30;
+  function timerText(seconds){const m=Math.floor(seconds/60),sec=Math.max(0,seconds%60);return `${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`;}
+  function renderMoveTimer(){
+    const el=document.getElementById("move-timer"); if(!el)return;
+    if(!settings.timer){el.textContent="∞";el.classList.remove("move-timer--expired");return;}
+    el.textContent=timerText(moveTimerRemaining);el.classList.toggle("move-timer--expired",moveTimerRemaining<=0);
+  }
+  function resetMoveTimer(){
+    if(moveTimerInterval)clearInterval(moveTimerInterval);
+    moveTimerRemaining=Number(settings.timer)||0;renderMoveTimer();
+    if(!settings.timer)return;
+    moveTimerInterval=setInterval(()=>{if(moveTimerRemaining>0){moveTimerRemaining-=1;renderMoveTimer();}else clearInterval(moveTimerInterval);},1000);
+  }
+
   // Quarto-style four-page setup wizard
   const settingsDialog=document.getElementById("settings-dialog"),settingsForm=document.getElementById("settings-form");
   const wizardSteps=[...document.querySelectorAll("[data-wizard-step]")],wizardIndicators=[...document.querySelectorAll("[data-step-indicator]")];
@@ -798,7 +815,9 @@
     .then(response => response.ok ? response.json() : null)
     .then(info => {
       if (info && info.version) {
-        document.getElementById("app-version").textContent = `v${info.version}`;
+        document.getElementById("app-version").textContent = `Version ${info.version}`;
+        const ref=info.commit || info.gitCommit || info.git || info.hash || info.commitHash || "";
+        document.getElementById("build-reference").textContent = ref ? ` · ${String(ref).slice(0,7)}` : "";
       }
     })
     .catch(() => {});

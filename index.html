@@ -23,17 +23,20 @@
         <p class="eyebrow">Shared-piece strategy</p>
         <h1>Lipfty</h1>
       </div>
-      <span class="version" id="app-version">v0.1.0</span>
-      <div class="header-actions"><button class="icon-button" id="settings-button" type="button" aria-label="Settings">⚙</button><button class="icon-button" id="help-button" type="button" aria-label="How to play">?</button></div>
+      <div class="header-actions"><button class="icon-button" id="help-button" type="button" aria-label="How to play">?</button><button class="icon-button" id="settings-button" type="button" aria-label="Settings">⚙</button></div>
     </header>
 
     <main class="game-layout">
-      <section class="turn-card" aria-live="polite">
-        <div>
+      <section class="turn-status-row" aria-live="polite">
+        <div class="player-status-card player-status-card--active">
           <span class="turn-label">Current turn</span>
-          <strong id="current-player">Player 1</strong>
+          <strong id="current-player">Player</strong>
         </div>
-        <p id="status">Place a piece, or move any piece already on the board.</p>
+        <div class="move-timer-card">
+          <span class="turn-label">Move timer</span>
+          <strong id="move-timer">00:30</strong>
+        </div>
+        <div class="turn-message-card"><p id="status">Place a piece, or move any piece already on the board.</p></div>
       </section>
 
       <section class="game-stage">
@@ -72,9 +75,9 @@
       </section>
 
       <section class="action-bar">
-        <button class="button button--primary" id="new-game" type="button">New game</button>
-        <button class="button button--secondary" id="undo" type="button">Undo</button>
-        <button class="button button--secondary" id="cancel-action" type="button">Cancel selection</button>
+        <div class="action-bar-left"><button class="button button--primary" id="new-game" type="button">New game</button></div>
+        <div class="action-bar-centre"><button class="button button--secondary" id="undo" type="button">Undo</button><button class="button button--secondary" id="cancel-action" type="button">Cancel selection</button></div>
+        <div class="build-info"><span id="app-version">Version 0.1.0</span><span id="build-reference"></span></div>
       </section>
     </main>
   </div>

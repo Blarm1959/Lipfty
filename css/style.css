@@ -238,3 +238,38 @@ dialog::backdrop{background:rgba(13,28,42,.45)}
   .colour-set-grid{grid-template-columns:1fr}
 }
 
+
+/* g10 — final Quarto placement/alignment pass */
+.app-header{margin-bottom:6px}
+.app-header .eyebrow{display:none}
+.app-header h1{font-size:2.05rem;color:#12365f}
+.header-actions{display:flex;gap:8px;margin-left:auto}
+.icon-button{width:38px;height:38px;border-radius:10px}
+.turn-status-row{display:grid;grid-template-columns:minmax(220px,1fr) 110px minmax(300px,1fr);gap:8px}
+.player-status-card,.move-timer-card,.turn-message-card{min-height:72px;box-sizing:border-box;border:1px solid var(--line);background:#fff;border-radius:12px;padding:11px 13px;box-shadow:0 8px 24px rgba(29,56,84,.06)}
+.player-status-card{display:flex;flex-direction:column;justify-content:center;border-left:4px solid var(--navy-2)}
+.player-status-card strong{font-size:1.05rem}
+.move-timer-card{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.move-timer-card strong{font-size:1.55rem;line-height:1;color:#c72d2d;font-variant-numeric:tabular-nums}
+.move-timer-card strong.move-timer--expired{color:#c72d2d}
+.turn-message-card{display:flex;align-items:center;justify-content:flex-end}
+.turn-message-card p{margin:0;text-align:right;color:#51677e}
+.game-layout{gap:8px}
+.game-stage{gap:12px;align-items:start}
+.board-section{display:flex;flex-direction:column;align-items:center}
+.board-frame{width:min(100%,600px);padding:5px;border:3px solid #111;border-radius:15px;background:#111;box-shadow:0 16px 38px rgba(10,18,25,.22)}
+.board{gap:5px}
+.board-cell{border:1px solid #d7d7d7;border-radius:5px}
+.reserve-panel,.rules-panel{border-radius:14px;padding:14px}
+.action-bar{min-height:52px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:7px 9px;border-radius:12px}
+.action-bar-left{justify-self:start}.action-bar-centre{justify-self:center;display:flex;gap:8px}.build-info{justify-self:end;display:flex;align-items:center;color:var(--muted);font-size:.72rem;white-space:nowrap}
+.action-bar .button{min-height:36px;padding:0 15px;border-radius:8px}
+@media(max-width:900px){
+ .turn-status-row{grid-template-columns:1fr 96px}.turn-message-card{grid-column:1/-1;min-height:48px}.turn-message-card p{text-align:left}
+ .action-bar{grid-template-columns:auto 1fr}.action-bar-centre{justify-self:end}.build-info{grid-column:1/-1;justify-self:end;margin-top:6px}
+}
+@media(max-width:560px){
+ .app-header h1{font-size:1.75rem}.turn-status-row{grid-template-columns:1fr 90px}.player-status-card,.move-timer-card{min-height:62px;padding:8px 10px}
+ .turn-message-card{min-height:42px;padding:8px 10px}.board-frame{padding:4px;border-width:2px;border-radius:12px}.board{gap:4px}
+ .action-bar{grid-template-columns:1fr auto}.action-bar-centre{gap:5px}.action-bar .button{padding:0 10px}.build-info{font-size:.65rem}
+}
