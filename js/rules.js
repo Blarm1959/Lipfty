@@ -13,12 +13,23 @@
   function indexOf(r, c) { return r * SIZE + c; }
   function inBounds(r, c) { return r >= 0 && r < SIZE && c >= 0 && c < SIZE; }
 
-  function checkWin(board) {
+  function checkWin(board, options = {}) {
     for (const line of WINNING_LINES) {
       const pieces = line.map(index => board[index]);
       if (pieces.some(piece => !piece)) continue;
       const colour = pieces[0].colour;
       if (pieces.every(piece => piece.colour === colour)) return { line: [...line], colour };
+    }
+    if (options.allow2x2) {
+      for (let rr = 0; rr < 3; rr += 1) for (let cc = 0; cc < 3; cc += 1) {
+        const a = rr * 4 + cc, line = [a, a + 1, a + 4, a + 5];
+        const pieces = line.map(index => board[index]);
+        if (pieces.every(Boolean) && pieces.every(piece => piece.colour === pieces[0].colour)) return { line, colour: pieces[0].colour, pattern: "2x2" };
+      }
+    }
+    if (options.allowCorners) {
+      const line = [0, 3, 12, 15], pieces = line.map(index => board[index]);
+      if (pieces.every(Boolean) && pieces.every(piece => piece.colour === pieces[0].colour)) return { line, colour: pieces[0].colour, pattern: "corners" };
     }
     return null;
   }

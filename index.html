@@ -79,49 +79,31 @@
     </main>
   </div>
 
-  <dialog id="settings-dialog">
-    <div class="dialog-heading">
-      <div><p class="eyebrow">Game setup</p><h2>Settings</h2></div>
-      <button class="dialog-close" id="close-settings" type="button" aria-label="Close">×</button>
-    </div>
-    <form class="settings-form" id="settings-form" method="dialog">
-      <label>Players
-        <select id="setting-mode">
-          <option value="computer" selected>1 Player — vs Computer</option>
-          <option value="two">2 Players</option>
-        </select>
-      </label>
-      <label>Your name
-        <input id="setting-player1" type="text" maxlength="24" value="Player">
-      </label>
-      <label id="player2-label">Second player name
-        <input id="setting-player2" type="text" maxlength="24" value="Player 2">
-      </label>
-      <label>Computer level
-        <select id="setting-level">
-          <option value="beginner">Beginner</option>
-          <option value="standard" selected>Standard</option>
-          <option value="expert">Expert</option>
-        </select>
-      </label>
-      <label>Who starts
-        <select id="setting-starter">
-          <option value="random" selected>Random</option>
-          <option value="player">Player</option>
-          <option value="computer">Computer</option>
-        </select>
-      </label>
-      <label class="checkbox-row"><input id="setting-undo" type="checkbox" checked> Allow Undo</label>
-      <label>Language
-        <select id="setting-language"><option value="en-GB">English (UK)</option></select>
-      </label>
-      <div class="settings-actions">
-        <button class="button button--secondary" id="cancel-settings" type="button">Cancel</button>
-        <button class="button button--primary" type="submit">Save &amp; New Game</button>
-      </div>
+  <dialog class="setup-wizard-dialog" id="settings-dialog">
+    <form id="settings-form">
+      <div class="dialog-heading setup-wizard-heading"><div><p class="eyebrow">Game setup</p><h2>New game</h2></div><button class="dialog-close" id="close-settings" type="button" aria-label="Close">×</button></div>
+      <div class="wizard-progress"><span class="wizard-progress-step wizard-progress-step--active" data-step-indicator="0">1 <small>Game</small></span><span class="wizard-progress-line"></span><span class="wizard-progress-step" data-step-indicator="1">2 <small>Colours</small></span><span class="wizard-progress-line"></span><span class="wizard-progress-step" data-step-indicator="2">3 <small>Players</small></span><span class="wizard-progress-line"></span><span class="wizard-progress-step" data-step-indicator="3">4 <small>Options</small></span></div>
+      <section class="wizard-step" data-wizard-step="0"><h3>How would you like to play?</h3>
+        <fieldset class="setup-fieldset"><legend>Game mode</legend><div class="mode-choice-grid"><label class="mode-choice"><input checked name="gameMode" type="radio" value="computer"><span><strong>One player</strong><small>Play against the computer</small></span></label><label class="mode-choice"><input name="gameMode" type="radio" value="two"><span><strong>Two players</strong><small>Share this device</small></span></label></div></fieldset>
+        <div class="difficulty-field" id="difficulty-field"><div><strong>Computer difficulty</strong><span id="difficulty-name">2 · Standard</span></div><input id="difficulty-input" max="3" min="1" step="1" type="range" value="2"><div class="difficulty-scale"><span>1 Beginner</span><span>2 Standard</span><span>3 Expert</span></div><p class="setup-help" id="difficulty-description">A reliable tactical player that sees immediate wins and useful moves.</p></div>
+        <fieldset class="setup-fieldset"><legend>Allow last move Undo?</legend><div class="choice-grid"><label><input checked name="allowUndo" type="radio" value="no"><span>No</span></label><label><input name="allowUndo" type="radio" value="yes"><span>Yes</span></label></div></fieldset>
+      </section>
+      <section class="wizard-step" data-wizard-step="1" hidden><h3>Choose colours and rules</h3><p class="setup-help">Choose two different colours for the solid Lipfty pieces.</p>
+        <div class="colour-set-grid"><fieldset class="setup-fieldset"><legend>Colour 1</legend><div class="colour-choice-grid" id="colour1-choices"></div></fieldset><fieldset class="setup-fieldset"><legend>Colour 2</legend><div class="colour-choice-grid" id="colour2-choices"></div></fieldset></div>
+        <fieldset class="setup-fieldset"><legend>Winning patterns</legend><div class="rule-toggle-row"><span><strong>Allow 2×2 square wins?</strong><small>Four matching pieces filling any 2×2 square.</small></span><select id="setting-2x2"><option value="no">No</option><option value="yes">Yes</option></select></div><div class="rule-toggle-row"><span><strong>Allow 4 corner wins?</strong><small>Four matching pieces occupying all four corners.</small></span><select id="setting-corners"><option value="no">No</option><option value="yes">Yes</option></select></div></fieldset>
+      </section>
+      <section class="wizard-step" data-wizard-step="2" hidden><h3>Who is playing?</h3><div class="setup-grid setup-grid--players"><label class="field-label"><span id="player1-label-text">Player name</span><input class="text-input" id="setting-player1" maxlength="24"></label><label class="field-label" id="player2-label"><span>Player 2 name</span><input class="text-input" id="setting-player2" maxlength="24"></label></div>
+        <fieldset class="setup-fieldset"><legend>Who starts?</legend><div class="choice-grid"><label><input checked name="starter" type="radio" value="random"><span>Random</span></label><label><input name="starter" type="radio" value="alternate"><span>Alternate each game</span></label><label><input name="starter" type="radio" value="player"><span id="starter-player-label">Player</span></label><label><input name="starter" type="radio" value="computer"><span id="starter-other-label">Computer</span></label></div></fieldset>
+      </section>
+      <section class="wizard-step" data-wizard-step="3" hidden><h3>Final options</h3>
+        <fieldset class="setup-fieldset"><legend>Move timer</legend><div class="choice-grid"><label><input checked name="timer" type="radio" value="30"><span>30 seconds</span></label><label><input name="timer" type="radio" value="45"><span>45 seconds</span></label><label><input name="timer" type="radio" value="60"><span>60 seconds</span></label><label><input name="timer" type="radio" value="0"><span>Unlimited</span></label></div></fieldset>
+        <fieldset class="setup-fieldset"><legend>Game feel</legend><div class="toggle-list"><label class="toggle-row"><span><strong>Sound effects</strong><small>Subtle sounds for selecting, placing and winning</small></span><input checked id="setting-sound" type="checkbox"></label><label class="toggle-row"><span><strong>Animations</strong><small>Piece movement and winning highlights</small></span><input checked id="setting-animations" type="checkbox"></label></div></fieldset>
+        <fieldset class="setup-fieldset"><legend>Language</legend><select class="text-input" id="setting-language"><option value="en-GB">British English</option></select></fieldset><button class="button button--secondary settings-statistics-button" id="view-statistics-button" type="button">View statistics</button><div class="setup-summary" id="setup-summary"></div>
+      </section>
+      <div class="wizard-actions"><button class="button button--secondary" id="cancel-settings" type="button">Cancel</button><button class="button button--secondary" id="wizard-back" type="button" hidden>Back</button><button class="button button--primary" id="wizard-next" type="button">Next</button><button class="button button--primary" id="wizard-start" type="submit" hidden>Start game</button></div>
     </form>
   </dialog>
-
+  <dialog id="statistics-dialog"><div class="dialog-heading"><div><p class="eyebrow">Lipfty</p><h2>Statistics</h2></div><button class="dialog-close" id="close-statistics" type="button">×</button></div><div class="statistics-summary"><span><strong id="stat-played">0</strong><small>Played</small></span><span><strong id="stat-wins">0</strong><small>Won</small></span><span><strong id="stat-losses">0</strong><small>Lost</small></span><span><strong id="stat-win-rate">0%</strong><small>Win rate</small></span></div></dialog>
   <dialog id="help-dialog">
     <div class="dialog-heading">
       <div><p class="eyebrow">How to play</p><h2>Lipfty</h2></div>
