@@ -38,7 +38,7 @@
 
       <section class="game-stage">
         <aside class="reserve-panel">
-          <h2>Pieces to place</h2>
+          <h2>Choose opponent's colour</h2>
           <div class="reserve-grid">
             <button class="reserve-button" id="place-black" type="button">
               <span class="piece piece--black"></span>
@@ -49,7 +49,7 @@
               <span><strong>White</strong><small id="white-remaining">6 remaining</small></span>
             </button>
           </div>
-          <p class="panel-help">Choose a colour, then choose an empty square. Nobody owns either colour.</p>
+          <p class="panel-help">While pieces remain, the player who just finished chooses the colour the opponent must use. At the start, Player 2 chooses for Player 1.</p>
         </aside>
 
         <section class="board-section">
@@ -64,9 +64,9 @@
 
         <aside class="rules-panel">
           <h2>Turn choices</h2>
-          <p><strong>Place</strong> any remaining black or white piece.</p>
-          <p><strong>Move</strong> any board piece one square in any direction.</p>
-          <p><strong>Jump</strong> over an adjacent piece into the empty square beyond. Continue jumping as often as you want.</p>
+          <p><strong>Before all pieces are down:</strong> use the colour your opponent gives you. Place that colour, or move/jump a board piece of that colour.</p>
+          <p>If you <strong>move or jump</strong>, your opponent must place on their next turn.</p>
+          <p><strong>After all 12 pieces are down:</strong> move or jump either colour freely.</p>
           <p class="panel-help">You cannot move the piece your opponent moved on their previous turn.</p>
         </aside>
       </section>
@@ -85,10 +85,12 @@
     </div>
     <div class="rules-copy">
       <p>Lipfty is played on a 4×4 board with six black and six white pieces. The pieces belong to both players.</p>
-      <p>On your turn, either place one unused piece, move any legal board piece one adjacent square, or jump over an adjacent piece into the empty square immediately beyond it.</p>
+      <p>While pieces remain off the board, your opponent chooses Black or White for your turn. You must use that colour: either place a new piece, move an existing piece one adjacent square, or jump with an existing piece.</p>
+      <p>If you move or jump instead of placing, your opponent must place the colour you give them on their next turn. This prevents the placement part of the game from stalling.</p>
+      <p>Once all 12 pieces are on the board, colour-giving ends. On each turn you may move or jump any piece of either colour.</p>
       <p>Movement and jumping can be horizontal, vertical or diagonal. Jumps do not capture. After a jump you may continue jumping with the same piece, changing direction if you wish.</p>
       <p>You may not move the piece your opponent moved on their immediately preceding turn. A newly placed piece is not protected.</p>
-      <p><strong>Win by being the player who creates four pieces of the same colour in a complete row, column or main diagonal.</strong></p>
+      <p><strong>Win immediately when your action creates four pieces of the same colour in a complete row, column or main diagonal — including during a multi-jump.</strong></p>
     </div>
   </dialog>
 
