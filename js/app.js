@@ -285,8 +285,11 @@
     const colourChoiceEnabled = state.winner === null && state.choosingColour && piecesRemain() && !chooserIsComputer && !computerBusy;
     placeBlackButton.disabled = !colourChoiceEnabled || (state.forcedPlacement && state.remaining.black === 0);
     placeWhiteButton.disabled = !colourChoiceEnabled || (state.forcedPlacement && state.remaining.white === 0);
-    placeBlackButton.classList.toggle("reserve-button--selected", state.assignedColour === "black");
-    placeWhiteButton.classList.toggle("reserve-button--selected", state.assignedColour === "white");
+    const showAssignedColour = state.winner === null && !state.choosingColour && piecesRemain() && !!state.assignedColour;
+    placeBlackButton.classList.toggle("reserve-button--assigned", showAssignedColour && state.assignedColour === "black");
+    placeWhiteButton.classList.toggle("reserve-button--assigned", showAssignedColour && state.assignedColour === "white");
+    placeBlackButton.classList.toggle("reserve-button--not-assigned", showAssignedColour && state.assignedColour !== "black");
+    placeWhiteButton.classList.toggle("reserve-button--not-assigned", showAssignedColour && state.assignedColour !== "white");
 
     const cancel = document.getElementById("cancel-action");
     cancel.disabled = computerBusy || state.jumpInProgress || state.selectedPieceIndex === null;
@@ -440,6 +443,8 @@
     levelSelect.parentElement.hidden = !one;
     starterSelect.parentElement.hidden = !one;
     player2Label.hidden = one;
+    const player1Label = document.getElementById("setting-player1").parentElement;
+    if (player1Label) player1Label.childNodes[0].nodeValue = one ? "Your name\n        " : "Player 1 name\n        ";
   }
   document.getElementById("settings-button").addEventListener("click", () => {
     modeSelect.value=settings.mode;
