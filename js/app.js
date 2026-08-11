@@ -233,6 +233,17 @@
       return;
     }
 
+    // If only one opening colour can still be used, assign it automatically.
+    if (state.choosingColour) {
+      const legalColours = ["black", "white"].filter(canUseColour);
+      if (legalColours.length === 1) {
+        state.assignedColour = legalColours[0];
+        state.choosingColour = false;
+        clearSelection();
+        message = `${colourTitle(legalColours[0])} is the only colour remaining, so it is selected automatically.`;
+      }
+    }
+
     if (message) setStatus(message);
     else if (state.pendingReplacement) setStatus(`Replace the ${colourTitle(state.pendingReplacement.colour)} piece on an empty square, but not where it was removed.`);
     else if (state.jumpInProgress) setStatus("Jump again with the same piece, or finish your turn.");
@@ -340,7 +351,9 @@
 
   function replaceJumpedPiece(index) {
     if (!state.pendingReplacement || state.board[index] || index === state.replacementForbiddenIndex) return false;
-    state.board[index] = state.pendingReplacement;
+    const replacement = state.pendingReplacement;
+    state.board[index] = replacement;
+    state.remaining[replacement.colour] = Math.max(0, state.remaining[replacement.colour] - 1);
     state.pendingReplacement = null;
     state.replacementForbiddenIndex = null;
     state.forcedPlacement = false;
@@ -423,6 +436,7 @@
       if (jump && state.board[jump.over]) {
         state.pendingReplacement = state.board[jump.over];
         state.replacementForbiddenIndex = jump.over;
+        state.remaining[state.pendingReplacement.colour] += 1;
         state.board[jump.over] = null;
         state.jumpRemovalDone = true;
       }
@@ -674,6 +688,7 @@
       if (action.type === "jump" && state.endgameStarted && firstJumpOver !== null && state.board[firstJumpOver]) {
         state.pendingReplacement = state.board[firstJumpOver];
         state.replacementForbiddenIndex = firstJumpOver;
+        state.remaining[state.pendingReplacement.colour] += 1;
         state.board[firstJumpOver] = null;
         state.jumpRemovalDone = true;
       }
