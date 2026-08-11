@@ -298,6 +298,7 @@
     jumpControls.hidden = true;
     setStatus(`${participantName(state.currentPlayer)} wins with four ${colourTitle(win.colour)} pieces!`);
     render();
+    maybeShowUpdateDialog();
     return true;
   }
 
@@ -315,6 +316,7 @@
         jumpControls.hidden = true;
         setStatus("Draw — 24 end-game turns completed.");
         render();
+        maybeShowUpdateDialog();
         return;
       }
     } else if (!piecesRemain()) {
@@ -939,8 +941,68 @@
   document.getElementById("help-button").addEventListener("click", () => helpDialog.showModal());
   document.getElementById("close-help").addEventListener("click", () => helpDialog.close());
 
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => navigator.serviceWorker.register("./service-worker.js"));
+  let pendingUpdateRegistration = null;
+
+  function gameIsInProgress() {
+    if (!state || state.winner !== null) return false;
+    return state.board.some(Boolean) || state.endgameStarted || !!state.pendingReplacement || state.jumpInProgress;
+  }
+
+  function maybeShowUpdateDialog() {
+    const registration = pendingUpdateRegistration;
+    const dialog = document.getElementById("pwa-update-dialog");
+    if (!registration?.waiting || !dialog || dialog.open || gameIsInProgress()) return;
+
+    const laterButton = document.getElementById("pwa-update-later");
+    const updateButton = document.getElementById("pwa-update-button");
+    const closeDialog = () => { if (dialog.open) dialog.close(); };
+
+    laterButton.onclick = closeDialog;
+    updateButton.onclick = () => {
+      updateButton.disabled = true;
+      updateButton.textContent = "Updating…";
+      registration.waiting?.postMessage({ type: "SKIP_WAITING" });
+    };
+    dialog.oncancel = event => {
+      event.preventDefault();
+      closeDialog();
+    };
+    dialog.showModal();
+  }
+
+  function queueUpdate(registration) {
+    if (!registration.waiting) return;
+    pendingUpdateRegistration = registration;
+    maybeShowUpdateDialog();
+  }
+
+  async function registerPwa() {
+    if (!("serviceWorker" in navigator)) return;
+    try {
+      const registration = await navigator.serviceWorker.register("service-worker.js", { scope: "./" });
+
+      // Pick up an update that finished downloading while Lipfty was closed.
+      if (registration.waiting) queueUpdate(registration);
+
+      registration.addEventListener("updatefound", () => {
+        const worker = registration.installing;
+        worker?.addEventListener("statechange", () => {
+          if (worker.state === "installed" && navigator.serviceWorker.controller) {
+            queueUpdate(registration);
+          }
+        });
+      });
+
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (!refreshing) {
+          refreshing = true;
+          location.reload();
+        }
+      });
+    } catch (error) {
+      console.warn("Lipfty service worker registration failed", error);
+    }
   }
 
   fetch("./build-info.json", { cache: "no-store" })
@@ -955,4 +1017,5 @@
     .catch(() => {});
 
   startNewGame();
+  registerPwa();
 })();

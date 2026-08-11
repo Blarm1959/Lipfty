@@ -338,3 +338,49 @@ dialog::backdrop{background:rgba(13,28,42,.45)}
 
   .jump-controls{width:100%;box-sizing:border-box;margin-top:5px;padding:6px 8px}
 }
+
+
+/* g16 — Quarto-style PWA update flow */
+.pwa-update-dialog {
+  width:min(440px,calc(100% - 28px));
+  max-width:440px;
+  overflow:hidden;
+}
+.pwa-update-dialog form {
+  box-sizing:border-box;
+  width:100%;
+  padding:24px;
+}
+.pwa-update-dialog .dialog-heading { margin-bottom:12px; }
+.pwa-update-dialog .dialog-heading h2 { margin:0; }
+.pwa-update-dialog .dialog-note { color:var(--muted); }
+.pwa-update-actions {
+  width:100%;
+  display:flex;
+  justify-content:flex-end;
+  gap:10px;
+  margin-top:18px;
+}
+.pwa-update-actions .button { min-width:110px; }
+
+@media(max-width:740px) {
+  .pwa-update-dialog {
+    width:calc(100% - 20px);
+    max-width:none;
+    margin:auto 10px max(10px,env(safe-area-inset-bottom));
+    border-radius:22px;
+  }
+  .pwa-update-dialog form {
+    padding:20px max(16px,env(safe-area-inset-right))
+      max(18px,env(safe-area-inset-bottom))
+      max(16px,env(safe-area-inset-left));
+  }
+  .pwa-update-actions {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+  }
+  .pwa-update-actions .button {
+    min-width:0;
+    width:100%;
+  }
+}
