@@ -42,14 +42,14 @@
           <div class="reserve-grid">
             <button class="reserve-button" id="place-black" type="button">
               <span class="piece piece--black"></span>
-              <span><strong>Black</strong><small id="black-remaining">6 remaining</small></span>
+              <span><strong id="colour1-name">Red</strong><small id="black-remaining">6 remaining</small></span>
             </button>
             <button class="reserve-button" id="place-white" type="button">
               <span class="piece piece--white"></span>
-              <span><strong>White</strong><small id="white-remaining">6 remaining</small></span>
+              <span><strong id="colour2-name">Blue</strong><small id="white-remaining">6 remaining</small></span>
             </button>
           </div>
-          <p class="panel-help">While pieces remain, the player who just finished chooses the colour the opponent must use. At the start, Player 2 chooses for Player 1.</p>
+          <p class="panel-help">While pieces remain, the player who just finished chooses the colour the opponent must use. The highlighted colour is the one to play.</p>
         </aside>
 
         <section class="board-section">
@@ -81,7 +81,7 @@
 
   <dialog class="setup-wizard-dialog" id="settings-dialog">
     <form id="settings-form">
-      <div class="dialog-heading setup-wizard-heading"><div><p class="eyebrow">Game setup</p><h2>New game</h2></div><button class="dialog-close" id="close-settings" type="button" aria-label="Close">×</button></div>
+      <div class="dialog-heading setup-wizard-heading"><div><p class="dialog-eyebrow">Game setup</p><h2>New game</h2></div><button class="dialog-close" id="close-settings" type="button" aria-label="Close">×</button></div>
       <div class="wizard-progress"><span class="wizard-progress-step wizard-progress-step--active" data-step-indicator="0">1 <small>Game</small></span><span class="wizard-progress-line"></span><span class="wizard-progress-step" data-step-indicator="1">2 <small>Colours</small></span><span class="wizard-progress-line"></span><span class="wizard-progress-step" data-step-indicator="2">3 <small>Players</small></span><span class="wizard-progress-line"></span><span class="wizard-progress-step" data-step-indicator="3">4 <small>Options</small></span></div>
       <section class="wizard-step" data-wizard-step="0"><h3>How would you like to play?</h3>
         <fieldset class="setup-fieldset"><legend>Game mode</legend><div class="mode-choice-grid"><label class="mode-choice"><input checked name="gameMode" type="radio" value="computer"><span><strong>One player</strong><small>Play against the computer</small></span></label><label class="mode-choice"><input name="gameMode" type="radio" value="two"><span><strong>Two players</strong><small>Share this device</small></span></label></div></fieldset>
@@ -103,15 +103,15 @@
       <div class="wizard-actions"><button class="button button--secondary" id="cancel-settings" type="button">Cancel</button><button class="button button--secondary" id="wizard-back" type="button" hidden>Back</button><button class="button button--primary" id="wizard-next" type="button">Next</button><button class="button button--primary" id="wizard-start" type="submit" hidden>Start game</button></div>
     </form>
   </dialog>
-  <dialog id="statistics-dialog"><div class="dialog-heading"><div><p class="eyebrow">Lipfty</p><h2>Statistics</h2></div><button class="dialog-close" id="close-statistics" type="button">×</button></div><div class="statistics-summary"><span><strong id="stat-played">0</strong><small>Played</small></span><span><strong id="stat-wins">0</strong><small>Won</small></span><span><strong id="stat-losses">0</strong><small>Lost</small></span><span><strong id="stat-win-rate">0%</strong><small>Win rate</small></span></div></dialog>
+  <dialog id="statistics-dialog"><div class="dialog-heading"><div><p class="dialog-eyebrow">Lipfty</p><h2>Statistics</h2></div><button class="dialog-close" id="close-statistics" type="button">×</button></div><div class="statistics-summary"><span><strong id="stat-played">0</strong><small>Played</small></span><span><strong id="stat-wins">0</strong><small>Won</small></span><span><strong id="stat-losses">0</strong><small>Lost</small></span><span><strong id="stat-win-rate">0%</strong><small>Win rate</small></span></div></dialog>
   <dialog id="help-dialog">
     <div class="dialog-heading">
-      <div><p class="eyebrow">How to play</p><h2>Lipfty</h2></div>
+      <div><p class="dialog-eyebrow">How to play</p><h2>Lipfty</h2></div>
       <button class="dialog-close" id="close-help" type="button" aria-label="Close">×</button>
     </div>
     <div class="rules-copy">
-      <p>Lipfty is played on a 4×4 board with six black and six white pieces. The pieces belong to both players.</p>
-      <p>While pieces remain off the board, your opponent chooses Black or White for your turn. You must use that colour: either place a new piece, move an existing piece one adjacent square, or jump with an existing piece.</p>
+      <p>Lipfty is played on a 4×4 board with six pieces of each chosen colour. The pieces belong to both players.</p>
+      <p>While pieces remain off the board, your opponent chooses one of the two piece colours for your turn. You must use that colour: either place a new piece, move an existing piece one adjacent square, or jump with an existing piece.</p>
       <p>If you move or jump instead of placing, your opponent must place the colour you give them on their next turn. This prevents the placement part of the game from stalling.</p>
       <p>Once all 12 pieces are on the board, colour-giving ends. On each turn you may move or jump any piece of either colour.</p>
       <p>Movement and jumping can be horizontal, vertical or diagonal. Jumps do not capture. After a jump you may continue jumping with the same piece, changing direction if you wish.</p>

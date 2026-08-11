@@ -204,7 +204,7 @@
   function colourPrompt() {
     const chooser = participantName(state.colourChooser);
     const receiver = participantName(state.currentPlayer);
-    return `${chooser}: choose Black or White for ${receiver}.`;
+    return `${chooser}: choose ${colourTitle("black")} or ${colourTitle("white")} for ${receiver}.`;
   }
 
   function actionPrompt() {
@@ -271,7 +271,7 @@
     state.jumpPieceIndex = null;
     clearSelection();
     jumpControls.hidden = true;
-    setStatus(`${participantName(state.currentPlayer)} wins with four ${win.colour} pieces!`);
+    setStatus(`${participantName(state.currentPlayer)} wins with four ${colourTitle(win.colour)} pieces!`);
     render();
     return true;
   }
@@ -674,7 +674,9 @@
       : participantName(state.currentPlayer);
 
     blackRemainingElement.textContent = `${state.remaining.black} remaining`;
+    document.getElementById("colour1-name").textContent = COLOURS[settings.colour1][0];
     whiteRemainingElement.textContent = `${state.remaining.white} remaining`;
+    document.getElementById("colour2-name").textContent = COLOURS[settings.colour2][0];
 
     const humanChooser =
       state.winner === null &&
