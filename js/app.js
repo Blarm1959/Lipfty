@@ -64,6 +64,12 @@
     return state.remaining.black + state.remaining.white > 0;
   }
 
+  // Once all 12 pieces have first reached the board, the game remains in the
+  // end-game phase even while a jumped piece is temporarily back on a stack.
+  function openingPiecesRemain() {
+    return !state.endgameStarted && piecesRemain();
+  }
+
   function freshState() {
     return {
       board: Array(16).fill(null),
@@ -192,7 +198,7 @@
   function applyPieceColours(){document.documentElement.style.setProperty("--piece-black",COLOURS[settings.colour1][1]);document.documentElement.style.setProperty("--piece-white",COLOURS[settings.colour2][1]);}
 
   function canUseColour(colour) {
-    if (!piecesRemain()) return false;
+    if (!openingPiecesRemain()) return false;
 
     if (state.forcedPlacement) {
       return state.remaining[colour] > 0 && state.board.some(cell => !cell);
@@ -219,7 +225,7 @@
 
   function actionPrompt() {
     const actor = participantName(state.currentPlayer);
-    if (!piecesRemain()) return `${actor}: move or jump any piece.`;
+    if (!openingPiecesRemain()) return `${actor}: move or jump any piece.`;
     if (state.forcedPlacement) {
       return `${actor}: place the ${colourTitle(state.assignedColour)} piece you were given.`;
     }
@@ -237,7 +243,7 @@
     // If pieces remain off the board in only one colour, that colour is automatic.
     // This is especially important for the final opening piece: the other colour
     // must not remain selectable merely because one of its pieces can move/jump.
-    if (state.choosingColour && piecesRemain()) {
+    if (state.choosingColour && openingPiecesRemain()) {
       const stackColours = ["black", "white"].filter(colour => state.remaining[colour] > 0);
       const legalColours = ["black", "white"].filter(canUseColour);
       const automaticColour = stackColours.length === 1 ? stackColours[0] :
@@ -344,7 +350,7 @@
       state.forcedPlacement = true;
       state.choosingColour = false;
       state.colourChooser = null;
-    } else if (piecesRemain()) {
+    } else if (openingPiecesRemain()) {
       state.forcedPlacement = !!actionWasMove;
       state.choosingColour = true;
       state.colourChooser = finishingPlayer;
@@ -371,7 +377,7 @@
   }
 
   function placePiece(index) {
-    if (computerBusy || state.choosingColour || !piecesRemain()) return;
+    if (computerBusy || state.choosingColour || !openingPiecesRemain()) return;
     const colour = state.assignedColour;
     if (!colour || state.remaining[colour] <= 0 || state.board[index]) return;
 
@@ -395,7 +401,7 @@
       return;
     }
 
-    if (piecesRemain() && state.assignedColour && piece.colour !== state.assignedColour) {
+    if (openingPiecesRemain() && state.assignedColour && piece.colour !== state.assignedColour) {
       setStatus(`You must use ${colourTitle(state.assignedColour)} this turn.`);
       render();
       return;
@@ -431,24 +437,15 @@
     });
   }
 
-  function humanMovePiece(from, to, isJump) {
+  function humanMovePiece(from, to, jump = null) {
     const piece = state.board[from];
     if (!piece || state.board[to]) return;
-
-    // Resolve the jump against the board BEFORE moving the piece. Once the
-    // destination is occupied, jumpDestinations() quite correctly no longer
-    // reports that jump, which previously meant the first jumped piece was not
-    // removed in the end game.
-    const completedJump = isJump
-      ? rules.jumpDestinations(state.board, from).find(jump => jump.to === to)
-      : null;
 
     state.board[to] = piece;
     state.board[from] = null;
     state.selectedPieceIndex = to;
 
-    if (completedJump && state.endgameStarted && !state.jumpRemovalDone && !state.pendingReplacement) {
-      const jump = completedJump;
+    if (jump && state.endgameStarted && !state.jumpRemovalDone && !state.pendingReplacement) {
       if (state.board[jump.over]) {
         state.pendingReplacement = state.board[jump.over];
         state.replacementForbiddenIndex = jump.over;
@@ -460,7 +457,7 @@
 
     if (checkAndFinishWin(piece.id)) return;
 
-    if (!isJump) {
+    if (!jump) {
       clearSelection();
       finishTurn(piece.id, true);
       return;
@@ -507,7 +504,7 @@
     }
 
     // With no piece selected, an empty square means "place" during the opening.
-    if (!piece && state.selectedPieceIndex === null && piecesRemain() &&
+    if (!piece && state.selectedPieceIndex === null && openingPiecesRemain() &&
         state.assignedColour && state.remaining[state.assignedColour] > 0) {
       placePiece(index);
       return;
@@ -517,9 +514,9 @@
     if (!piece && state.selectedPieceIndex !== null) {
       const from = state.selectedPieceIndex;
       if (state.legalJumps.has(index)) {
-        humanMovePiece(from, index, true);
+        humanMovePiece(from, index, state.legalJumps.get(index));
       } else if (state.legalMoves.has(index)) {
-        humanMovePiece(from, index, false);
+        humanMovePiece(from, index, null);
       }
       return;
     }
@@ -534,7 +531,7 @@
   function enumerateActions(colour, mustPlace) {
     const actions = [];
 
-    if (piecesRemain() && colour && state.remaining[colour] > 0) {
+    if (openingPiecesRemain() && colour && state.remaining[colour] > 0) {
       for (let to = 0; to < 16; to += 1) {
         if (!state.board[to]) actions.push({ type: "place", to, colour });
       }
@@ -552,7 +549,7 @@
         actions.push({ type: "move", from, to });
       }
       for (const jump of rules.jumpDestinations(state.board, from)) {
-        actions.push({ type: "jump", from, to: jump.to });
+        actions.push({ type: "jump", from, to: jump.to, over: jump.over });
       }
     }
 
@@ -566,6 +563,9 @@
     } else {
       board[action.to] = board[action.from];
       board[action.from] = null;
+      if (action.type === "jump" && state.endgameStarted && action.over !== undefined) {
+        board[action.over] = null;
+      }
     }
     return board;
   }
@@ -677,7 +677,7 @@
     setStatus("Computer is thinking…");
     render();
 
-    const colour = piecesRemain() ? state.assignedColour : null;
+    const colour = openingPiecesRemain() ? state.assignedColour : null;
     const actions = enumerateActions(colour, state.forcedPlacement);
     const action = pickComputerAction(actions);
 
@@ -781,7 +781,7 @@
           state.pendingReplacement && !state.board[index] && index !== state.replacementForbiddenIndex) {
         cell.classList.add("board-cell--place");
       } else if (!computerBusy && !state.choosingColour && !isComputer(state.currentPlayer) &&
-          piecesRemain() && state.assignedColour && !state.board[index] &&
+          openingPiecesRemain() && state.assignedColour && !state.board[index] &&
           state.remaining[state.assignedColour] > 0 && state.selectedPieceIndex === null) {
         cell.classList.add("board-cell--place");
       }
@@ -827,8 +827,8 @@
     const reservePanel = document.querySelector(".reserve-panel");
     if (reservePanel) {
       reservePanel.classList.toggle("reserve-panel--choosing", state.winner === null && state.choosingColour);
-      reservePanel.classList.toggle("reserve-panel--assigned", state.winner === null && !state.choosingColour && piecesRemain() && !!state.assignedColour);
-      reservePanel.classList.toggle("reserve-panel--finished", state.winner !== null || !piecesRemain());
+      reservePanel.classList.toggle("reserve-panel--assigned", state.winner === null && !state.choosingColour && openingPiecesRemain() && !!state.assignedColour);
+      reservePanel.classList.toggle("reserve-panel--finished", state.winner !== null || !openingPiecesRemain());
     }
 
     const humanChooser =
@@ -843,7 +843,7 @@
     const showAssigned =
       state.winner === null &&
       !state.choosingColour &&
-      piecesRemain() &&
+      openingPiecesRemain() &&
       !!state.assignedColour;
 
     blackButton.classList.toggle(
