@@ -234,14 +234,19 @@
       return;
     }
 
-    // If only one opening colour can still be used, assign it automatically.
-    if (state.choosingColour) {
+    // If pieces remain off the board in only one colour, that colour is automatic.
+    // This is especially important for the final opening piece: the other colour
+    // must not remain selectable merely because one of its pieces can move/jump.
+    if (state.choosingColour && piecesRemain()) {
+      const stackColours = ["black", "white"].filter(colour => state.remaining[colour] > 0);
       const legalColours = ["black", "white"].filter(canUseColour);
-      if (legalColours.length === 1) {
-        state.assignedColour = legalColours[0];
+      const automaticColour = stackColours.length === 1 ? stackColours[0] :
+        (legalColours.length === 1 ? legalColours[0] : null);
+      if (automaticColour) {
+        state.assignedColour = automaticColour;
         state.choosingColour = false;
         clearSelection();
-        message = `${colourTitle(legalColours[0])} is the only colour remaining, so it is selected automatically.`;
+        message = `${colourTitle(automaticColour)} is the only colour remaining, so it is selected automatically.`;
       }
     }
 
@@ -430,13 +435,21 @@
     const piece = state.board[from];
     if (!piece || state.board[to]) return;
 
+    // Resolve the jump against the board BEFORE moving the piece. Once the
+    // destination is occupied, jumpDestinations() quite correctly no longer
+    // reports that jump, which previously meant the first jumped piece was not
+    // removed in the end game.
+    const completedJump = isJump
+      ? rules.jumpDestinations(state.board, from).find(jump => jump.to === to)
+      : null;
+
     state.board[to] = piece;
     state.board[from] = null;
     state.selectedPieceIndex = to;
 
-    if (isJump && state.endgameStarted && !state.jumpRemovalDone && !state.pendingReplacement) {
-      const jump = rules.jumpDestinations(state.board.map((p,i)=>i===from?piece:p), from).find(j => j.to === to);
-      if (jump && state.board[jump.over]) {
+    if (completedJump && state.endgameStarted && !state.jumpRemovalDone && !state.pendingReplacement) {
+      const jump = completedJump;
+      if (state.board[jump.over]) {
         state.pendingReplacement = state.board[jump.over];
         state.replacementForbiddenIndex = jump.over;
         state.remaining[state.pendingReplacement.colour] += 1;
