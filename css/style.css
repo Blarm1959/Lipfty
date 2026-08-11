@@ -468,3 +468,180 @@ dialog::backdrop{background:rgba(13,28,42,.45)}
     font-size:.8rem;
   }
 }
+
+
+/* g18 — compact S23 game-setup pages without changing desktop layout */
+@media(max-width:560px){
+  /* Keep the setup chrome compact and maximise the usable page area. */
+  .settings-dialog,
+  .new-game-dialog{
+    width:calc(100% - 8px);
+    max-height:calc(100dvh - 12px);
+    border-radius:18px;
+  }
+
+  .setup-dialog-header{
+    padding:12px 14px 7px;
+  }
+  .setup-dialog-header .dialog-eyebrow{
+    margin-bottom:1px;
+    font-size:.68rem;
+  }
+  .setup-dialog-header h2{
+    font-size:1.42rem;
+    line-height:1.05;
+  }
+
+  .setup-progress{
+    padding:5px 14px 4px;
+  }
+  .setup-progress-step{
+    width:34px;
+    height:34px;
+    font-size:.9rem;
+  }
+
+  .setup-page{
+    padding:7px 14px 72px;
+  }
+  .setup-page h3{
+    margin:2px 0 8px;
+    font-size:1.08rem;
+  }
+  .setup-page > p{
+    margin:0 0 8px;
+    font-size:.82rem;
+    line-height:1.25;
+  }
+
+  .setup-page fieldset{
+    margin:0 0 8px;
+    padding:9px 10px 10px;
+    border-radius:14px;
+  }
+  .setup-page legend{
+    padding:0 5px;
+    font-size:.86rem;
+  }
+
+  /* Page 1 — mode, difficulty and Undo options. */
+  .game-mode-options{
+    gap:6px;
+  }
+  .game-mode-option{
+    min-height:58px;
+    padding:8px 10px;
+  }
+  .game-mode-option strong{
+    font-size:.92rem;
+  }
+  .game-mode-option small{
+    margin-top:1px;
+    font-size:.72rem;
+  }
+
+  .difficulty-panel{
+    margin:0 0 8px;
+    padding:9px 10px;
+  }
+  .difficulty-heading{
+    margin-bottom:4px;
+  }
+  .difficulty-help{
+    margin-top:4px;
+    font-size:.69rem;
+    line-height:1.2;
+  }
+  .difficulty-labels{
+    margin-top:2px;
+    font-size:.65rem;
+  }
+
+  .radio-row{
+    min-height:28px;
+    gap:8px;
+  }
+  .radio-row label{
+    font-size:.82rem;
+  }
+
+  /* Page 2 — colour choices are intentionally much shallower on a phone. */
+  .colour-options{
+    gap:5px 7px;
+  }
+  .colour-option{
+    min-height:42px;
+    padding:5px 8px;
+    border-width:2px;
+    border-radius:10px;
+  }
+  .colour-option .colour-swatch{
+    width:28px;
+    height:28px;
+    min-width:28px;
+  }
+  .colour-option strong{
+    font-size:.8rem;
+  }
+  .colour-fieldset{
+    margin-bottom:7px !important;
+    padding:8px 9px 9px !important;
+  }
+
+  /* Page 4 — compress timer, feel, language, statistics and summary. */
+  .timer-options{
+    row-gap:4px;
+  }
+  .timer-options label{
+    min-height:27px;
+    font-size:.82rem;
+  }
+
+  .game-feel-options{
+    gap:5px;
+  }
+  .game-feel-option{
+    min-height:43px;
+    padding:6px 9px;
+  }
+  .game-feel-option strong{
+    font-size:.82rem;
+  }
+  .game-feel-option small{
+    margin-top:0;
+    font-size:.67rem;
+    line-height:1.15;
+  }
+
+  .language-select{
+    min-height:40px;
+    padding:6px 10px;
+    font-size:.84rem;
+  }
+
+  .statistics-button{
+    min-height:36px;
+    padding:5px 10px;
+    font-size:.8rem;
+  }
+
+  .setup-summary{
+    min-height:38px;
+    margin-top:6px;
+    padding:6px 9px;
+    font-size:.72rem;
+    line-height:1.2;
+  }
+
+  /* Footer remains fixed, but consumes less of the S23 viewport. */
+  .setup-dialog-footer{
+    min-height:58px;
+    padding:7px 14px max(7px,env(safe-area-inset-bottom));
+    gap:7px;
+  }
+  .setup-dialog-footer .button{
+    min-height:40px;
+    padding:6px 10px;
+    font-size:.84rem;
+  }
+}
