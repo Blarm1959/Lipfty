@@ -113,13 +113,17 @@
       <button class="dialog-close" id="close-help" type="button" aria-label="Close">×</button>
     </div>
     <div class="rules-copy">
-      <p>Lipfty is played on a 4×4 board with six pieces of each chosen colour. The pieces belong to both players.</p>
-      <p>While pieces remain off the board, your opponent chooses one of the two piece colours for your turn. You must use that colour: either place a new piece, move an existing piece one adjacent square, or jump with an existing piece.</p>
-      <p>If you move or jump instead of placing, your opponent must place the colour you give them on their next turn. This prevents the placement part of the game from stalling.</p>
-      <p>Once all 12 pieces are on the board, colour-giving ends. On each turn you may move or jump any piece of either colour.</p>
-      <p>Movement and jumping can be horizontal, vertical or diagonal. Jumps do not capture. After a jump you may continue jumping with the same piece, changing direction if you wish.</p>
+      <p><strong>Objective.</strong> Lipfty is played on a 4×4 board with six pieces of each chosen colour. The pieces belong to both players. Win by creating four pieces of the same colour in a complete row, column or main diagonal.</p>
+      <p><strong>Opening play.</strong> While pieces remain off the board, the player who has just completed a turn chooses which colour the opponent must use. The opponent may place a new piece of that colour, move an existing piece of that colour one adjacent square, or jump with an existing piece of that colour.</p>
+      <p>If you move or jump instead of placing during the opening, your opponent must place the colour you give them on their next turn. This ensures that all 12 pieces eventually reach the board.</p>
+      <p><strong>Moving and jumping.</strong> Moves and jumps may be horizontal, vertical or diagonal. A jump goes over an adjacent piece into the empty square immediately beyond it. After jumping, you may continue jumping with the same piece and may change direction.</p>
+      <p>During one multi-jump you may not loop back onto a square already visited. If <strong>Undo Previous Jump</strong> is enabled in Settings, an immediate jump back to the square just left is allowed, but longer loops are still not allowed. If no legal further jump is available, the turn ends automatically.</p>
       <p>You may not move the piece your opponent moved on their immediately preceding turn. A newly placed piece is not protected.</p>
-      <p><strong>Win immediately when your action creates four pieces of the same colour in a complete row, column or main diagonal — including during a multi-jump.</strong></p>
+      <p><strong>End game.</strong> Once all 12 pieces are on the board, colour-giving ends and either colour may be moved. The first jump in a turn now removes the piece that was jumped over. Any further jumps in the same turn do not remove another piece.</p>
+      <p>The opponent must use their next turn to put the removed piece back on any empty square except the square from which it was removed. Replacing the piece uses the whole turn and may itself create a winning position.</p>
+      <p><strong>End-game limit.</strong> After all 12 pieces are down, each player has 12 turns — 24 end-game turns in total. If nobody has won when the 24th turn is completed, the game is a draw. A win created on that final turn takes precedence over the draw.</p>
+      <p><strong>Winning options.</strong> The standard win is four matching-colour pieces in a complete row, column or main diagonal. Settings can additionally allow a matching 2×2 square and/or matching pieces in all four corners as wins. A win takes effect immediately, including during a multi-jump or forced replacement.</p>
+      <p><strong>Undo and timer.</strong> If last-move Undo is enabled, the previous move can be undone. The move timer may be set to 30, 45 or 60 seconds, or Unlimited. Reaching zero does not force the turn to end; the timer stops when the game is won or drawn.</p>
     </div>
   </dialog>
 

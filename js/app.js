@@ -275,6 +275,7 @@
     if (!win) return false;
 
     state.winner = state.currentPlayer;
+    if (moveTimerInterval) { clearInterval(moveTimerInterval); moveTimerInterval = null; }
     state.winningCells = win.line;
     state.opponentProtectedPieceId = movedPieceId;
     state.jumpInProgress = false;
@@ -296,6 +297,7 @@
       state.endgameTurns += 1;
       if (state.endgameTurns >= 24) {
         state.winner = "draw";
+        if (moveTimerInterval) { clearInterval(moveTimerInterval); moveTimerInterval = null; }
         state.winningCells = [];
         clearSelection();
         jumpControls.hidden = true;
