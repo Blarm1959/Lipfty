@@ -100,6 +100,8 @@
       pendingReplacement: null,
       replacementForbiddenIndex: null,
       jumpRemovalDone: false,
+      jumpFlashIndex: null,
+      returnedPieceColour: null,
 
       winner: null,
       winningCells: []
@@ -370,6 +372,7 @@
     state.remaining[replacement.colour] = Math.max(0, state.remaining[replacement.colour] - 1);
     state.pendingReplacement = null;
     state.replacementForbiddenIndex = null;
+    state.returnedPieceColour = null;
     state.forcedPlacement = false;
     clearSelection();
     finishTurn(null, false);
@@ -437,9 +440,20 @@
     });
   }
 
-  function humanMovePiece(from, to, jump = null) {
+  function humanMovePiece(from, to, jump = null, afterFlash = false) {
     const piece = state.board[from];
     if (!piece || state.board[to]) return;
+
+    if (jump && state.endgameStarted && !state.jumpRemovalDone && !state.pendingReplacement &&
+        state.board[jump.over] && !afterFlash) {
+      state.jumpFlashIndex = jump.over;
+      render();
+      flowTimer = setTimeout(() => {
+        state.jumpFlashIndex = null;
+        humanMovePiece(from, to, jump, true);
+      }, 500);
+      return;
+    }
 
     state.board[to] = piece;
     state.board[from] = null;
@@ -449,6 +463,7 @@
       if (state.board[jump.over]) {
         state.pendingReplacement = state.board[jump.over];
         state.replacementForbiddenIndex = jump.over;
+        state.returnedPieceColour = state.pendingReplacement.colour;
         state.remaining[state.pendingReplacement.colour] += 1;
         state.board[jump.over] = null;
         state.jumpRemovalDone = true;
@@ -489,7 +504,7 @@
   }
 
   function handleCell(index) {
-    if (computerBusy || isComputer(state.currentPlayer) || state.winner !== null || state.choosingColour) return;
+    if (computerBusy || state.jumpFlashIndex !== null || isComputer(state.currentPlayer) || state.winner !== null || state.choosingColour) return;
 
     const piece = state.board[index];
 
@@ -699,11 +714,27 @@
 
       const piece = state.board[action.from];
       const firstJumpOver = action.type === "jump" ? action.over : null;
+      if (action.type === "jump" && state.endgameStarted && firstJumpOver !== null &&
+          state.board[firstJumpOver] && state.jumpFlashIndex === null) {
+        state.jumpFlashIndex = firstJumpOver;
+        render();
+        flowTimer = setTimeout(() => {
+          state.jumpFlashIndex = null;
+          computerPlayResolvedAction(action, piece, firstJumpOver);
+        }, 500);
+        return;
+      }
+      computerPlayResolvedAction(action, piece, firstJumpOver);
+    }, 350);
+  }
+
+  function computerPlayResolvedAction(action, piece, firstJumpOver) {
       state.board[action.to] = piece;
       state.board[action.from] = null;
       if (action.type === "jump" && state.endgameStarted && firstJumpOver !== null && state.board[firstJumpOver]) {
         state.pendingReplacement = state.board[firstJumpOver];
         state.replacementForbiddenIndex = firstJumpOver;
+        state.returnedPieceColour = state.pendingReplacement.colour;
         state.remaining[state.pendingReplacement.colour] += 1;
         state.board[firstJumpOver] = null;
         state.jumpRemovalDone = true;
@@ -757,7 +788,6 @@
 
       computerBusy = false;
       finishTurn(piece.id, true);
-    }, 350);
   }
 
   function renderBoard() {
@@ -776,6 +806,10 @@
       if (state.selectedPieceIndex === index) cell.classList.add("board-cell--selected");
       if (state.legalMoves.has(index)) cell.classList.add("board-cell--move");
       if (state.legalJumps.has(index)) cell.classList.add("board-cell--jump");
+      if (state.jumpFlashIndex === index) cell.classList.add("board-cell--jumped-flash");
+      if (state.pendingReplacement && index === state.replacementForbiddenIndex && !state.board[index]) {
+        cell.classList.add("board-cell--replacement-forbidden");
+      }
 
       if (!computerBusy && !state.choosingColour && !isComputer(state.currentPlayer) &&
           state.pendingReplacement && !state.board[index] && index !== state.replacementForbiddenIndex) {
@@ -828,7 +862,8 @@
     if (reservePanel) {
       reservePanel.classList.toggle("reserve-panel--choosing", state.winner === null && state.choosingColour);
       reservePanel.classList.toggle("reserve-panel--assigned", state.winner === null && !state.choosingColour && openingPiecesRemain() && !!state.assignedColour);
-      reservePanel.classList.toggle("reserve-panel--finished", state.winner !== null || !openingPiecesRemain());
+      reservePanel.classList.toggle("reserve-panel--replacement", state.winner === null && !!state.pendingReplacement);
+      reservePanel.classList.toggle("reserve-panel--finished", state.winner !== null || (!openingPiecesRemain() && !state.pendingReplacement));
     }
 
     const humanChooser =
@@ -861,6 +896,15 @@
     whiteButton.classList.toggle(
       "reserve-button--not-assigned",
       showAssigned && state.assignedColour !== "white"
+    );
+
+    blackButton.classList.toggle(
+      "reserve-button--returned",
+      !!state.pendingReplacement && state.returnedPieceColour === "black"
+    );
+    whiteButton.classList.toggle(
+      "reserve-button--returned",
+      !!state.pendingReplacement && state.returnedPieceColour === "white"
     );
 
     cancelButton.disabled =
