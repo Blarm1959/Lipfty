@@ -107,3 +107,5 @@ dialog::backdrop { background: rgba(13,24,20,.62); }
 .reserve-button--not-assigned {
   opacity: .48;
 }
+
+.settings-form [hidden] { display: none !important; }

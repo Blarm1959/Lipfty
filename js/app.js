@@ -31,43 +31,41 @@
   }
   function snapshot() {
     return {
-      state: JSON.parse(JSON.stringify({
-        ...state,
-        legalMoves: [...state.legalMoves],
-        legalJumps: [...state.legalJumps.entries()]
-      })),
+      state: {
+        ...JSON.parse(JSON.stringify({
+          ...state,
+          legalMoves: [],
+          legalJumps: []
+        })),
+        legalMoves: [],
+        legalJumps: []
+      },
       nextPieceId
     };
   }
+
   function restore(snap) {
     const x = snap.state;
-    state = { ...x, legalMoves: new Set(x.legalMoves), legalJumps: new Map(x.legalJumps) };
-    nextPieceId = snap.nextPieceId;
-    computerBusy = false;
-    jumpControls.hidden = !state.jumpInProgress;
-    render();
-    setStatus("Move undone.");
-  }
-  function pushHistory() { if (settings.undo && !computerBusy) history.push(snapshot()); }
-
-  function freshState() {
-    return {
-      board: Array(16).fill(null),
-      remaining: { black: 6, white: 6 },
-      currentPlayer: 0,
-      assignedColour: null,
-      choosingColour: true,
-      colourChooser: 1,
-      forcedPlacement: false,
+    state = {
+      ...x,
       selectedPieceIndex: null,
       legalMoves: new Set(),
       legalJumps: new Map(),
       jumpInProgress: false,
-      jumpPieceIndex: null,
-      opponentProtectedPieceId: null,
-      winner: null,
-      winningCells: []
+      jumpPieceIndex: null
     };
+    nextPieceId = snap.nextPieceId;
+    computerBusy = false;
+    jumpControls.hidden = true;
+    beginTurn();
+  }
+
+  function recordTurnStart() {
+    if (!settings.undo || computerBusy || isComputer(state.currentPlayer)) return;
+    const snap = snapshot();
+    const last = history[history.length - 1];
+    const key = JSON.stringify(snap);
+    if (!last || last.key !== key) history.push({ key, snap });
   }
 
   function otherPlayer() { return state.currentPlayer === 0 ? 1 : 0; }
@@ -101,12 +99,12 @@
       setStatus(`${playerName(state.currentPlayer)}: use ${state.assignedColour} — place, move or jump.`);
     }
     render();
+    if (state.winner === null && !state.choosingColour && !isComputer(state.currentPlayer)) recordTurnStart();
     if (state.winner === null) setTimeout(maybeComputerTurn, 280);
   }
 
   function chooseColour(colour) {
     if (state.winner !== null || !state.choosingColour || !piecesRemain()) return;
-    if (!computerBusy) pushHistory();
     if (state.forcedPlacement && state.remaining[colour] <= 0) {
       setStatus(`${colour} has no pieces left to place. Choose the other colour.`);
       return;
@@ -169,7 +167,6 @@
   }
 
   function placePiece(index) {
-    if (!computerBusy) pushHistory();
     const colour = state.assignedColour;
     if (state.choosingColour || !colour || state.board[index] || state.remaining[colour] <= 0) return;
     state.board[index] = { id: nextPieceId++, colour };
@@ -179,7 +176,6 @@
   }
 
   function movePiece(from, to, isJump) {
-    if (!computerBusy && !state.jumpInProgress) pushHistory();
     const piece = state.board[from];
     if (!piece || state.board[to]) return;
     state.board[to] = piece;
@@ -430,7 +426,9 @@
 
   document.getElementById("undo").addEventListener("click", () => {
     if (!settings.undo || !history.length || computerBusy) return;
-    restore(history.pop());
+    const entry = history.pop();
+    restore(entry.snap);
+    setStatus("Previous turn restored.");
   });
 
   const settingsDialog = document.getElementById("settings-dialog");
