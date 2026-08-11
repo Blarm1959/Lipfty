@@ -84,3 +84,16 @@ dialog::backdrop { background: rgba(13,24,20,.62); }
   .board-cell { border-radius: 8px; }
   .jump-controls { align-items: flex-start; }
 }
+
+.header-actions { display:flex; gap:8px; align-items:center; }
+.settings-form { padding:18px; display:grid; gap:14px; }
+.settings-form label { display:grid; gap:6px; font-weight:800; }
+.settings-form select, .settings-form input[type="text"] { width:100%; box-sizing:border-box; padding:10px 12px; border:1px solid var(--line); border-radius:10px; font:inherit; background:white; }
+.checkbox-row { grid-template-columns:auto 1fr !important; align-items:center; justify-content:start; }
+.settings-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:4px; }
+.board-cell--legal { box-shadow: inset 0 0 0 4px #3a7c65; }
+@media (max-width:520px) {
+  .settings-form { padding:14px; gap:11px; }
+  .settings-actions { justify-content:stretch; }
+  .settings-actions .button { flex:1; }
+}

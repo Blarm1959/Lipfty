@@ -14,6 +14,41 @@
 
   let nextPieceId = 1;
   let state;
+  let history = [];
+  let computerBusy = false;
+  let settings = loadSettings();
+
+  function loadSettings() {
+    const defaults = { mode: "computer", player1: "Player", player2: "Player 2", level: "standard", starter: "random", undo: true, language: "en-GB" };
+    try { return { ...defaults, ...JSON.parse(localStorage.getItem("lipfty-settings") || "{}") }; }
+    catch (_) { return defaults; }
+  }
+  function saveSettings() { localStorage.setItem("lipfty-settings", JSON.stringify(settings)); }
+  function isComputer(index) { return settings.mode === "computer" && index === 1; }
+  function playerName(index) {
+    if (isComputer(index)) return "Computer";
+    return index === 0 ? (settings.player1 || "Player") : (settings.player2 || "Player 2");
+  }
+  function snapshot() {
+    return {
+      state: JSON.parse(JSON.stringify({
+        ...state,
+        legalMoves: [...state.legalMoves],
+        legalJumps: [...state.legalJumps.entries()]
+      })),
+      nextPieceId
+    };
+  }
+  function restore(snap) {
+    const x = snap.state;
+    state = { ...x, legalMoves: new Set(x.legalMoves), legalJumps: new Map(x.legalJumps) };
+    nextPieceId = snap.nextPieceId;
+    computerBusy = false;
+    jumpControls.hidden = !state.jumpInProgress;
+    render();
+    setStatus("Move undone.");
+  }
+  function pushHistory() { if (settings.undo && !computerBusy) history.push(snapshot()); }
 
   function freshState() {
     return {
@@ -35,7 +70,6 @@
     };
   }
 
-  function playerName(index) { return `Player ${index + 1}`; }
   function otherPlayer() { return state.currentPlayer === 0 ? 1 : 0; }
   function piecesRemain() { return state.remaining.black + state.remaining.white > 0; }
   function setStatus(text) { statusElement.textContent = text; }
@@ -67,10 +101,12 @@
       setStatus(`${playerName(state.currentPlayer)}: use ${state.assignedColour} — place, move or jump.`);
     }
     render();
+    if (state.winner === null) setTimeout(maybeComputerTurn, 280);
   }
 
   function chooseColour(colour) {
     if (state.winner !== null || !state.choosingColour || !piecesRemain()) return;
+    if (!computerBusy) pushHistory();
     if (state.forcedPlacement && state.remaining[colour] <= 0) {
       setStatus(`${colour} has no pieces left to place. Choose the other colour.`);
       return;
@@ -133,6 +169,7 @@
   }
 
   function placePiece(index) {
+    if (!computerBusy) pushHistory();
     const colour = state.assignedColour;
     if (state.choosingColour || !colour || state.board[index] || state.remaining[colour] <= 0) return;
     state.board[index] = { id: nextPieceId++, colour };
@@ -142,6 +179,7 @@
   }
 
   function movePiece(from, to, isJump) {
+    if (!computerBusy && !state.jumpInProgress) pushHistory();
     const piece = state.board[from];
     if (!piece || state.board[to]) return;
     state.board[to] = piece;
@@ -186,7 +224,7 @@
   }
 
   function handleCell(index) {
-    if (state.winner !== null || state.choosingColour) return;
+    if (computerBusy || isComputer(state.currentPlayer) || state.winner !== null || state.choosingColour) return;
     const piece = state.board[index];
 
     if (!piece && state.assignedColour && state.remaining[state.assignedColour] > 0 &&
@@ -243,20 +281,126 @@
     blackRemainingElement.textContent = `${state.remaining.black} remaining`;
     whiteRemainingElement.textContent = `${state.remaining.white} remaining`;
 
-    const colourChoiceEnabled = state.winner === null && state.choosingColour && piecesRemain();
+    const chooserIsComputer = isComputer(state.colourChooser);
+    const colourChoiceEnabled = state.winner === null && state.choosingColour && piecesRemain() && !chooserIsComputer && !computerBusy;
     placeBlackButton.disabled = !colourChoiceEnabled || (state.forcedPlacement && state.remaining.black === 0);
     placeWhiteButton.disabled = !colourChoiceEnabled || (state.forcedPlacement && state.remaining.white === 0);
     placeBlackButton.classList.toggle("reserve-button--selected", state.assignedColour === "black");
     placeWhiteButton.classList.toggle("reserve-button--selected", state.assignedColour === "white");
 
     const cancel = document.getElementById("cancel-action");
-    cancel.disabled = state.jumpInProgress || state.selectedPieceIndex === null;
+    cancel.disabled = computerBusy || state.jumpInProgress || state.selectedPieceIndex === null;
+    const undo = document.getElementById("undo");
+    undo.hidden = !settings.undo;
+    undo.disabled = computerBusy || history.length === 0;
     renderBoard();
+  }
+
+
+  function cloneBoard(board) { return board.map(p => p ? { ...p } : null); }
+
+  function availableActions(colour, mustPlace) {
+    const actions = [];
+    if (colour && state.remaining[colour] > 0) {
+      for (let i = 0; i < 16; i += 1) if (!state.board[i]) actions.push({ type: "place", to: i, colour });
+    }
+    if (mustPlace) return actions;
+    for (let from = 0; from < 16; from += 1) {
+      const p = state.board[from];
+      if (!p || (colour && p.colour !== colour) || p.id === state.opponentProtectedPieceId) continue;
+      for (const to of rules.adjacentDestinations(state.board, from)) actions.push({ type: "move", from, to });
+      for (const j of rules.jumpDestinations(state.board, from)) actions.push({ type: "jump", from, to: j.to });
+    }
+    return actions;
+  }
+
+  function actionWins(action) {
+    const b = cloneBoard(state.board);
+    if (action.type === "place") b[action.to] = { id: -1, colour: action.colour };
+    else { b[action.to] = b[action.from]; b[action.from] = null; }
+    return !!rules.checkWin(b);
+  }
+
+  function pickAction(actions) {
+    if (!actions.length) return null;
+    const wins = actions.filter(actionWins);
+    if (wins.length) return wins[Math.floor(Math.random() * wins.length)];
+    if (settings.level === "beginner") return actions[Math.floor(Math.random() * actions.length)];
+    // Standard/Expert prefer central squares and jumps; Expert also avoids obviously completing
+    // an existing three for the opponent where possible.
+    const score = a => {
+      const r=Math.floor(a.to/4), c=a.to%4;
+      let v = (r===1||r===2 ? 2:0) + (c===1||c===2 ? 2:0) + (a.type==="jump" ? 2:0);
+      if (settings.level === "expert" && a.type==="place") v += 1;
+      return v + Math.random();
+    };
+    return [...actions].sort((a,b)=>score(b)-score(a))[0];
+  }
+
+  function computerChooseColour() {
+    const colours = ["black","white"].filter(c => !(state.forcedPlacement && state.remaining[c] === 0));
+    // Avoid handing over an immediate placement win where possible.
+    const safe = colours.filter(colour => {
+      if (state.remaining[colour] <= 0) return true;
+      for (let i=0;i<16;i++) if (!state.board[i]) {
+        const b=cloneBoard(state.board); b[i]={id:-1,colour};
+        if (rules.checkWin(b)) return false;
+      }
+      return true;
+    });
+    const pool = safe.length ? safe : colours;
+    return pool[Math.floor(Math.random()*pool.length)];
+  }
+
+  function maybeComputerTurn() {
+    if (state.winner !== null || computerBusy) return;
+
+    // In the opening phase the player who just finished chooses the opponent's colour.
+    if (state.choosingColour && isComputer(state.colourChooser)) {
+      computerBusy = true;
+      const colour = computerChooseColour();
+      setTimeout(() => { computerBusy = false; chooseColour(colour); }, 250);
+      return;
+    }
+
+    if (!isComputer(state.currentPlayer) || state.choosingColour) return;
+    computerBusy = true;
+    setStatus("Computer is thinking…");
+    setTimeout(() => {
+      const colour = piecesRemain() ? state.assignedColour : null;
+      const actions = availableActions(colour, state.forcedPlacement);
+      const action = pickAction(actions);
+      if (!action) { computerBusy=false; setStatus("Computer has no legal action."); render(); return; }
+      if (action.type === "place") {
+        state.board[action.to] = { id: nextPieceId++, colour: action.colour };
+        state.remaining[action.colour] -= 1;
+        computerBusy=false;
+        completeTurn(null, false);
+      } else {
+        const piece = state.board[action.from];
+        state.board[action.to] = piece; state.board[action.from] = null;
+        const win = rules.checkWin(state.board);
+        if (win) {
+          state.winner=state.currentPlayer; state.winningCells=win.line; state.opponentProtectedPieceId=piece.id;
+          computerBusy=false; setStatus(`${playerName(state.currentPlayer)} wins with four ${win.colour} pieces!`); render(); return;
+        }
+        // Computer deliberately ends after one jump for now; multi-jump legality remains available to human.
+        computerBusy=false;
+        completeTurn(piece.id, true);
+      }
+    }, 450);
   }
 
   function newGame() {
     nextPieceId = 1;
+    history = [];
     state = freshState();
+    if (settings.mode === "computer") {
+      let starter = settings.starter;
+      if (starter === "random") starter = Math.random() < 0.5 ? "player" : "computer";
+      state.currentPlayer = starter === "computer" ? 1 : 0;
+      state.colourChooser = state.currentPlayer === 0 ? 1 : 0;
+    }
     beginTurn();
   }
 
@@ -278,6 +422,51 @@
     state.legalJumps.clear();
     jumpControls.hidden = true;
     completeTurn(pieceId, true);
+  });
+
+
+  document.getElementById("undo").addEventListener("click", () => {
+    if (!settings.undo || !history.length || computerBusy) return;
+    restore(history.pop());
+  });
+
+  const settingsDialog = document.getElementById("settings-dialog");
+  const modeSelect = document.getElementById("setting-mode");
+  const levelSelect = document.getElementById("setting-level");
+  const starterSelect = document.getElementById("setting-starter");
+  const player2Label = document.getElementById("player2-label");
+  function syncSettingsVisibility() {
+    const one = modeSelect.value === "computer";
+    levelSelect.parentElement.hidden = !one;
+    starterSelect.parentElement.hidden = !one;
+    player2Label.hidden = one;
+  }
+  document.getElementById("settings-button").addEventListener("click", () => {
+    modeSelect.value=settings.mode;
+    document.getElementById("setting-player1").value=settings.player1;
+    document.getElementById("setting-player2").value=settings.player2;
+    levelSelect.value=settings.level;
+    starterSelect.value=settings.starter;
+    document.getElementById("setting-undo").checked=settings.undo;
+    document.getElementById("setting-language").value=settings.language;
+    syncSettingsVisibility();
+    settingsDialog.showModal();
+  });
+  modeSelect.addEventListener("change", syncSettingsVisibility);
+  document.getElementById("close-settings").addEventListener("click", () => settingsDialog.close());
+  document.getElementById("cancel-settings").addEventListener("click", () => settingsDialog.close());
+  document.getElementById("settings-form").addEventListener("submit", () => {
+    settings = {
+      mode: modeSelect.value,
+      player1: document.getElementById("setting-player1").value.trim() || "Player",
+      player2: document.getElementById("setting-player2").value.trim() || "Player 2",
+      level: levelSelect.value,
+      starter: starterSelect.value,
+      undo: document.getElementById("setting-undo").checked,
+      language: document.getElementById("setting-language").value
+    };
+    saveSettings();
+    setTimeout(newGame, 0);
   });
 
   const helpDialog = document.getElementById("help-dialog");

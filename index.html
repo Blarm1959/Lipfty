@@ -24,7 +24,7 @@
         <h1>Lipfty</h1>
       </div>
       <span class="version" id="app-version">v0.1.0</span>
-      <button class="icon-button" id="help-button" type="button" aria-label="How to play">?</button>
+      <div class="header-actions"><button class="icon-button" id="settings-button" type="button" aria-label="Settings">⚙</button><button class="icon-button" id="help-button" type="button" aria-label="How to play">?</button></div>
     </header>
 
     <main class="game-layout">
@@ -73,10 +73,54 @@
 
       <section class="action-bar">
         <button class="button button--primary" id="new-game" type="button">New game</button>
+        <button class="button button--secondary" id="undo" type="button">Undo</button>
         <button class="button button--secondary" id="cancel-action" type="button">Cancel selection</button>
       </section>
     </main>
   </div>
+
+  <dialog id="settings-dialog">
+    <div class="dialog-heading">
+      <div><p class="eyebrow">Game setup</p><h2>Settings</h2></div>
+      <button class="dialog-close" id="close-settings" type="button" aria-label="Close">×</button>
+    </div>
+    <form class="settings-form" id="settings-form" method="dialog">
+      <label>Players
+        <select id="setting-mode">
+          <option value="computer" selected>1 Player — vs Computer</option>
+          <option value="two">2 Players</option>
+        </select>
+      </label>
+      <label>Your name
+        <input id="setting-player1" type="text" maxlength="24" value="Player">
+      </label>
+      <label id="player2-label">Second player name
+        <input id="setting-player2" type="text" maxlength="24" value="Player 2">
+      </label>
+      <label>Computer level
+        <select id="setting-level">
+          <option value="beginner">Beginner</option>
+          <option value="standard" selected>Standard</option>
+          <option value="expert">Expert</option>
+        </select>
+      </label>
+      <label>Who starts
+        <select id="setting-starter">
+          <option value="random" selected>Random</option>
+          <option value="player">Player</option>
+          <option value="computer">Computer</option>
+        </select>
+      </label>
+      <label class="checkbox-row"><input id="setting-undo" type="checkbox" checked> Allow Undo</label>
+      <label>Language
+        <select id="setting-language"><option value="en-GB">English (UK)</option></select>
+      </label>
+      <div class="settings-actions">
+        <button class="button button--secondary" id="cancel-settings" type="button">Cancel</button>
+        <button class="button button--primary" type="submit">Save &amp; New Game</button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="help-dialog">
     <div class="dialog-heading">
