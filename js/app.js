@@ -30,7 +30,7 @@
       level: "standard",
       starter: "random",
       undo: true,
-      language: "en-GB", colour1: "red", colour2: "blue", allow2x2: false, allowCorners: false, timer: 30, sound: true, animations: true
+      language: "en-GB", colour1: "red", colour2: "blue", allow2x2: false, allowCorners: false, timer: 30, sound: true, animations: true, undoPreviousJump: false
     };
     try {
       return { ...defaults, ...JSON.parse(localStorage.getItem("lipfty-settings") || "{}") };
@@ -83,6 +83,8 @@
       legalJumps: new Map(),
       jumpInProgress: false,
       jumpPieceIndex: null,
+      jumpVisited: [],
+      jumpPreviousIndex: null,
 
       // The exact piece moved by the opponent on the preceding turn is protected.
       opponentProtectedPieceId: null,
@@ -101,7 +103,9 @@
       legalJumps: [],
       selectedPieceIndex: null,
       jumpInProgress: false,
-      jumpPieceIndex: null
+      jumpPieceIndex: null,
+      jumpVisited: [],
+      jumpPreviousIndex: null
     };
   }
 
@@ -269,6 +273,8 @@
     state.opponentProtectedPieceId = movedPieceId;
     state.jumpInProgress = false;
     state.jumpPieceIndex = null;
+    state.jumpVisited = [];
+    state.jumpPreviousIndex = null;
     clearSelection();
     jumpControls.hidden = true;
     setStatus(`${participantName(state.currentPlayer)} wins with four ${colourTitle(win.colour)} pieces!`);
@@ -286,6 +292,8 @@
     clearSelection();
     state.jumpInProgress = false;
     state.jumpPieceIndex = null;
+    state.jumpVisited = [];
+    state.jumpPreviousIndex = null;
     jumpControls.hidden = true;
 
     if (piecesRemain()) {
@@ -338,7 +346,7 @@
       state.jumpInProgress ? [] : rules.adjacentDestinations(state.board, index)
     );
     state.legalJumps = new Map(
-      rules.jumpDestinations(state.board, index).map(jump => [jump.to, jump])
+      legalJumpContinuations(index).map(jump => [jump.to, jump])
     );
 
     if (state.legalMoves.size === 0 && state.legalJumps.size === 0) {
@@ -350,6 +358,17 @@
         : "Choose a highlighted destination square.");
     }
     render();
+  }
+
+  function legalJumpContinuations(from) {
+    const jumps = rules.jumpDestinations(state.board, from);
+    if (!state.jumpInProgress) return jumps;
+    const visited = new Set(state.jumpVisited || []);
+    return jumps.filter(jump => {
+      // Optional immediate reversal only. Any older visited square remains illegal.
+      if (settings.undoPreviousJump && jump.to === state.jumpPreviousIndex) return true;
+      return !visited.has(jump.to);
+    });
   }
 
   function humanMovePiece(from, to, isJump) {
@@ -368,16 +387,21 @@
       return;
     }
 
+    if (!state.jumpInProgress) state.jumpVisited = [from];
+    if (!state.jumpVisited.includes(to)) state.jumpVisited.push(to);
+    state.jumpPreviousIndex = from;
     state.jumpInProgress = true;
     state.jumpPieceIndex = to;
     state.legalMoves.clear();
     state.legalJumps = new Map(
-      rules.jumpDestinations(state.board, to).map(jump => [jump.to, jump])
+      legalJumpContinuations(to).map(jump => [jump.to, jump])
     );
 
     if (state.legalJumps.size === 0) {
       state.jumpInProgress = false;
       state.jumpPieceIndex = null;
+      state.jumpVisited = [];
+      state.jumpPreviousIndex = null;
       clearSelection();
       jumpControls.hidden = true;
       finishTurn(piece.id, true);
@@ -765,6 +789,8 @@
     const movedPieceId = piece ? piece.id : null;
     state.jumpInProgress = false;
     state.jumpPieceIndex = null;
+    state.jumpVisited = [];
+    state.jumpPreviousIndex = null;
     clearSelection();
     jumpControls.hidden = true;
     finishTurn(movedPieceId, true);
@@ -797,9 +823,9 @@
   function showStep(n){wizardStep=Math.max(0,Math.min(3,n));wizardSteps.forEach((e,i)=>e.hidden=i!==wizardStep);wizardIndicators.forEach((e,i)=>{e.classList.toggle("wizard-progress-step--active",i===wizardStep);e.classList.toggle("wizard-progress-step--complete",i<wizardStep)});wizardBack.hidden=wizardStep===0;wizardNext.hidden=wizardStep===3;wizardStart.hidden=wizardStep!==3;if(wizardStep===3)summary();}
   function coloursValid(){return fv("colour1")!==fv("colour2")}
   function summary(){const one=fv("gameMode")==="computer",level=["","Beginner","Standard","Expert"][Number(difficultyInput.value)],extras=[];if(document.getElementById("setting-2x2").value==="yes")extras.push("2×2 wins");if(document.getElementById("setting-corners").value==="yes")extras.push("corner wins");document.getElementById("setup-summary").textContent=`${one?"Player vs Computer · "+level:"Two players"} · ${COLOURS[fv("colour1")][0]} / ${COLOURS[fv("colour2")][0]} · ${extras.length?extras.join(" · "):"standard lines"} · ${fv("timer")==="0"?"Unlimited":fv("timer")+"-second"} turns`;}
-  function openSettings(){sr("gameMode",settings.mode);difficultyInput.value=settings.level==="beginner"?1:settings.level==="expert"?3:2;sr("allowUndo",settings.undo?"yes":"no");sr("colour1",settings.colour1);sr("colour2",settings.colour2);document.getElementById("setting-2x2").value=settings.allow2x2?"yes":"no";document.getElementById("setting-corners").value=settings.allowCorners?"yes":"no";player1Input.value=settings.player1;player2Input.value=settings.player2;sr("starter",settings.starter);sr("timer",String(settings.timer));document.getElementById("setting-sound").checked=settings.sound;document.getElementById("setting-animations").checked=settings.animations;syncMode();syncDifficulty();showStep(0);settingsDialog.showModal();}
+  function openSettings(){sr("gameMode",settings.mode);difficultyInput.value=settings.level==="beginner"?1:settings.level==="expert"?3:2;sr("allowUndo",settings.undo?"yes":"no");sr("undoPreviousJump",settings.undoPreviousJump?"yes":"no");sr("colour1",settings.colour1);sr("colour2",settings.colour2);document.getElementById("setting-2x2").value=settings.allow2x2?"yes":"no";document.getElementById("setting-corners").value=settings.allowCorners?"yes":"no";player1Input.value=settings.player1;player2Input.value=settings.player2;sr("starter",settings.starter);sr("timer",String(settings.timer));document.getElementById("setting-sound").checked=settings.sound;document.getElementById("setting-animations").checked=settings.animations;syncMode();syncDifficulty();showStep(0);settingsDialog.showModal();}
   settingsForm.querySelectorAll('[name="gameMode"]').forEach(e=>e.addEventListener("change",syncMode));difficultyInput.addEventListener("input",syncDifficulty);wizardNext.addEventListener("click",()=>{if(wizardStep===1&&!coloursValid()){setStatus("Choose two different piece colours.");return}showStep(wizardStep+1)});wizardBack.addEventListener("click",()=>showStep(wizardStep-1));document.getElementById("settings-button").addEventListener("click",openSettings);document.getElementById("close-settings").addEventListener("click",()=>settingsDialog.close());document.getElementById("cancel-settings").addEventListener("click",()=>settingsDialog.close());
-  settingsForm.addEventListener("submit",e=>{e.preventDefault();if(!coloursValid()){showStep(1);return}const n=Number(difficultyInput.value);settings={...settings,mode:fv("gameMode"),player1:player1Input.value.trim()||"Player",player2:player2Input.value.trim()||"Player 2",level:n===1?"beginner":n===3?"expert":"standard",starter:fv("starter"),undo:fv("allowUndo")==="yes",colour1:fv("colour1"),colour2:fv("colour2"),allow2x2:document.getElementById("setting-2x2").value==="yes",allowCorners:document.getElementById("setting-corners").value==="yes",timer:Number(fv("timer")),sound:document.getElementById("setting-sound").checked,animations:document.getElementById("setting-animations").checked,language:document.getElementById("setting-language").value};saveSettings();settingsDialog.close();startNewGame();});
+  settingsForm.addEventListener("submit",e=>{e.preventDefault();if(!coloursValid()){showStep(1);return}const n=Number(difficultyInput.value);settings={...settings,mode:fv("gameMode"),player1:player1Input.value.trim()||"Player",player2:player2Input.value.trim()||"Player 2",level:n===1?"beginner":n===3?"expert":"standard",starter:fv("starter"),undo:fv("allowUndo")==="yes",undoPreviousJump:fv("undoPreviousJump")==="yes",colour1:fv("colour1"),colour2:fv("colour2"),allow2x2:document.getElementById("setting-2x2").value==="yes",allowCorners:document.getElementById("setting-corners").value==="yes",timer:Number(fv("timer")),sound:document.getElementById("setting-sound").checked,animations:document.getElementById("setting-animations").checked,language:document.getElementById("setting-language").value};saveSettings();settingsDialog.close();startNewGame();});
   const statisticsDialog=document.getElementById("statistics-dialog");document.getElementById("view-statistics-button").addEventListener("click",()=>statisticsDialog.showModal());document.getElementById("close-statistics").addEventListener("click",()=>statisticsDialog.close());
 
   // Help
