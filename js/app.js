@@ -811,6 +811,13 @@
       ? `End game · ${state.endgameTurns} / 24 turns${state.pendingReplacement ? " · jumped piece must be replaced" : ""}`
       : "While pieces remain, the player who just finished chooses the colour the opponent must use. The highlighted colour is the one to play.";
 
+    const reservePanel = document.querySelector(".reserve-panel");
+    if (reservePanel) {
+      reservePanel.classList.toggle("reserve-panel--choosing", state.winner === null && state.choosingColour);
+      reservePanel.classList.toggle("reserve-panel--assigned", state.winner === null && !state.choosingColour && piecesRemain() && !!state.assignedColour);
+      reservePanel.classList.toggle("reserve-panel--finished", state.winner !== null || !piecesRemain());
+    }
+
     const humanChooser =
       state.winner === null &&
       state.choosingColour &&
@@ -1010,6 +1017,7 @@
     .then(info => {
       if (info && info.version) {
         document.getElementById("app-version").textContent = `Version ${info.version}`;
+        if (mobileVersionElement) mobileVersionElement.textContent = `v${info.version}`;
         const ref=info.commit || info.gitCommit || info.git || info.hash || info.commitHash || "";
         document.getElementById("build-reference").textContent = ref ? ` · ${String(ref).slice(0,7)}` : "";
       }

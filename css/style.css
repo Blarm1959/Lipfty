@@ -384,3 +384,87 @@ dialog::backdrop{background:rgba(13,28,42,.45)}
     width:100%;
   }
 }
+
+
+/* g17 — tighter Quarto-style phone layout */
+@media(max-width:560px){
+  .app-shell{padding:6px 12px 8px}
+  .app-header{
+    min-height:44px;
+    margin-bottom:4px;
+    grid-template-columns:minmax(0,1fr) auto auto;
+  }
+  .app-header h1{font-size:1.58rem}
+  .mobile-version{
+    display:block;
+    min-width:62px;
+    text-align:center;
+    font-size:.82rem;
+    font-weight:800;
+    color:var(--muted);
+  }
+
+  .game-layout{gap:5px}
+  .board-frame{padding:3px;border-radius:11px}
+  .board{gap:3px}
+  .board-cell{border-radius:5px}
+
+  .turn-message-card{
+    min-height:38px;
+    padding:5px 8px;
+  }
+  .turn-message-card p{font-size:.86rem}
+
+  .player-status-card,.move-timer-card{
+    min-height:52px;
+    padding:5px 8px;
+  }
+  .player-status-card strong{font-size:.96rem}
+  .move-timer-card strong{font-size:1.22rem}
+  .turn-label{font-size:.62rem}
+
+  /* The desktop reserve panel becomes a compact contextual strip on phones. */
+  .reserve-panel{
+    padding:6px 8px;
+    border-radius:11px;
+  }
+  .reserve-panel h2,
+  .reserve-panel .panel-help{
+    display:none;
+  }
+  .reserve-grid{gap:6px}
+  .reserve-button{
+    min-height:44px;
+    padding:4px 7px;
+    border-radius:10px;
+  }
+  .reserve-button .piece{
+    width:30px;
+    height:30px;
+    min-width:30px;
+  }
+  .reserve-button strong{font-size:.78rem}
+  .reserve-button small{font-size:.65rem;line-height:1.05}
+
+  /* Once a colour has been given, show only that colour as a small confirmation
+     instead of keeping both large choices on screen. */
+  .reserve-panel--assigned .reserve-button--not-assigned{display:none}
+  .reserve-panel--assigned .reserve-grid{grid-template-columns:1fr}
+  .reserve-panel--assigned .reserve-button--assigned{
+    min-height:40px;
+    justify-content:center;
+  }
+  .reserve-panel--assigned .reserve-button--assigned small{display:none}
+
+  /* There is no colour chooser at all after the opening phase. */
+  .reserve-panel--finished{display:none}
+
+  .action-bar{
+    min-height:42px;
+    padding:4px 6px;
+  }
+  .action-bar .button{
+    min-height:34px;
+    font-size:.8rem;
+  }
+}
