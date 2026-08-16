@@ -31,7 +31,7 @@
       level: "standard",
       starter: "random",
       undo: true,
-      language: "en-GB", colour1: "red", colour2: "blue", allow2x2: false, allowCorners: false, timer: 30, sound: true, animations: true, undoPreviousJump: false
+      language: "en-GB", colour1: "red", colour2: "blue", allow2x2: false, allowCorners: false, timer: 30, sound: true, animations: true, undoPreviousJump: false, endgameDrawLimit: 12
     };
     try {
       return { ...defaults, ...JSON.parse(localStorage.getItem("lipfty-settings") || "{}") };
@@ -100,6 +100,9 @@
       pendingReplacement: null,
       replacementForbiddenIndex: null,
       jumpRemovalDone: false,
+      // After a forced replacement, this player gets one turn in which jumps
+      // are legal but cannot remove another piece.
+      jumpRemovalBlockedPlayer: null,
       jumpFlashIndex: null,
       returnedPieceColour: null,
 
@@ -300,6 +303,8 @@
     if (!win) return false;
 
     state.winner = state.currentPlayer;
+    // Keep Undo usable after either a human or computer win.
+    computerBusy = false;
     if (moveTimerInterval) { clearInterval(moveTimerInterval); moveTimerInterval = null; }
     state.winningCells = win.line;
     state.opponentProtectedPieceId = movedPieceId;
@@ -321,13 +326,15 @@
 
     if (state.endgameStarted) {
       state.endgameTurns += 1;
-      if (state.endgameTurns >= 24) {
+      const drawLimit = Number(settings.endgameDrawLimit) || 12;
+      if (state.endgameTurns >= drawLimit) {
         state.winner = "draw";
+        computerBusy = false;
         if (moveTimerInterval) { clearInterval(moveTimerInterval); moveTimerInterval = null; }
         state.winningCells = [];
         clearSelection();
         jumpControls.hidden = true;
-        setStatus("Draw — 24 end-game turns completed.");
+        setStatus(`Draw — ${drawLimit} end-game turns completed.`);
         render();
         maybeShowUpdateDialog();
         return;
@@ -335,6 +342,10 @@
     } else if (!piecesRemain()) {
       state.endgameStarted = true;
       state.endgameTurns = 0;
+    }
+
+    if (state.jumpRemovalBlockedPlayer === finishingPlayer) {
+      state.jumpRemovalBlockedPlayer = null;
     }
 
     state.opponentProtectedPieceId = movedPieceId || null;
@@ -374,6 +385,9 @@
     state.replacementForbiddenIndex = null;
     state.returnedPieceColour = null;
     state.forcedPlacement = false;
+    // The opponent (the player who caused the removal) now gets one normal
+    // turn where jumping is allowed but cannot remove another piece.
+    state.jumpRemovalBlockedPlayer = otherPlayer(state.currentPlayer);
     clearSelection();
     finishTurn(null, false);
     return true;
@@ -444,7 +458,8 @@
     const piece = state.board[from];
     if (!piece || state.board[to]) return;
 
-    if (jump && state.endgameStarted && !state.jumpRemovalDone && !state.pendingReplacement &&
+    if (jump && state.endgameStarted && state.jumpRemovalBlockedPlayer !== state.currentPlayer &&
+        !state.jumpRemovalDone && !state.pendingReplacement &&
         state.board[jump.over] && !afterFlash) {
       state.jumpFlashIndex = jump.over;
       render();
@@ -459,7 +474,8 @@
     state.board[from] = null;
     state.selectedPieceIndex = to;
 
-    if (jump && state.endgameStarted && !state.jumpRemovalDone && !state.pendingReplacement) {
+    if (jump && state.endgameStarted && state.jumpRemovalBlockedPlayer !== state.currentPlayer &&
+        !state.jumpRemovalDone && !state.pendingReplacement) {
       if (state.board[jump.over]) {
         state.pendingReplacement = state.board[jump.over];
         state.replacementForbiddenIndex = jump.over;
@@ -714,8 +730,9 @@
 
       const piece = state.board[action.from];
       const firstJumpOver = action.type === "jump" ? action.over : null;
-      if (action.type === "jump" && state.endgameStarted && firstJumpOver !== null &&
-          state.board[firstJumpOver] && state.jumpFlashIndex === null) {
+      if (action.type === "jump" && state.endgameStarted &&
+          state.jumpRemovalBlockedPlayer !== state.currentPlayer &&
+          firstJumpOver !== null && state.board[firstJumpOver] && state.jumpFlashIndex === null) {
         state.jumpFlashIndex = firstJumpOver;
         render();
         flowTimer = setTimeout(() => {
@@ -731,7 +748,9 @@
   function computerPlayResolvedAction(action, piece, firstJumpOver) {
       state.board[action.to] = piece;
       state.board[action.from] = null;
-      if (action.type === "jump" && state.endgameStarted && firstJumpOver !== null && state.board[firstJumpOver]) {
+      if (action.type === "jump" && state.endgameStarted &&
+          state.jumpRemovalBlockedPlayer !== state.currentPlayer &&
+          firstJumpOver !== null && state.board[firstJumpOver]) {
         state.pendingReplacement = state.board[firstJumpOver];
         state.replacementForbiddenIndex = firstJumpOver;
         state.returnedPieceColour = state.pendingReplacement.colour;
@@ -855,7 +874,7 @@
 
     const phaseHelp=document.getElementById("phase-help");
     if(phaseHelp) phaseHelp.textContent=state.endgameStarted
-      ? `End game · ${state.endgameTurns} / 24 turns${state.pendingReplacement ? " · jumped piece must be replaced" : ""}`
+      ? `End game · ${state.endgameTurns} / ${Number(settings.endgameDrawLimit) || 12} turns${state.pendingReplacement ? " · jumped piece must be replaced" : ""}${state.jumpRemovalBlockedPlayer === state.currentPlayer ? " · no removal this turn" : ""}`
       : "While pieces remain, the player who just finished chooses the colour the opponent must use. The highlighted colour is the one to play.";
 
     const reservePanel = document.querySelector(".reserve-panel");
@@ -994,10 +1013,10 @@
   function syncDifficulty(){const n=Number(difficultyInput.value),names=["","Beginner","Standard","Expert"];document.getElementById("difficulty-name").textContent=`${n} · ${names[n]}`;}
   function showStep(n){wizardStep=Math.max(0,Math.min(3,n));wizardSteps.forEach((e,i)=>e.hidden=i!==wizardStep);wizardIndicators.forEach((e,i)=>{e.classList.toggle("wizard-progress-step--active",i===wizardStep);e.classList.toggle("wizard-progress-step--complete",i<wizardStep)});wizardBack.hidden=wizardStep===0;wizardNext.hidden=wizardStep===3;wizardStart.hidden=wizardStep!==3;if(wizardStep===3)summary();}
   function coloursValid(){return fv("colour1")!==fv("colour2")}
-  function summary(){const one=fv("gameMode")==="computer",level=["","Beginner","Standard","Expert"][Number(difficultyInput.value)],extras=[];if(document.getElementById("setting-2x2").value==="yes")extras.push("2×2 wins");if(document.getElementById("setting-corners").value==="yes")extras.push("corner wins");document.getElementById("setup-summary").textContent=`${one?"Player vs Computer · "+level:"Two players"} · ${COLOURS[fv("colour1")][0]} / ${COLOURS[fv("colour2")][0]} · ${extras.length?extras.join(" · "):"standard lines"} · ${fv("timer")==="0"?"Unlimited":fv("timer")+"-second"} turns`;}
-  function openSettings(){sr("gameMode",settings.mode);difficultyInput.value=settings.level==="beginner"?1:settings.level==="expert"?3:2;sr("allowUndo",settings.undo?"yes":"no");sr("undoPreviousJump",settings.undoPreviousJump?"yes":"no");sr("colour1",settings.colour1);sr("colour2",settings.colour2);document.getElementById("setting-2x2").value=settings.allow2x2?"yes":"no";document.getElementById("setting-corners").value=settings.allowCorners?"yes":"no";player1Input.value=settings.player1;player2Input.value=settings.player2;sr("starter",settings.starter);sr("timer",String(settings.timer));document.getElementById("setting-sound").checked=settings.sound;document.getElementById("setting-animations").checked=settings.animations;syncMode();syncDifficulty();showStep(0);settingsDialog.showModal();}
+  function summary(){const one=fv("gameMode")==="computer",level=["","Beginner","Standard","Expert"][Number(difficultyInput.value)],extras=[];if(document.getElementById("setting-2x2").value==="yes")extras.push("2×2 wins");if(document.getElementById("setting-corners").value==="yes")extras.push("corner wins");document.getElementById("setup-summary").textContent=`${one?"Player vs Computer · "+level:"Two players"} · ${COLOURS[fv("colour1")][0]} / ${COLOURS[fv("colour2")][0]} · ${extras.length?extras.join(" · "):"standard lines"} · ${fv("timer")==="0"?"Unlimited":fv("timer")+"-second"} turns · draw ${fv("endgameDrawLimit") || "12"} end-game moves`;}
+  function openSettings(){sr("gameMode",settings.mode);difficultyInput.value=settings.level==="beginner"?1:settings.level==="expert"?3:2;sr("allowUndo",settings.undo?"yes":"no");sr("undoPreviousJump",settings.undoPreviousJump?"yes":"no");sr("colour1",settings.colour1);sr("colour2",settings.colour2);document.getElementById("setting-2x2").value=settings.allow2x2?"yes":"no";document.getElementById("setting-corners").value=settings.allowCorners?"yes":"no";player1Input.value=settings.player1;player2Input.value=settings.player2;sr("starter",settings.starter);sr("timer",String(settings.timer));sr("endgameDrawLimit",String(settings.endgameDrawLimit || 12));document.getElementById("setting-sound").checked=settings.sound;document.getElementById("setting-animations").checked=settings.animations;syncMode();syncDifficulty();showStep(0);settingsDialog.showModal();}
   settingsForm.querySelectorAll('[name="gameMode"]').forEach(e=>e.addEventListener("change",syncMode));difficultyInput.addEventListener("input",syncDifficulty);wizardNext.addEventListener("click",()=>{if(wizardStep===1&&!coloursValid()){setStatus("Choose two different piece colours.");return}showStep(wizardStep+1)});wizardBack.addEventListener("click",()=>showStep(wizardStep-1));document.getElementById("settings-button").addEventListener("click",openSettings);document.getElementById("close-settings").addEventListener("click",()=>settingsDialog.close());document.getElementById("cancel-settings").addEventListener("click",()=>settingsDialog.close());
-  settingsForm.addEventListener("submit",e=>{e.preventDefault();if(!coloursValid()){showStep(1);return}const n=Number(difficultyInput.value);settings={...settings,mode:fv("gameMode"),player1:player1Input.value.trim()||"Player",player2:player2Input.value.trim()||"Player 2",level:n===1?"beginner":n===3?"expert":"standard",starter:fv("starter"),undo:fv("allowUndo")==="yes",undoPreviousJump:fv("undoPreviousJump")==="yes",colour1:fv("colour1"),colour2:fv("colour2"),allow2x2:document.getElementById("setting-2x2").value==="yes",allowCorners:document.getElementById("setting-corners").value==="yes",timer:Number(fv("timer")),sound:document.getElementById("setting-sound").checked,animations:document.getElementById("setting-animations").checked,language:document.getElementById("setting-language").value};saveSettings();settingsDialog.close();startNewGame();});
+  settingsForm.addEventListener("submit",e=>{e.preventDefault();if(!coloursValid()){showStep(1);return}const n=Number(difficultyInput.value);settings={...settings,mode:fv("gameMode"),player1:player1Input.value.trim()||"Player",player2:player2Input.value.trim()||"Player 2",level:n===1?"beginner":n===3?"expert":"standard",starter:fv("starter"),undo:fv("allowUndo")==="yes",undoPreviousJump:fv("undoPreviousJump")==="yes",colour1:fv("colour1"),colour2:fv("colour2"),allow2x2:document.getElementById("setting-2x2").value==="yes",allowCorners:document.getElementById("setting-corners").value==="yes",timer:Number(fv("timer")),endgameDrawLimit:Number(fv("endgameDrawLimit") || 12),sound:document.getElementById("setting-sound").checked,animations:document.getElementById("setting-animations").checked,language:document.getElementById("setting-language").value};saveSettings();settingsDialog.close();startNewGame();});
   const statisticsDialog=document.getElementById("statistics-dialog");document.getElementById("view-statistics-button").addEventListener("click",()=>statisticsDialog.showModal());document.getElementById("close-statistics").addEventListener("click",()=>statisticsDialog.close());
 
   // Help

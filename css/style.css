@@ -778,3 +778,22 @@ dialog::backdrop{background:rgba(13,28,42,.45)}
   .board-cell--replacement-forbidden::before,
   .board-cell--replacement-forbidden::after{height:4px}
 }
+
+
+/* g25 — always show both pool counts while one colour is required. */
+@media(max-width:560px){
+  .reserve-panel--assigned .reserve-grid,
+  .reserve-panel--replacement .reserve-grid{grid-template-columns:1fr 1fr}
+  .reserve-panel--assigned .reserve-button--not-assigned,
+  .reserve-panel--replacement .reserve-button:not(.reserve-button--returned){
+    display:flex!important;
+    opacity:.42!important;
+  }
+  .reserve-panel--assigned .reserve-button--assigned,
+  .reserve-panel--replacement .reserve-button--returned{
+    display:flex!important;
+    opacity:1!important;
+  }
+  .reserve-panel--assigned .reserve-button small,
+  .reserve-panel--replacement .reserve-button small{display:block!important}
+}
