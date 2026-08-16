@@ -262,8 +262,8 @@
     }
 
     if (message) setStatus(message);
-    else if (state.pendingReplacement) setStatus(`Replace the ${colourTitle(state.pendingReplacement.colour)} piece on an empty square, but not where it was removed.`);
     else if (state.jumpInProgress) setStatus("Jump again with the same piece, or finish your turn.");
+    else if (state.pendingReplacement) setStatus(`Replace the ${colourTitle(state.pendingReplacement.colour)} piece on an empty square, but not where it was removed.`);
     else if (state.choosingColour) setStatus(colourPrompt());
     else setStatus(actionPrompt());
 
@@ -280,7 +280,7 @@
     }
 
     if (!state.choosingColour && isComputer(state.currentPlayer)) {
-      flowTimer = setTimeout(state.pendingReplacement ? computerReplacePiece : computerPlayTurn, 450);
+      flowTimer = setTimeout((state.pendingReplacement && !state.jumpInProgress) ? computerReplacePiece : computerPlayTurn, 450);
     }
   }
 
@@ -356,6 +356,9 @@
     state.jumpPieceIndex = null;
     state.jumpVisited = [];
     state.jumpPreviousIndex = null;
+    // The jump turn is now completely closed before replacement can begin.
+    // pendingReplacement deliberately survives this cleanup and belongs to
+    // the opponent's new forced-placement turn.
     state.jumpRemovalDone = false;
     jumpControls.hidden = true;
 
@@ -377,7 +380,7 @@
   }
 
   function replaceJumpedPiece(index) {
-    if (!state.pendingReplacement || state.board[index] || index === state.replacementForbiddenIndex) return false;
+    if (state.jumpInProgress || !state.pendingReplacement || state.board[index] || index === state.replacementForbiddenIndex) return false;
     const replacement = state.pendingReplacement;
     state.board[index] = replacement;
     state.remaining[replacement.colour] = Math.max(0, state.remaining[replacement.colour] - 1);
