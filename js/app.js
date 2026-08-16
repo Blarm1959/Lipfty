@@ -938,6 +938,67 @@
     renderBoard();
   }
 
+  // g26 temporary Stage-2 testing shortcut.
+  // It only creates the starting position; play then uses the normal game engine.
+  function startRandomStage2Test() {
+    clearTimeout(flowTimer);
+    computerBusy = false;
+    checkpoints = [];
+    nextPieceId = 13;
+
+    let candidate = null;
+    for (let attempt = 0; attempt < 5000 && !candidate; attempt += 1) {
+      const cells = Array.from({ length: 16 }, (_, i) => i);
+      for (let i = cells.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [cells[i], cells[j]] = [cells[j], cells[i]];
+      }
+      const colours = ["black","black","black","black","black","black",
+                       "white","white","white","white","white","white"];
+      for (let i = colours.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [colours[i], colours[j]] = [colours[j], colours[i]];
+      }
+
+      const board = Array(16).fill(null);
+      for (let i = 0; i < 12; i += 1) {
+        board[cells[i]] = { id: i + 1, colour: colours[i] };
+      }
+      if (!rules.checkWin(board, { allow2x2: settings.allow2x2, allowCorners: settings.allowCorners })) {
+        candidate = board;
+      }
+    }
+
+    if (!candidate) {
+      setStatus("Could not create a non-winning Stage 2 test board.");
+      return;
+    }
+
+    state = freshState();
+    state.board = candidate;
+    state.remaining = { black: 0, white: 0 };
+    state.endgameStarted = true;
+    state.endgameTurns = 0;
+    state.currentPlayer = Math.random() < 0.5 ? 0 : 1;
+    state.choosingColour = false;
+    state.colourChooser = otherPlayer(state.currentPlayer);
+    state.assignedColour = null;
+    state.forcedPlacement = false;
+    state.pendingReplacement = null;
+    state.replacementForbiddenIndex = null;
+    state.jumpRemovalDone = false;
+    state.jumpRemovalBlockedPlayer = null;
+    state.returnedPieceColour = null;
+    state.opponentProtectedPieceId = null;
+    state.winner = null;
+    state.winningCells = [];
+
+    clearSelection();
+    applyPieceColours();
+    resetMoveTimer();
+    processFlow(`${participantName(state.currentPlayer)} starts the random Stage 2 test.`);
+  }
+
   function startNewGame() {
     clearTimeout(flowTimer);
     computerBusy = false;
@@ -972,6 +1033,7 @@
   });
 
   document.getElementById("new-game").addEventListener("click", startNewGame);
+  document.getElementById("stage2-test-button").addEventListener("click", startRandomStage2Test);
   undoButton.addEventListener("click", undo);
 
   finishJumpButton.addEventListener("click", () => {
