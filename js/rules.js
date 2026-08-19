@@ -1,35 +1,46 @@
 (function () {
   "use strict";
 
-  const SIZE = 4;
-  const WINNING_LINES = [
-    [0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15],
-    [0, 4, 8, 12], [1, 5, 9, 13], [2, 6, 10, 14], [3, 7, 11, 15],
-    [0, 5, 10, 15], [3, 6, 9, 12]
-  ];
+  const SIZE = 8;
+  const WIN_LENGTH = 5;
 
-  function row(index) { return Math.floor(index / SIZE); }
-  function col(index) { return index % SIZE; }
   function indexOf(r, c) { return r * SIZE + c; }
   function inBounds(r, c) { return r >= 0 && r < SIZE && c >= 0 && c < SIZE; }
 
-  function checkWin(board, options = {}) {
+  function buildWinningLines() {
+    const lines = [];
+    const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
+
+    for (let r = 0; r < SIZE; r += 1) {
+      for (let c = 0; c < SIZE; c += 1) {
+        for (const [dr, dc] of directions) {
+          const endR = r + dr * (WIN_LENGTH - 1);
+          const endC = c + dc * (WIN_LENGTH - 1);
+          if (!inBounds(endR, endC)) continue;
+
+          const line = [];
+          for (let step = 0; step < WIN_LENGTH; step += 1) {
+            line.push(indexOf(r + dr * step, c + dc * step));
+          }
+          lines.push(line);
+        }
+      }
+    }
+
+    return lines;
+  }
+
+  const WINNING_LINES = buildWinningLines();
+
+  function row(index) { return Math.floor(index / SIZE); }
+  function col(index) { return index % SIZE; }
+
+  function checkWin(board) {
     for (const line of WINNING_LINES) {
       const pieces = line.map(index => board[index]);
       if (pieces.some(piece => !piece)) continue;
       const colour = pieces[0].colour;
       if (pieces.every(piece => piece.colour === colour)) return { line: [...line], colour };
-    }
-    if (options.allow2x2) {
-      for (let rr = 0; rr < 3; rr += 1) for (let cc = 0; cc < 3; cc += 1) {
-        const a = rr * 4 + cc, line = [a, a + 1, a + 4, a + 5];
-        const pieces = line.map(index => board[index]);
-        if (pieces.every(Boolean) && pieces.every(piece => piece.colour === pieces[0].colour)) return { line, colour: pieces[0].colour, pattern: "2x2" };
-      }
-    }
-    if (options.allowCorners) {
-      const line = [0, 3, 12, 15], pieces = line.map(index => board[index]);
-      if (pieces.every(Boolean) && pieces.every(piece => piece.colour === pieces[0].colour)) return { line, colour: pieces[0].colour, pattern: "corners" };
     }
     return null;
   }
@@ -66,5 +77,5 @@
     return result;
   }
 
-  window.LipftyRules = { SIZE, WINNING_LINES, checkWin, adjacentDestinations, jumpDestinations };
+  window.LipftyRules = { SIZE, WIN_LENGTH, WINNING_LINES, checkWin, adjacentDestinations, jumpDestinations };
 })();

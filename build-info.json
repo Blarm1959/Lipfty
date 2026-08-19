@@ -1,7 +1,7 @@
 {
-  "version": "0.0.30",
-  "tag": "v0.0.30",
-  "commit": "3b9e4b92d395375226f480d4ad36b9b6f97c444e",
-  "builtUtc": "2026-08-19T20:12:54.4633474Z",
-  "notes": "Build metadata recorded by ProjectRelease.ps1."
+  "version": "0.1.0",
+  "tag": "v0.1.0",
+  "commit": "",
+  "builtUtc": "",
+  "notes": "Build information will be completed after the content commit."
 }
