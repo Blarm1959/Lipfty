@@ -2,12 +2,12 @@
   "use strict";
 
   const SIZE = 8;
-  const WIN_LENGTH = 5;
+  const WIN_LENGTH = 4;
 
   function indexOf(r, c) { return r * SIZE + c; }
   function inBounds(r, c) { return r >= 0 && r < SIZE && c >= 0 && c < SIZE; }
 
-  function buildWinningLines() {
+  function buildStraightLines() {
     const lines = [];
     const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
 
@@ -30,17 +30,53 @@
     return lines;
   }
 
-  const WINNING_LINES = buildWinningLines();
+  function buildAxisAlignedSquares() {
+    const squares = [];
+    for (let side = 1; side < SIZE; side += 1) {
+      for (let r = 0; r + side < SIZE; r += 1) {
+        for (let c = 0; c + side < SIZE; c += 1) {
+          squares.push([
+            indexOf(r, c),
+            indexOf(r, c + side),
+            indexOf(r + side, c + side),
+            indexOf(r + side, c)
+          ]);
+        }
+      }
+    }
+    return squares;
+  }
+
+  function buildDiagonalSquares() {
+    const squares = [];
+    for (let radius = 1; radius < SIZE; radius += 1) {
+      for (let centreR = radius; centreR + radius < SIZE; centreR += 1) {
+        for (let centreC = radius; centreC + radius < SIZE; centreC += 1) {
+          squares.push([
+            indexOf(centreR - radius, centreC),
+            indexOf(centreR, centreC + radius),
+            indexOf(centreR + radius, centreC),
+            indexOf(centreR, centreC - radius)
+          ]);
+        }
+      }
+    }
+    return squares;
+  }
+
+  const WINNING_LINES = buildStraightLines();
+  const WINNING_SQUARES = [...buildAxisAlignedSquares(), ...buildDiagonalSquares()];
+  const WINNING_PATTERNS = [...WINNING_LINES, ...WINNING_SQUARES];
 
   function row(index) { return Math.floor(index / SIZE); }
   function col(index) { return index % SIZE; }
 
   function checkWin(board) {
-    for (const line of WINNING_LINES) {
-      const pieces = line.map(index => board[index]);
+    for (const pattern of WINNING_PATTERNS) {
+      const pieces = pattern.map(index => board[index]);
       if (pieces.some(piece => !piece)) continue;
       const colour = pieces[0].colour;
-      if (pieces.every(piece => piece.colour === colour)) return { line: [...line], colour };
+      if (pieces.every(piece => piece.colour === colour)) return { line: [...pattern], colour };
     }
     return null;
   }
@@ -77,5 +113,5 @@
     return result;
   }
 
-  window.LipftyRules = { SIZE, WIN_LENGTH, WINNING_LINES, checkWin, adjacentDestinations, jumpDestinations };
+  window.LipftyRules = { SIZE, WIN_LENGTH, WINNING_LINES, WINNING_SQUARES, WINNING_PATTERNS, checkWin, adjacentDestinations, jumpDestinations };
 })();

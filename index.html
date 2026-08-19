@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Lipfty">
   <meta name="application-name" content="Lipfty">
-  <meta name="description" content="Lipfty is a shared-piece 8×8 strategy game: place, move, jump and make five in a row.">
+  <meta name="description" content="Lipfty is a shared-piece 8×8 strategy game: place, move, jump and make four in a line or square.">
   <title>Lipfty</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/lipfty-192.png" type="image/png">
@@ -94,7 +94,7 @@
       </section>
       <section class="wizard-step" data-wizard-step="1" hidden><h3>Choose colours and rules</h3><p class="setup-help">Choose two different colours for the solid Lipfty pieces.</p>
         <div class="colour-set-grid"><fieldset class="setup-fieldset"><legend>Colour 1</legend><div class="colour-choice-grid" id="colour1-choices"></div></fieldset><fieldset class="setup-fieldset"><legend>Colour 2</legend><div class="colour-choice-grid" id="colour2-choices"></div></fieldset></div>
-        <fieldset class="setup-fieldset"><legend>Winning pattern</legend><p class="setup-help"><strong>Five in a line:</strong> five consecutive matching-colour pieces horizontally, vertically or diagonally.</p></fieldset>
+        <fieldset class="setup-fieldset"><legend>Winning pattern</legend><p class="setup-help"><strong>Four-piece wins:</strong> four consecutive matching-colour pieces horizontally, vertically or diagonally, or matching pieces on the four corners of any board-aligned or 45° rotated square.</p></fieldset>
       </section>
       <section class="wizard-step" data-wizard-step="2" hidden><h3>Who is playing?</h3><div class="setup-grid setup-grid--players"><label class="field-label"><span id="player1-label-text">Player name</span><input class="text-input" id="setting-player1" maxlength="24"></label><label class="field-label" id="player2-label"><span>Player 2 name</span><input class="text-input" id="setting-player2" maxlength="24"></label></div>
         <fieldset class="setup-fieldset"><legend>Who starts?</legend><div class="choice-grid"><label><input checked name="starter" type="radio" value="random"><span>Random</span></label><label><input name="starter" type="radio" value="alternate"><span>Alternate each game</span></label><label><input name="starter" type="radio" value="player"><span id="starter-player-label">Player</span></label><label><input name="starter" type="radio" value="computer"><span id="starter-other-label">Computer</span></label></div></fieldset>
@@ -115,7 +115,7 @@
       <button class="dialog-close" id="close-help" type="button" aria-label="Close">×</button>
     </div>
     <div class="rules-copy">
-      <p><strong>Objective.</strong> Lipfty is played on an 8×8 board with twelve pieces of each chosen colour. The pieces are shared by both players. Win by creating five consecutive pieces of the same colour in any horizontal, vertical or diagonal straight line.</p>
+      <p><strong>Objective.</strong> Lipfty is played on an 8×8 board with twelve pieces of each chosen colour. The pieces are shared by both players. Win with four pieces of the same colour either consecutive in a horizontal, vertical or diagonal straight line, or on the four corners of any square aligned at 90° or 45° to the board.</p>
       <p><strong>Opening play.</strong> While pieces remain off the board, the player who has just completed a turn chooses which colour the opponent must use. The opponent may place a new piece of that colour, move an existing piece of that colour one adjacent square, or jump with an existing piece of that colour.</p>
       <p>If you move or jump instead of placing during the opening, your opponent must place the colour you give them on their next turn. If only one colour remains available to place, it is selected automatically. This ensures that all 24 pieces eventually reach the board.</p>
       <p><strong>Moving and jumping.</strong> Moves and jumps may be horizontal, vertical or diagonal. A normal move is one square into an adjacent empty square. A jump goes over an adjacent piece into the empty square immediately beyond it. After jumping, you may continue jumping with the same piece and may change direction.</p>
