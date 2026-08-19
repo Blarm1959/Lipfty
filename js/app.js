@@ -946,6 +946,29 @@
     renderBoard();
   }
 
+  function hasImmediateStage2Win(board) {
+    for (let from = 0; from < BOARD_CELLS; from += 1) {
+      const piece = board[from];
+      if (!piece) continue;
+
+      for (const to of rules.adjacentDestinations(board, from)) {
+        const next = board.slice();
+        next[to] = piece;
+        next[from] = null;
+        if (rules.checkWin(next)) return true;
+      }
+
+      for (const jump of rules.jumpDestinations(board, from)) {
+        const next = board.slice();
+        next[jump.to] = piece;
+        next[from] = null;
+        next[jump.over] = null;
+        if (rules.checkWin(next)) return true;
+      }
+    }
+    return false;
+  }
+
   // g26 temporary Stage-2 testing shortcut.
   // It only creates the starting position; play then uses the normal game engine.
   function startRandomStage2Test() {
@@ -975,7 +998,10 @@
         board[cells[i]] = { id: i + 1, colour: colours[i] };
       }
       if (!rules.checkWin(board)) {
-        candidate = board;
+        const playerToMove = Math.random() < 0.5 ? 0 : 1;
+        if (!hasImmediateStage2Win(board)) {
+          candidate = { board, playerToMove };
+        }
       }
     }
 
@@ -985,11 +1011,11 @@
     }
 
     state = freshState();
-    state.board = candidate;
+    state.board = candidate.board;
     state.remaining = { black: 0, white: 0 };
     state.endgameStarted = true;
     state.endgameTurns = 0;
-    state.currentPlayer = Math.random() < 0.5 ? 0 : 1;
+    state.currentPlayer = candidate.playerToMove;
     state.choosingColour = false;
     state.colourChooser = otherPlayer(state.currentPlayer);
     state.assignedColour = null;
