@@ -4,7 +4,7 @@
 
   const rules = window.LipftyRules;
   const BOARD_CELLS = rules.SIZE * rules.SIZE;
-  const PIECES_PER_COLOUR = 12;
+  const PIECES_PER_COLOUR = 14;
   const TOTAL_PIECES = PIECES_PER_COLOUR * 2;
 
   const boardElement = document.getElementById("board");
@@ -67,7 +67,7 @@
     return state.remaining.black + state.remaining.white > 0;
   }
 
-  // Once all 24 pieces have first reached the board, the game remains in the
+  // Once all 28 pieces have first reached the board, the game remains in the
   // end-game phase even while a jumped piece is temporarily back on a stack.
   function openingPiecesRemain() {
     return !state.endgameStarted && piecesRemain();
@@ -817,17 +817,51 @@
       finishTurn(piece.id, true);
   }
 
+  function reserveDisplayColour(displayRow, displayCol) {
+    if (displayRow > 0 && displayRow < 7 && displayCol > 0 && displayCol < 7) return null;
+    // Exactly 14 reserve positions per colour:
+    // Red = top row (8) + upper three squares on each side (6).
+    // Blue = bottom row (8) + lower three squares on each side (6).
+    if (displayRow === 0 || ((displayCol === 0 || displayCol === 7) && displayRow >= 1 && displayRow <= 3)) return "black";
+    return "white";
+  }
+
   function renderBoard() {
     boardElement.replaceChildren();
-
     const winning = new Set(state.winningCells);
+    const reserveShown = { black: 0, white: 0 };
 
-    for (let index = 0; index < BOARD_CELLS; index += 1) {
+    for (let displayIndex = 0; displayIndex < 64; displayIndex += 1) {
+      const displayRow = Math.floor(displayIndex / 8);
+      const displayCol = displayIndex % 8;
+      const inner = displayRow >= 1 && displayRow <= 6 && displayCol >= 1 && displayCol <= 6;
       const cell = document.createElement("button");
       cell.type = "button";
-      cell.className = "board-cell";
-      cell.dataset.index = String(index);
       cell.setAttribute("role", "gridcell");
+
+      if (!inner) {
+        cell.className = "board-cell board-cell--reserve";
+        const colour = reserveDisplayColour(displayRow, displayCol);
+        cell.setAttribute("aria-label", `${colourTitle(colour)} reserve`);
+        if (reserveShown[colour] < state.remaining[colour]) {
+          const disc = document.createElement("span");
+          disc.className = `piece piece--${colour}`;
+          disc.setAttribute("aria-hidden", "true");
+          cell.appendChild(disc);
+          reserveShown[colour] += 1;
+        } else {
+          cell.classList.add("board-cell--reserve-empty");
+        }
+        cell.disabled = true;
+        boardElement.appendChild(cell);
+        continue;
+      }
+
+      const row = displayRow - 1;
+      const col = displayCol - 1;
+      const index = row * rules.SIZE + col;
+      cell.className = "board-cell board-cell--playing";
+      cell.dataset.index = String(index);
 
       if (winning.has(index)) cell.classList.add("board-cell--winner");
       if (state.selectedPieceIndex === index) cell.classList.add("board-cell--selected");
@@ -853,15 +887,9 @@
         disc.className = `piece piece--${piece.colour}`;
         disc.setAttribute("aria-hidden", "true");
         cell.appendChild(disc);
-        cell.setAttribute(
-          "aria-label",
-          `${piece.colour} piece, row ${Math.floor(index / rules.SIZE) + 1}, column ${(index % rules.SIZE) + 1}`
-        );
+        cell.setAttribute("aria-label", `${piece.colour} piece, row ${row + 1}, column ${col + 1}`);
       } else {
-        cell.setAttribute(
-          "aria-label",
-          `Empty square, row ${Math.floor(index / rules.SIZE) + 1}, column ${(index % rules.SIZE) + 1}`
-        );
+        cell.setAttribute("aria-label", `Empty playing square, row ${row + 1}, column ${col + 1}`);
       }
 
       cell.disabled = computerBusy;

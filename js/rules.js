@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const SIZE = 8;
+  const SIZE = 6;
   const WIN_LENGTH = 4;
 
   function indexOf(r, c) { return r * SIZE + c; }

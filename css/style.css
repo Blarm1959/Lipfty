@@ -810,3 +810,14 @@ dialog::backdrop{background:rgba(13,28,42,.45)}
 @media(max-width:560px){
   .stage2-test-button{width:24px;height:24px;min-width:24px;border-radius:6px;font-size:.72rem}
 }
+
+/* v0.2.0: standard 8x8 physical board, inner 6x6 play area, outer reserve ring. */
+.board { grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); }
+.board-cell--reserve { background:#f8dede; border-color:#e8aaaa; cursor:default; }
+.board-cell--reserve-empty::after {
+  content:""; width:20%; aspect-ratio:1; border-radius:50%;
+  background:#d97878; opacity:.8;
+}
+.board-cell--reserve .piece { width:64%; }
+.board-cell--playing { background:#fff; }
+.board-note { margin:6px 0 0; text-align:center; font-size:.78rem; color:#5e6c75; font-weight:700; }
