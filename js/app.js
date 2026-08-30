@@ -1023,7 +1023,8 @@
     nextPieceId = TOTAL_PIECES + 1;
 
     let candidate = null;
-    for (let attempt = 0; attempt < 5000 && !candidate; attempt += 1) {
+    let fallback = null;
+    for (let attempt = 0; attempt < 20000 && !candidate; attempt += 1) {
       const cells = Array.from({ length: BOARD_CELLS }, (_, i) => i);
       for (let i = cells.length - 1; i > 0; i -= 1) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -1042,16 +1043,23 @@
       for (let i = 0; i < TOTAL_PIECES; i += 1) {
         board[cells[i]] = { id: i + 1, colour: colours[i] };
       }
-      if (!rules.checkWin(board)) {
-        const playerToMove = Math.random() < 0.5 ? 0 : 1;
-        if (!hasImmediateStage2Win(board)) {
-          candidate = { board, playerToMove };
-        }
+
+      if (rules.checkWin(board)) continue;
+
+      const playerToMove = Math.random() < 0.5 ? 0 : 1;
+      fallback = fallback || { board, playerToMove };
+      if (!hasImmediateStage2Win(board)) {
+        candidate = { board, playerToMove };
       }
     }
 
+    // A dense 28-on-36 position can make the strict no-one-move-win filter
+    // exceptionally hard to satisfy. The test shortcut must still work:
+    // prefer the protected position, otherwise use a valid non-winning board.
+    candidate = candidate || fallback;
+
     if (!candidate) {
-      setStatus("Could not create a non-winning Stage 2 test board.");
+      setStatus("Could not create a valid Stage 2 test board.");
       return;
     }
 
