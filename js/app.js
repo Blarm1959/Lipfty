@@ -842,16 +842,33 @@
       if (!inner) {
         cell.className = "board-cell board-cell--reserve";
         const colour = reserveDisplayColour(displayRow, displayCol);
-        cell.setAttribute("aria-label", `${colourTitle(colour)} reserve`);
-        if (reserveShown[colour] < state.remaining[colour]) {
+        const corner = (displayRow === 0 || displayRow === 7) && (displayCol === 0 || displayCol === 7);
+        const activeReservePiece = reserveShown[colour] < state.remaining[colour];
+
+        if (corner) {
+          cell.classList.add("board-cell--locked-corner");
+          const lockedDisc = document.createElement("span");
+          lockedDisc.className = `piece piece--${colour} piece--locked-corner`;
+          lockedDisc.setAttribute("aria-hidden", "true");
+          cell.appendChild(lockedDisc);
+        }
+
+        if (activeReservePiece) {
           const disc = document.createElement("span");
-          disc.className = `piece piece--${colour}`;
+          disc.className = `piece piece--${colour}${corner ? " piece--corner-top" : ""}`;
           disc.setAttribute("aria-hidden", "true");
           cell.appendChild(disc);
           reserveShown[colour] += 1;
-        } else {
+        } else if (!corner) {
           cell.classList.add("board-cell--reserve-empty");
         }
+
+        cell.setAttribute(
+          "aria-label",
+          corner
+            ? `${colourTitle(colour)} reserve corner: ${activeReservePiece ? "one playable piece above " : ""}one locked boundary piece`
+            : `${colourTitle(colour)} reserve${activeReservePiece ? " piece" : " square, empty"}`
+        );
         cell.disabled = true;
         boardElement.appendChild(cell);
         continue;

@@ -821,3 +821,18 @@ dialog::backdrop{background:rgba(13,28,42,.45)}
 .board-cell--reserve .piece { width:64%; }
 .board-cell--playing { background:#fff; }
 .board-note { margin:6px 0 0; text-align:center; font-size:.78rem; color:#5e6c75; font-weight:700; }
+
+/* v0.2.1: four extra checker pieces remain locked beneath the corner reserves. */
+.board-cell--locked-corner { overflow:visible; }
+.board-cell--locked-corner .piece { position:absolute; }
+.board-cell--locked-corner .piece--locked-corner {
+  width:58%;
+  transform:translate(-5%, 6%);
+  filter:brightness(.82);
+  opacity:.95;
+}
+.board-cell--locked-corner .piece--corner-top {
+  width:64%;
+  transform:translate(5%, -6%);
+  z-index:2;
+}
