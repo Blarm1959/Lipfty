@@ -836,3 +836,18 @@ dialog::backdrop{background:rgba(13,28,42,.45)}
   transform:translate(5%, -6%);
   z-index:2;
 }
+
+
+/* v0.2.5 — compact desktop turn/status bar so the full command bar fits on 15-inch laptops. */
+@media (min-width: 901px) {
+  .player-status-card,
+  .move-timer-card,
+  .turn-message-card {
+    min-height: 52px;
+    padding: 6px 12px;
+  }
+  .player-status-card strong { font-size: 1rem; line-height: 1.05; }
+  .move-timer-card strong { font-size: 1.35rem; line-height: .95; }
+  .turn-label { font-size: .7rem; line-height: 1; }
+  .turn-message-card p { line-height: 1.15; }
+}
