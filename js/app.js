@@ -971,9 +971,16 @@
     const phaseHelp=document.getElementById("phase-help");
     if(phaseHelp) phaseHelp.textContent=state.endgameStarted
       ? `End game · ${state.endgameTurns} / ${Number(settings.endgameDrawLimit) || 12} turns${state.pendingReplacement ? " · jumped piece must be replaced" : ""}${state.jumpRemovalBlockedPlayer === state.currentPlayer ? " · no removal this turn" : ""}`
-      : state.openingPlacementTurnsRemaining > 0
-        ? `Stage 1 · compulsory placement sequence · ${state.openingPlacementTurnsRemaining} placement turn${state.openingPlacementTurnsRemaining === 1 ? "" : "s"} remaining`
-        : "Stage 1 · use the colour given: place, move or jump. A move/jump starts two compulsory placement turns.";
+      : "Stage 1 · use the colour given: place, move or jump.";
+
+    const placementAlert = document.getElementById("placement-alert");
+    if (placementAlert) {
+      const showPlacementAlert = !state.endgameStarted && state.openingPlacementTurnsRemaining > 0;
+      placementAlert.hidden = !showPlacementAlert;
+      placementAlert.textContent = showPlacementAlert
+        ? `COMPULSORY PLACEMENT · ${state.openingPlacementTurnsRemaining} placement turn${state.openingPlacementTurnsRemaining === 1 ? "" : "s"} remaining`
+        : "";
+    }
 
     const reservePanel = document.querySelector(".reserve-panel");
     if (reservePanel) {
