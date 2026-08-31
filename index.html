@@ -7,10 +7,10 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Lipfty">
-  <meta name="application-name" content="Lipfty">
-  <meta name="description" content="Lipfty is a shared-piece 6×6 strategy game: place, move, jump and make four in a line or square.">
-  <title>Lipfty</title>
+  <meta name="apple-mobile-web-app-title" content="Lipfty 3">
+  <meta name="application-name" content="Lipfty 3">
+  <meta name="description" content="Lipfty 3 is a shared-piece 6×6 strategy game: place or move in Stage 1, then move or jump in Stage 2.">
+  <title>Lipfty 3</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/lipfty-192.png" type="image/png">
   <link rel="apple-touch-icon" href="icons/lipfty-180.png">
@@ -21,7 +21,7 @@
     <header class="app-header">
       <div>
         <p class="eyebrow">Shared-piece strategy</p>
-        <h1>Lipfty</h1>
+        <h1>Lipfty 3</h1>
       </div>
       <span class="mobile-version" id="mobile-version" aria-hidden="true"></span>
       <div class="header-actions"><button class="icon-button" id="help-button" type="button" aria-label="How to play">?</button><button class="stage2-test-button" id="stage2-test-button" type="button" aria-label="Random Stage 2 test" title="Random Stage 2 test">2</button><button class="icon-button" id="settings-button" type="button" aria-label="Settings">⚙</button></div>
@@ -55,7 +55,7 @@
           </div>
         </aside>
         <aside class="stage-info-card" id="stage-info-card">
-          <p class="panel-help" id="phase-help">Stage 1 · use the colour given: place, move or jump.</p>
+          <p class="panel-help" id="phase-help">Stage 1 · use the colour given: place or move. No jumping.</p>
           <p class="placement-alert" id="placement-alert" hidden></p>
         </aside>
 
@@ -72,8 +72,8 @@
 
         <aside class="rules-panel">
           <h2>Turn choices</h2>
-          <p><strong>Before all pieces are down:</strong> use the colour your opponent gives you. Place that colour, or move/jump a board piece of that colour.</p>
-          <p>If you <strong>move or jump</strong>, the next two turns are compulsory placements: your opponent places, then you place.</p>
+          <p><strong>Before all pieces are down:</strong> use the colour your opponent gives you. Place that colour, or move a board piece of that colour. Jumping is not allowed in Stage 1.</p>
+          <p>If you <strong>move</strong>, the next two turns are compulsory placements: your opponent places, then you place.</p>
           <p><strong>After all 28 pieces are down:</strong> move or jump either colour freely.</p>
           <p class="panel-help">You cannot move the piece your opponent moved on their previous turn.</p>
         </aside>
@@ -115,14 +115,14 @@
   <dialog id="statistics-dialog"><div class="dialog-heading"><div><p class="dialog-eyebrow">Lipfty</p><h2>Statistics</h2></div><button class="dialog-close" id="close-statistics" type="button">×</button></div><div class="statistics-summary"><span><strong id="stat-played">0</strong><small>Played</small></span><span><strong id="stat-wins">0</strong><small>Won</small></span><span><strong id="stat-losses">0</strong><small>Lost</small></span><span><strong id="stat-win-rate">0%</strong><small>Win rate</small></span></div></dialog>
   <dialog id="help-dialog">
     <div class="dialog-heading">
-      <div><p class="dialog-eyebrow">How to play</p><h2>Lipfty</h2></div>
+      <div><p class="dialog-eyebrow">How to play</p><h2>Lipfty 3</h2></div>
       <button class="dialog-close" id="close-help" type="button" aria-label="Close">×</button>
     </div>
     <div class="rules-copy">
       <p><strong>Objective.</strong> Lipfty is played on the inner 6×6 area of a standard 8×8 board using a full 32-piece draughts/checkers set. Fourteen pieces of each colour are playable in Stage 1; one extra piece of each colour is locked under each of that colour's two corner reserve pieces. The playable pieces are shared by both players. Online they are shown as Red and Blue; for physical play, use the two colours supplied with any standard draughts/checkers set. The four underneath corner pieces stay locked after the top pieces are used and mark the outer boundary; they are not playable in this version. Win with four pieces of the same colour either consecutive in a horizontal, vertical or diagonal straight line, or on the four corners of any square aligned at 90° or 45° to the board.</p>
-      <p><strong>Opening play.</strong> While pieces remain off the board, the player who has just completed a turn chooses which colour the opponent must use. The opponent may place a new piece of that colour, move an existing piece of that colour one adjacent square, or jump with an existing piece of that colour.</p>
-      <p>If you move or jump instead of placing during the opening, the next two turns must be placements: first your opponent places, then you place on your following turn. After those two placement turns, moving or jumping is available again. If only one colour remains available to place, it is selected automatically. This ensures that all 28 pieces eventually reach the board.</p>
-      <p><strong>Moving and jumping.</strong> Moves and jumps may be horizontal, vertical or diagonal. A normal move is one square into an adjacent empty square. A jump goes over an adjacent piece into the empty square immediately beyond it. After jumping, you may continue jumping with the same piece and may change direction.</p>
+      <p><strong>Opening play.</strong> While pieces remain off the board, the player who has just completed a turn chooses which colour the opponent must use. The opponent may place a new piece of that colour or move an existing piece of that colour one adjacent square. Jumping is not allowed during Stage 1.</p>
+      <p>If you move instead of placing during the opening, the next two turns must be placements: first your opponent places, then you place on your following turn. After those two placement turns, moving is available again. If only one colour remains available to place, it is selected automatically. This ensures that all 28 pieces eventually reach the board.</p>
+      <p><strong>Moving and jumping.</strong> Moves may be horizontal, vertical or diagonal. A normal move is one square into an adjacent empty square. Once Stage 2 begins, jumps are also allowed horizontally, vertically or diagonally: a jump goes over an adjacent piece into the empty square immediately beyond it. After jumping, you may continue jumping with the same piece and may change direction.</p>
       <p>During one multi-jump you may not return to a square already visited. If <strong>Undo Previous Jump</strong> is enabled in Settings, an immediate jump back to the square just left is allowed, but longer loops are still not allowed. If no legal further jump is available, the turn ends automatically.</p>
       <p>You may not move the exact piece your opponent moved on their immediately preceding turn. A newly placed or replaced piece is not protected by this rule.</p>
       <p><strong>End game.</strong> Once all 28 pieces are on the board, colour-giving ends and pieces of either colour may be moved. On a turn where removal is active, the first jump removes the piece that was jumped over. Any further jumps in the same multi-jump do not remove another piece.</p>

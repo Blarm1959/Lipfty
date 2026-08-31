@@ -116,8 +116,8 @@
       colourChooser: 1,
       assignedColour: null,
 
-      // A Stage-1 move/jump must be followed by two placement turns:
-      // first by the opponent, then by the player who moved/jumped.
+      // A Stage-1 move must be followed by two placement turns:
+      // first by the opponent, then by the player who moved.
       openingPlacementTurnsRemaining: 0,
       forcedPlacement: false,
 
@@ -252,7 +252,6 @@
       if (!piece || piece.colour !== colour) continue;
       if (piece.id === state.opponentProtectedPieceId) continue;
       if (rules.adjacentDestinations(state.board, from).length) return true;
-      if (rules.jumpDestinations(state.board, from).length) return true;
     }
 
     return false;
@@ -269,9 +268,9 @@
     if (!openingPiecesRemain()) return `${actor}: move or jump any piece.`;
     if (state.forcedPlacement) {
       const remaining = state.openingPlacementTurnsRemaining;
-      return `${actor}: compulsory placement — place ${colourTitle(state.assignedColour)}. ${remaining} placement turn${remaining === 1 ? "" : "s"} remain${remaining === 1 ? "s" : ""} before moving/jumping is allowed again.`;
+      return `${actor}: compulsory placement — place ${colourTitle(state.assignedColour)}. ${remaining} placement turn${remaining === 1 ? "" : "s"} remain${remaining === 1 ? "s" : ""} before moving is allowed again.`;
     }
-    return `${actor}: use ${colourTitle(state.assignedColour)} — place, move or jump.`;
+    return `${actor}: use ${colourTitle(state.assignedColour)} — place or move.`;
   }
 
   function processFlow(message = null) {
@@ -284,7 +283,7 @@
 
     // If pieces remain off the board in only one colour, that colour is automatic.
     // This is especially important for the final opening piece: the other colour
-    // must not remain selectable merely because one of its pieces can move/jump.
+    // must not remain selectable merely because one of its pieces can move.
     if (state.choosingColour && openingPiecesRemain()) {
       const stackColours = ["black", "white"].filter(colour => state.remaining[colour] > 0);
       const legalColours = ["black", "white"].filter(canUseColour);
@@ -490,6 +489,8 @@
   }
 
   function legalJumpContinuations(from) {
+    // Lipfty 3 experiment: jumping is a Stage-2 action only.
+    if (openingPiecesRemain()) return [];
     const jumps = rules.jumpDestinations(state.board, from);
     if (!state.jumpInProgress) return jumps;
     const visited = new Set(state.jumpVisited || []);
@@ -625,8 +626,10 @@
       for (const to of rules.adjacentDestinations(state.board, from)) {
         actions.push({ type: "move", from, to });
       }
-      for (const jump of rules.jumpDestinations(state.board, from)) {
-        actions.push({ type: "jump", from, to: jump.to, over: jump.over });
+      if (!openingPiecesRemain()) {
+        for (const jump of rules.jumpDestinations(state.board, from)) {
+          actions.push({ type: "jump", from, to: jump.to, over: jump.over });
+        }
       }
     }
 
@@ -971,7 +974,7 @@
     const phaseHelp=document.getElementById("phase-help");
     if(phaseHelp) phaseHelp.textContent=state.endgameStarted
       ? `End game · ${state.endgameTurns} / ${Number(settings.endgameDrawLimit) || 12} turns${state.pendingReplacement ? " · jumped piece must be replaced" : ""}${state.jumpRemovalBlockedPlayer === state.currentPlayer ? " · no removal this turn" : ""}`
-      : "Stage 1 · use the colour given: place, move or jump.";
+      : "Stage 1 · use the colour given: place or move. No jumping.";
 
     const placementAlert = document.getElementById("placement-alert");
     if (placementAlert) {
