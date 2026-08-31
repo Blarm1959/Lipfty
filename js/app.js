@@ -93,10 +93,13 @@
     const active = Array(64).fill(null);
     const locked = Array(64).fill(null);
 
-    shuffled(["black","black","white","white"]).forEach((colour,i) => { active[corners[i]] = colour; });
+    const cornerColours = shuffled(["black","black","white","white"]);
+    cornerColours.forEach((colour,i) => {
+      active[corners[i]] = colour;
+      locked[corners[i]] = colour;
+    });
     shuffled([...Array(12).fill("black"), ...Array(12).fill("white")])
       .forEach((colour,i) => { active[nonCorners[i]] = colour; });
-    shuffled(["black","black","white","white"]).forEach((colour,i) => { locked[corners[i]] = colour; });
 
     return { active, locked };
   }
@@ -113,8 +116,9 @@
       colourChooser: 1,
       assignedColour: null,
 
-      // If the previous player moved/jumped instead of placing, currentPlayer
-      // must place the colour they are given.
+      // A Stage-1 move/jump must be followed by two placement turns:
+      // first by the opponent, then by the player who moved/jumped.
+      openingPlacementTurnsRemaining: 0,
       forcedPlacement: false,
 
       selectedPieceIndex: null,
@@ -264,7 +268,8 @@
     const actor = participantName(state.currentPlayer);
     if (!openingPiecesRemain()) return `${actor}: move or jump any piece.`;
     if (state.forcedPlacement) {
-      return `${actor}: place the ${colourTitle(state.assignedColour)} piece you were given.`;
+      const remaining = state.openingPlacementTurnsRemaining;
+      return `${actor}: compulsory placement — place ${colourTitle(state.assignedColour)}. ${remaining} placement turn${remaining === 1 ? "" : "s"} remain${remaining === 1 ? "s" : ""} before moving/jumping is allowed again.`;
     }
     return `${actor}: use ${colourTitle(state.assignedColour)} — place, move or jump.`;
   }
@@ -399,10 +404,16 @@
       state.choosingColour = false;
       state.colourChooser = null;
     } else if (openingPiecesRemain()) {
-      state.forcedPlacement = !!actionWasMove;
+      if (actionWasMove) {
+        state.openingPlacementTurnsRemaining = 2;
+      } else if (state.openingPlacementTurnsRemaining > 0) {
+        state.openingPlacementTurnsRemaining -= 1;
+      }
+      state.forcedPlacement = state.openingPlacementTurnsRemaining > 0;
       state.choosingColour = true;
       state.colourChooser = finishingPlayer;
     } else {
+      state.openingPlacementTurnsRemaining = 0;
       state.forcedPlacement = false;
       state.choosingColour = false;
       state.colourChooser = null;
@@ -849,7 +860,10 @@
   function renderBoard() {
     boardElement.replaceChildren();
     const winning = new Set(state.winningCells);
-    const reserveShown = { black: 0, white: 0 };
+    const reserveShown = {
+      corner: { black: 0, white: 0 },
+      other: { black: 0, white: 0 }
+    };
 
     for (let displayIndex = 0; displayIndex < 64; displayIndex += 1) {
       const displayRow = Math.floor(displayIndex / 8);
@@ -864,7 +878,11 @@
         const corner = (displayRow === 0 || displayRow === 7) && (displayCol === 0 || displayCol === 7);
         const activeColour = state.reserveLayout.active[displayIndex];
         const lockedColour = state.reserveLayout.locked[displayIndex];
-        const activeReservePiece = activeColour && reserveShown[activeColour] < state.remaining[activeColour];
+        const activeTarget = activeColour
+          ? (corner ? Math.min(2, state.remaining[activeColour]) : Math.max(0, state.remaining[activeColour] - 2))
+          : 0;
+        const activeCounter = corner ? reserveShown.corner : reserveShown.other;
+        const activeReservePiece = !!activeColour && activeCounter[activeColour] < activeTarget;
 
         if (corner && lockedColour) {
           cell.classList.add("board-cell--locked-corner");
@@ -879,7 +897,7 @@
           disc.className = `piece piece--${activeColour}${corner ? " piece--corner-top" : ""}`;
           disc.setAttribute("aria-hidden", "true");
           cell.appendChild(disc);
-          reserveShown[activeColour] += 1;
+          activeCounter[activeColour] += 1;
         } else if (!corner) {
           cell.classList.add("board-cell--reserve-empty");
         }
@@ -953,7 +971,9 @@
     const phaseHelp=document.getElementById("phase-help");
     if(phaseHelp) phaseHelp.textContent=state.endgameStarted
       ? `End game · ${state.endgameTurns} / ${Number(settings.endgameDrawLimit) || 12} turns${state.pendingReplacement ? " · jumped piece must be replaced" : ""}${state.jumpRemovalBlockedPlayer === state.currentPlayer ? " · no removal this turn" : ""}`
-      : "While pieces remain, the player who just finished chooses the colour the opponent must use. The highlighted colour is the one to play.";
+      : state.openingPlacementTurnsRemaining > 0
+        ? `Stage 1 · compulsory placement sequence · ${state.openingPlacementTurnsRemaining} placement turn${state.openingPlacementTurnsRemaining === 1 ? "" : "s"} remaining`
+        : "Stage 1 · use the colour given: place, move or jump. A move/jump starts two compulsory placement turns.";
 
     const reservePanel = document.querySelector(".reserve-panel");
     if (reservePanel) {

@@ -59,7 +59,7 @@
         <section class="board-section">
           <div class="board-frame">
             <div class="board" id="board" role="grid" aria-label="Lipfty eight by eight board with inner six by six playing area"></div>
-            <p class="board-note">Inner 6×6 = playing area · outer ring = 14 playable Red + 14 playable Blue reserve pieces. Each corner also has one locked piece underneath.</p>
+            <p class="board-note">Inner 6×6 = playing area · outer ring = 14 playable Red + 14 playable Blue reserve pieces. Each corner also has one locked piece underneath of the same colour. The four playable top corner pieces are the last four reserve pieces to be used.</p>
           </div>
           <div class="jump-controls" id="jump-controls" hidden>
             <strong>Multi-jump in progress</strong>
@@ -70,7 +70,7 @@
         <aside class="rules-panel">
           <h2>Turn choices</h2>
           <p><strong>Before all pieces are down:</strong> use the colour your opponent gives you. Place that colour, or move/jump a board piece of that colour.</p>
-          <p>If you <strong>move or jump</strong>, your opponent must place on their next turn.</p>
+          <p>If you <strong>move or jump</strong>, the next two turns are compulsory placements: your opponent places, then you place.</p>
           <p><strong>After all 28 pieces are down:</strong> move or jump either colour freely.</p>
           <p class="panel-help">You cannot move the piece your opponent moved on their previous turn.</p>
         </aside>
@@ -118,7 +118,7 @@
     <div class="rules-copy">
       <p><strong>Objective.</strong> Lipfty is played on the inner 6×6 area of a standard 8×8 board using a full 32-piece draughts/checkers set. Fourteen pieces of each colour are playable in Stage 1; one extra piece of each colour is locked under each of that colour's two corner reserve pieces. The playable pieces are shared by both players. Online they are shown as Red and Blue; for physical play, use the two colours supplied with any standard draughts/checkers set. The four underneath corner pieces stay locked after the top pieces are used and mark the outer boundary; they are not playable in this version. Win with four pieces of the same colour either consecutive in a horizontal, vertical or diagonal straight line, or on the four corners of any square aligned at 90° or 45° to the board.</p>
       <p><strong>Opening play.</strong> While pieces remain off the board, the player who has just completed a turn chooses which colour the opponent must use. The opponent may place a new piece of that colour, move an existing piece of that colour one adjacent square, or jump with an existing piece of that colour.</p>
-      <p>If you move or jump instead of placing during the opening, your opponent must place the colour you give them on their next turn. If only one colour remains available to place, it is selected automatically. This ensures that all 28 pieces eventually reach the board.</p>
+      <p>If you move or jump instead of placing during the opening, the next two turns must be placements: first your opponent places, then you place on your following turn. After those two placement turns, moving or jumping is available again. If only one colour remains available to place, it is selected automatically. This ensures that all 28 pieces eventually reach the board.</p>
       <p><strong>Moving and jumping.</strong> Moves and jumps may be horizontal, vertical or diagonal. A normal move is one square into an adjacent empty square. A jump goes over an adjacent piece into the empty square immediately beyond it. After jumping, you may continue jumping with the same piece and may change direction.</p>
       <p>During one multi-jump you may not return to a square already visited. If <strong>Undo Previous Jump</strong> is enabled in Settings, an immediate jump back to the square just left is allowed, but longer loops are still not allowed. If no legal further jump is available, the turn ends automatically.</p>
       <p>You may not move the exact piece your opponent moved on their immediately preceding turn. A newly placed or replaced piece is not protected by this rule.</p>
