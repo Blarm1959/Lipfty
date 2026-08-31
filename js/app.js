@@ -73,6 +73,10 @@
     return !state.endgameStarted && piecesRemain();
   }
 
+  function initialCornerPhase() {
+    return openingPiecesRemain() && state.openingCornerPlacementsRemaining > 0;
+  }
+
   function shuffled(values) {
     const result = [...values];
     for (let i = result.length - 1; i > 0; i -= 1) {
@@ -111,9 +115,14 @@
       reserveLayout: makeReserveLayout(),
       currentPlayer: 0,
 
-      // During the opening, the opponent chooses a colour for currentPlayer.
+      // The first four turns use the four playable top-corner pieces.
+      // Each player chooses their own corner-top colour and must place it.
+      openingCornerPlacementsRemaining: 4,
+      cornerTopRemaining: { black: 2, white: 2 },
+
+      // After those four placements, the opponent chooses a colour for currentPlayer.
       choosingColour: true,
-      colourChooser: 1,
+      colourChooser: 0,
       assignedColour: null,
 
       // A Stage-1 move must be followed by two placement turns:
@@ -152,6 +161,7 @@
       ...state,
       board: state.board.map(piece => piece ? { ...piece } : null),
       remaining: { ...state.remaining },
+      cornerTopRemaining: { ...state.cornerTopRemaining },
       legalMoves: [],
       legalJumps: [],
       selectedPieceIndex: null,
@@ -193,6 +203,7 @@
       ...snap.state,
       board: snap.state.board.map(piece => piece ? { ...piece } : null),
       remaining: { ...snap.state.remaining },
+      cornerTopRemaining: { ...snap.state.cornerTopRemaining },
       selectedPieceIndex: null,
       legalMoves: new Set(),
       legalJumps: new Map(),
@@ -241,6 +252,10 @@
   function canUseColour(colour) {
     if (!openingPiecesRemain()) return false;
 
+    if (initialCornerPhase()) {
+      return state.cornerTopRemaining[colour] > 0 && state.board.some(cell => !cell);
+    }
+
     if (state.forcedPlacement) {
       return state.remaining[colour] > 0 && state.board.some(cell => !cell);
     }
@@ -258,6 +273,10 @@
   }
 
   function colourPrompt() {
+    if (initialCornerPhase()) {
+      const actor = participantName(state.currentPlayer);
+      return `${actor}: choose one of the remaining top-corner colours to place.`;
+    }
     const chooser = participantName(state.colourChooser);
     const receiver = participantName(state.currentPlayer);
     return `${chooser}: choose ${colourTitle("black")} or ${colourTitle("white")} for ${receiver}.`;
@@ -266,6 +285,9 @@
   function actionPrompt() {
     const actor = participantName(state.currentPlayer);
     if (!openingPiecesRemain()) return `${actor}: move or jump any piece.`;
+    if (initialCornerPhase()) {
+      return `${actor}: place the chosen top-corner ${colourTitle(state.assignedColour)} piece. Moving is not allowed yet.`;
+    }
     if (state.forcedPlacement) {
       const remaining = state.openingPlacementTurnsRemaining;
       return `${actor}: compulsory placement — place ${colourTitle(state.assignedColour)}. ${remaining} placement turn${remaining === 1 ? "" : "s"} remain${remaining === 1 ? "s" : ""} before moving is allowed again.`;
@@ -356,7 +378,7 @@
     return true;
   }
 
-  function finishTurn(movedPieceId, actionWasMove) {
+  function finishTurn(movedPieceId, actionWasMove, wasCornerOpeningPlacement = false) {
     if (checkAndFinishWin(movedPieceId)) return;
     const finishingPlayer = state.currentPlayer;
 
@@ -403,14 +425,23 @@
       state.choosingColour = false;
       state.colourChooser = null;
     } else if (openingPiecesRemain()) {
-      if (actionWasMove) {
-        state.openingPlacementTurnsRemaining = 2;
-      } else if (state.openingPlacementTurnsRemaining > 0) {
-        state.openingPlacementTurnsRemaining -= 1;
+      if (wasCornerOpeningPlacement) {
+        state.openingPlacementTurnsRemaining = 0;
+        state.forcedPlacement = false;
+        state.choosingColour = true;
+        // During the first four placements the next player chooses their own
+        // corner-top colour. After the fourth, normal opponent colour-giving starts.
+        state.colourChooser = initialCornerPhase() ? state.currentPlayer : finishingPlayer;
+      } else {
+        if (actionWasMove) {
+          state.openingPlacementTurnsRemaining = 2;
+        } else if (state.openingPlacementTurnsRemaining > 0) {
+          state.openingPlacementTurnsRemaining -= 1;
+        }
+        state.forcedPlacement = state.openingPlacementTurnsRemaining > 0;
+        state.choosingColour = true;
+        state.colourChooser = finishingPlayer;
       }
-      state.forcedPlacement = state.openingPlacementTurnsRemaining > 0;
-      state.choosingColour = true;
-      state.colourChooser = finishingPlayer;
     } else {
       state.openingPlacementTurnsRemaining = 0;
       state.forcedPlacement = false;
@@ -443,14 +474,26 @@
     const colour = state.assignedColour;
     if (!colour || state.remaining[colour] <= 0 || state.board[index]) return;
 
+    const cornerOpeningPlacement = initialCornerPhase();
+    if (cornerOpeningPlacement && state.cornerTopRemaining[colour] <= 0) return;
+
     state.board[index] = { id: nextPieceId++, colour };
     state.remaining[colour] -= 1;
+    if (cornerOpeningPlacement) {
+      state.cornerTopRemaining[colour] -= 1;
+      state.openingCornerPlacementsRemaining -= 1;
+    }
     clearSelection();
-    finishTurn(null, false);
+    finishTurn(null, false, cornerOpeningPlacement);
   }
 
   function selectPiece(index) {
     if (computerBusy || state.winner !== null || state.choosingColour || state.forcedPlacement) return;
+    if (initialCornerPhase()) {
+      setStatus("The first four turns are placements only — use a top-corner piece.");
+      render();
+      return;
+    }
 
     const piece = state.board[index];
     if (!piece) return;
@@ -615,7 +658,7 @@
       }
     }
 
-    if (mustPlace) return actions;
+    if (mustPlace || initialCornerPhase()) return actions;
 
     for (let from = 0; from < BOARD_CELLS; from += 1) {
       const piece = state.board[from];
@@ -732,7 +775,9 @@
       computerBusy = false;
       state.assignedColour = colour;
       state.choosingColour = false;
-      processFlow(`Computer gives ${participantName(state.currentPlayer)} ${colourTitle(colour)}.`);
+      processFlow(initialCornerPhase()
+        ? `Computer chooses a top-corner ${colourTitle(colour)} piece to place.`
+        : `Computer gives ${participantName(state.currentPlayer)} ${colourTitle(colour)}.`);
     }, 250);
   }
 
@@ -772,10 +817,15 @@
 
     flowTimer = setTimeout(() => {
       if (action.type === "place") {
+        const cornerOpeningPlacement = initialCornerPhase();
         state.board[action.to] = { id: nextPieceId++, colour: action.colour };
         state.remaining[action.colour] -= 1;
+        if (cornerOpeningPlacement) {
+          state.cornerTopRemaining[action.colour] -= 1;
+          state.openingCornerPlacementsRemaining -= 1;
+        }
         computerBusy = false;
-        finishTurn(null, false);
+        finishTurn(null, false, cornerOpeningPlacement);
         return;
       }
 
@@ -863,6 +913,12 @@
   function renderBoard() {
     boardElement.replaceChildren();
     const winning = new Set(state.winningCells);
+    const cornerIndexes = [0, 7, 56, 63];
+    // The physical game removes any two locked corner markers after a Stage-1 move.
+    // The app mirrors the count automatically using fixed corners; marker colour is irrelevant.
+    const hiddenMarkerCorners = new Set(
+      cornerIndexes.slice(0, Math.min(2, state.openingPlacementTurnsRemaining))
+    );
     const reserveShown = {
       corner: { black: 0, white: 0 },
       other: { black: 0, white: 0 }
@@ -882,17 +938,22 @@
         const activeColour = state.reserveLayout.active[displayIndex];
         const lockedColour = state.reserveLayout.locked[displayIndex];
         const activeTarget = activeColour
-          ? (corner ? Math.min(2, state.remaining[activeColour]) : Math.max(0, state.remaining[activeColour] - 2))
+          ? (corner
+            ? Math.min(state.cornerTopRemaining[activeColour], state.remaining[activeColour])
+            : Math.max(0, state.remaining[activeColour] - state.cornerTopRemaining[activeColour]))
           : 0;
         const activeCounter = corner ? reserveShown.corner : reserveShown.other;
         const activeReservePiece = !!activeColour && activeCounter[activeColour] < activeTarget;
 
-        if (corner && lockedColour) {
+        const markerIsAway = corner && hiddenMarkerCorners.has(displayIndex);
+        if (corner && lockedColour && !markerIsAway) {
           cell.classList.add("board-cell--locked-corner");
           const lockedDisc = document.createElement("span");
           lockedDisc.className = `piece piece--${lockedColour} piece--locked-corner`;
           lockedDisc.setAttribute("aria-hidden", "true");
           cell.appendChild(lockedDisc);
+        } else if (markerIsAway) {
+          cell.classList.add("board-cell--reserve-empty");
         }
 
         if (activeReservePiece) {
@@ -907,7 +968,7 @@
 
         cell.setAttribute("aria-label",
           corner
-            ? `${activeReservePiece ? `${colourTitle(activeColour)} playable reserve piece above ` : ""}${colourTitle(lockedColour)} locked boundary piece`
+            ? `${activeReservePiece ? `${colourTitle(activeColour)} playable top-corner piece above ` : ""}${markerIsAway ? "Corner marker temporarily removed" : `${colourTitle(lockedColour)} corner marker`}`
             : `${activeReservePiece ? `${colourTitle(activeColour)} reserve piece` : "Empty reserve square"}`
         );
         cell.disabled = true;
@@ -959,7 +1020,9 @@
   function render() {
     const reserveHeading = document.getElementById("reserve-heading");
     if (reserveHeading) {
-      reserveHeading.textContent = state.choosingColour ? "Choose opponent's colour" : "Colour to use";
+      reserveHeading.textContent = initialCornerPhase()
+        ? (state.choosingColour ? "Choose your corner colour" : "Corner colour to place")
+        : (state.choosingColour ? "Choose opponent's colour" : "Colour to use");
     }
 
     currentPlayerElement.textContent = state.winner === "draw"
@@ -974,14 +1037,16 @@
     const phaseHelp=document.getElementById("phase-help");
     if(phaseHelp) phaseHelp.textContent=state.endgameStarted
       ? `End game · ${state.endgameTurns} / ${Number(settings.endgameDrawLimit) || 12} turns${state.pendingReplacement ? " · jumped piece must be replaced" : ""}${state.jumpRemovalBlockedPlayer === state.currentPlayer ? " · no removal this turn" : ""}`
-      : "Stage 1 · use the colour given: place or move. No jumping.";
+      : initialCornerPhase()
+        ? `Opening · top-corner pieces first · ${state.openingCornerPlacementsRemaining} placement${state.openingCornerPlacementsRemaining === 1 ? "" : "s"} remaining`
+        : "Stage 1 · use the colour given: place or move. No jumping.";
 
     const placementAlert = document.getElementById("placement-alert");
     if (placementAlert) {
       const showPlacementAlert = !state.endgameStarted && state.openingPlacementTurnsRemaining > 0;
       placementAlert.hidden = !showPlacementAlert;
       placementAlert.textContent = showPlacementAlert
-        ? `COMPULSORY PLACEMENT · ${state.openingPlacementTurnsRemaining} placement turn${state.openingPlacementTurnsRemaining === 1 ? "" : "s"} remaining`
+        ? `COMPULSORY PLACEMENT · ${state.openingPlacementTurnsRemaining} corner marker${state.openingPlacementTurnsRemaining === 1 ? "" : "s"} off-board`
         : "";
     }
 
@@ -1121,6 +1186,8 @@
     state = freshState();
     state.board = candidate.board;
     state.remaining = { black: 0, white: 0 };
+    state.openingCornerPlacementsRemaining = 0;
+    state.cornerTopRemaining = { black: 0, white: 0 };
     state.endgameStarted = true;
     state.endgameTurns = 0;
     state.currentPlayer = candidate.playerToMove;
@@ -1157,11 +1224,12 @@
       if (starter === "random") starter = Math.random() < 0.5 ? "player" : "computer";
       if(starter==="alternate"){const prev=localStorage.getItem("lipfty-last-starter")||"computer";starter=prev==="player"?"computer":"player";localStorage.setItem("lipfty-last-starter",starter);}
       state.currentPlayer = starter === "computer" ? 1 : 0;
-      state.colourChooser = otherPlayer(state.currentPlayer);
+      state.colourChooser = state.currentPlayer;
     } else {
-      // In two-player mode Player 1 starts; Player 2 gives the first colour.
+      // In two-player mode Player 1 starts; during the four-piece opening
+      // the current player chooses their own top-corner colour.
       state.currentPlayer = 0;
-      state.colourChooser = 1;
+      state.colourChooser = state.currentPlayer;
     }
 
     processFlow();
