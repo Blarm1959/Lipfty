@@ -873,3 +873,21 @@ dialog::backdrop{background:rgba(13,28,42,.45)}
     min-height: 44px;
   }
 }
+
+
+/* v0.2.7 — minimise unused outer desktop space above the header and below the command bar. */
+@media (min-width: 901px) {
+  .app-shell {
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
+  .app-header {
+    margin-top: 0;
+  }
+  .game-layout {
+    margin-bottom: 0;
+  }
+  .action-bar {
+    margin-bottom: 0;
+  }
+}
