@@ -73,10 +73,39 @@
     return !state.endgameStarted && piecesRemain();
   }
 
+  function shuffled(values) {
+    const result = [...values];
+    for (let i = result.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
+  }
+
+  function makeReserveLayout() {
+    const corners = [0, 7, 56, 63];
+    const outer = [];
+    for (let i = 0; i < 64; i += 1) {
+      const r = Math.floor(i / 8), c = i % 8;
+      if (r === 0 || r === 7 || c === 0 || c === 7) outer.push(i);
+    }
+    const nonCorners = outer.filter(i => !corners.includes(i));
+    const active = Array(64).fill(null);
+    const locked = Array(64).fill(null);
+
+    shuffled(["black","black","white","white"]).forEach((colour,i) => { active[corners[i]] = colour; });
+    shuffled([...Array(12).fill("black"), ...Array(12).fill("white")])
+      .forEach((colour,i) => { active[nonCorners[i]] = colour; });
+    shuffled(["black","black","white","white"]).forEach((colour,i) => { locked[corners[i]] = colour; });
+
+    return { active, locked };
+  }
+
   function freshState() {
     return {
       board: Array(BOARD_CELLS).fill(null),
       remaining: { black: PIECES_PER_COLOUR, white: PIECES_PER_COLOUR },
+      reserveLayout: makeReserveLayout(),
       currentPlayer: 0,
 
       // During the opening, the opponent chooses a colour for currentPlayer.
@@ -817,15 +846,6 @@
       finishTurn(piece.id, true);
   }
 
-  function reserveDisplayColour(displayRow, displayCol) {
-    if (displayRow > 0 && displayRow < 7 && displayCol > 0 && displayCol < 7) return null;
-    // Exactly 14 reserve positions per colour:
-    // Red = top row (8) + upper three squares on each side (6).
-    // Blue = bottom row (8) + lower three squares on each side (6).
-    if (displayRow === 0 || ((displayCol === 0 || displayCol === 7) && displayRow >= 1 && displayRow <= 3)) return "black";
-    return "white";
-  }
-
   function renderBoard() {
     boardElement.replaceChildren();
     const winning = new Set(state.winningCells);
@@ -841,33 +861,33 @@
 
       if (!inner) {
         cell.className = "board-cell board-cell--reserve";
-        const colour = reserveDisplayColour(displayRow, displayCol);
         const corner = (displayRow === 0 || displayRow === 7) && (displayCol === 0 || displayCol === 7);
-        const activeReservePiece = reserveShown[colour] < state.remaining[colour];
+        const activeColour = state.reserveLayout.active[displayIndex];
+        const lockedColour = state.reserveLayout.locked[displayIndex];
+        const activeReservePiece = activeColour && reserveShown[activeColour] < state.remaining[activeColour];
 
-        if (corner) {
+        if (corner && lockedColour) {
           cell.classList.add("board-cell--locked-corner");
           const lockedDisc = document.createElement("span");
-          lockedDisc.className = `piece piece--${colour} piece--locked-corner`;
+          lockedDisc.className = `piece piece--${lockedColour} piece--locked-corner`;
           lockedDisc.setAttribute("aria-hidden", "true");
           cell.appendChild(lockedDisc);
         }
 
         if (activeReservePiece) {
           const disc = document.createElement("span");
-          disc.className = `piece piece--${colour}${corner ? " piece--corner-top" : ""}`;
+          disc.className = `piece piece--${activeColour}${corner ? " piece--corner-top" : ""}`;
           disc.setAttribute("aria-hidden", "true");
           cell.appendChild(disc);
-          reserveShown[colour] += 1;
+          reserveShown[activeColour] += 1;
         } else if (!corner) {
           cell.classList.add("board-cell--reserve-empty");
         }
 
-        cell.setAttribute(
-          "aria-label",
+        cell.setAttribute("aria-label",
           corner
-            ? `${colourTitle(colour)} reserve corner: ${activeReservePiece ? "one playable piece above " : ""}one locked boundary piece`
-            : `${colourTitle(colour)} reserve${activeReservePiece ? " piece" : " square, empty"}`
+            ? `${activeReservePiece ? `${colourTitle(activeColour)} playable reserve piece above ` : ""}${colourTitle(lockedColour)} locked boundary piece`
+            : `${activeReservePiece ? `${colourTitle(activeColour)} reserve piece` : "Empty reserve square"}`
         );
         cell.disabled = true;
         boardElement.appendChild(cell);
@@ -916,6 +936,11 @@
   }
 
   function render() {
+    const reserveHeading = document.getElementById("reserve-heading");
+    if (reserveHeading) {
+      reserveHeading.textContent = state.choosingColour ? "Choose opponent's colour" : "Colour to use";
+    }
+
     currentPlayerElement.textContent = state.winner === "draw"
       ? "Draw"
       : state.winner !== null ? `${participantName(state.winner)} wins` : participantName(state.currentPlayer);
