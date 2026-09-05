@@ -16,7 +16,6 @@
   const whiteRemainingElement = document.getElementById("white-remaining");
   const jumpControls = document.getElementById("jump-controls");
   const finishJumpButton = document.getElementById("finish-jump");
-  const cancelButton = document.getElementById("cancel-action");
   const undoButton = document.getElementById("undo");
 
   let nextPieceId = 1;
@@ -170,6 +169,8 @@
       choosingColour: true,
       colourChooser: 0,
       assignedColour: null,
+      // The reserve/corner piece picked for this turn. Human picks are committed.
+      selectedReserveIndex: null,
 
       // A Stage-1 move must be followed by two placement turns:
       // first by the opponent, then by the player who moved.
@@ -214,6 +215,7 @@
       legalMoves: [],
       legalJumps: [],
       selectedPieceIndex: null,
+      selectedReserveIndex: state.selectedReserveIndex,
       jumpInProgress: false,
       jumpPieceIndex: null,
       jumpVisited: [],
@@ -477,6 +479,7 @@
     state.opponentProtectedPieceId = movedPieceId || null;
     state.currentPlayer = otherPlayer(finishingPlayer);
     state.assignedColour = null;
+    state.selectedReserveIndex = null;
     clearSelection();
     state.jumpInProgress = false;
     state.jumpPieceIndex = null;
@@ -570,6 +573,14 @@
 
     const piece = state.board[index];
     if (!piece) return;
+
+    // Touch-move principle: once a movable board piece has been picked, it is
+    // committed for this turn and another piece cannot be substituted.
+    if (state.selectedPieceIndex !== null && index !== state.selectedPieceIndex) {
+      setStatus("That piece is already chosen. Choose one of its highlighted destinations.");
+      render();
+      return;
+    }
 
     if (state.jumpInProgress && index !== state.jumpPieceIndex) return;
 
@@ -930,6 +941,15 @@
       finishTurn(piece.id, action.type === "move", false, action.type === "jump");
   }
 
+  function chooseReservePiece(displayIndex, colour) {
+    if (state.winner !== null || !state.choosingColour || computerBusy || isComputer(state.colourChooser)) return;
+    if (!canUseColour(colour)) return;
+    // Picking a reserve/corner piece is final for the turn, like picking up a
+    // physical piece. The chosen piece is shown in Colour to use until placed.
+    state.selectedReserveIndex = displayIndex;
+    chooseColour(colour);
+  }
+
   function renderBoard() {
     boardElement.replaceChildren();
     const winning = new Set(state.winningCells);
@@ -961,6 +981,7 @@
         const cornerSlot = corner ? cornerIndexes.indexOf(displayIndex) : -1;
         const jumpedCornerPiece = cornerSlot >= 0 ? state.jumpCornerPieces[cornerSlot] : null;
         const finalMarkerPlayed = cornerSlot >= 0 && state.finalFourPhase && !state.finalCornerPieces[cornerSlot];
+        const pickedHere = state.selectedReserveIndex === displayIndex;
         const displayedColour = jumpedCornerPiece?.colour || activeColour;
         const activeTarget = activeColour
           ? (corner
@@ -969,11 +990,17 @@
           : 0;
         const activeCounter = corner ? reserveShown.corner : reserveShown.other;
         const initialCornerPiece = corner && !jumpedCornerPiece && !!activeColour && activeCounter[activeColour] < activeTarget;
-        const activeReservePiece = !!jumpedCornerPiece || initialCornerPiece ||
+        let activeReservePiece = !!jumpedCornerPiece || initialCornerPiece ||
           (!corner && !!activeColour && activeCounter[activeColour] < activeTarget);
+        if (pickedHere && activeReservePiece && activeColour) {
+          // The picked piece is now visually in the Colour to use box, so it
+          // still consumes one visible reserve count at its original location.
+          activeCounter[activeColour] += 1;
+          activeReservePiece = false;
+        }
 
         const markerIsAway = corner && hiddenMarkerCorners.has(displayIndex);
-        if (corner && lockedColour && !markerIsAway && !finalMarkerPlayed) {
+        if (corner && lockedColour && !markerIsAway && !finalMarkerPlayed && !(pickedHere && state.finalFourPhase)) {
           cell.classList.add("board-cell--locked-corner");
           const lockedDisc = document.createElement("span");
           lockedDisc.className = `piece piece--${lockedColour} piece--locked-corner`;
@@ -998,7 +1025,19 @@
             ? `${activeReservePiece ? `${colourTitle(displayedColour)} playable top-corner piece above ` : ""}${markerIsAway ? "Corner marker temporarily removed" : `${colourTitle(lockedColour)} corner marker`}`
             : `${activeReservePiece ? `${colourTitle(activeColour)} reserve piece` : "Empty reserve square"}`
         );
-        cell.disabled = true;
+        const humanChooser = state.winner === null && state.choosingColour && !computerBusy && !isComputer(state.colourChooser);
+        let selectableColour = null;
+        if (humanChooser) {
+          if (initialCornerPhase() && corner && initialCornerPiece) selectableColour = activeColour;
+          else if (state.finalFourPhase && corner && !finalMarkerPlayed && state.finalCornerPieces[cornerSlot]) selectableColour = state.finalCornerPieces[cornerSlot];
+          else if (state.forcedPlacement && !corner && activeReservePiece) selectableColour = activeColour;
+          else if (!initialCornerPhase() && !state.finalFourPhase && !state.forcedPlacement && activeReservePiece) selectableColour = displayedColour;
+        }
+        cell.disabled = !selectableColour;
+        if (selectableColour) {
+          cell.classList.add("board-cell--reserve-selectable");
+          cell.addEventListener("click", () => chooseReservePiece(displayIndex, selectableColour));
+        }
         boardElement.appendChild(cell);
         continue;
       }
@@ -1042,11 +1081,7 @@
 
   function render() {
     const reserveHeading = document.getElementById("reserve-heading");
-    if (reserveHeading) {
-      reserveHeading.textContent = (initialCornerPhase() || jumpCornerPiecesRemain() || state.finalFourPhase)
-        ? (state.choosingColour ? "Choose a corner piece" : "Corner piece to place")
-        : (state.choosingColour ? "Choose opponent's colour" : "Colour to use");
-    }
+    if (reserveHeading) reserveHeading.textContent = "Colour to use";
 
     currentPlayerElement.textContent = state.winner === "draw"
       ? "Draw"
@@ -1074,9 +1109,19 @@
     if (placementAlert) {
       const showPlacementAlert = state.openingPlacementTurnsRemaining > 0;
       placementAlert.hidden = !showPlacementAlert;
-      placementAlert.textContent = showPlacementAlert
-        ? `COMPULSORY PLACEMENT · ${state.openingPlacementTurnsRemaining} corner marker${state.openingPlacementTurnsRemaining === 1 ? "" : "s"} off-board`
-        : "";
+      placementAlert.replaceChildren();
+      if (showPlacementAlert) {
+        const label = document.createElement("span");
+        label.textContent = `COMPULSORY PLACEMENT · ${state.openingPlacementTurnsRemaining} remaining `;
+        placementAlert.appendChild(label);
+        const corners = [0, 7, 56, 63];
+        corners.slice(0, Math.min(2, state.openingPlacementTurnsRemaining)).forEach(cornerIndex => {
+          const marker = document.createElement("span");
+          marker.className = `piece piece--${state.reserveLayout.locked[cornerIndex]} placement-alert-piece`;
+          marker.setAttribute("aria-hidden", "true");
+          placementAlert.appendChild(marker);
+        });
+      }
     }
 
     const reservePanel = document.querySelector(".reserve-panel");
@@ -1093,8 +1138,9 @@
       !computerBusy &&
       !isComputer(state.colourChooser);
 
-    blackButton.disabled = !humanChooser || !canUseColour("black");
-    whiteButton.disabled = !humanChooser || !canUseColour("white");
+    // Human colour/piece choice is made directly from the physical reserve ring.
+    blackButton.disabled = true;
+    whiteButton.disabled = true;
 
     const showAssigned =
       state.winner === null &&
@@ -1127,13 +1173,8 @@
       state.jumpCornerPieces.some(piece => piece?.colour === "white")
     );
 
-    cancelButton.disabled =
-      computerBusy ||
-      state.jumpInProgress ||
-      state.selectedPieceIndex === null;
-
     undoButton.hidden = !settings.undo;
-    undoButton.disabled = computerBusy || checkpoints.length === 0;
+    undoButton.disabled = computerBusy || state.selectedReserveIndex !== null || state.selectedPieceIndex !== null || checkpoints.length === 0;
 
     jumpControls.hidden = !state.jumpInProgress;
     renderBoard();
@@ -1205,12 +1246,6 @@
 
   blackButton.addEventListener("click", () => chooseColour("black"));
   whiteButton.addEventListener("click", () => chooseColour("white"));
-
-  cancelButton.addEventListener("click", () => {
-    if (computerBusy || state.jumpInProgress) return;
-    clearSelection();
-    processFlow();
-  });
 
   document.getElementById("new-game").addEventListener("click", startNewGame);
   document.getElementById("end-test").addEventListener("click", jumpToFinalFourTest);

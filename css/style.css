@@ -933,3 +933,10 @@ dialog::backdrop{background:rgba(13,28,42,.45)}
     border-radius: 12px;
   }
 }
+
+/* Lipfty 4.1.3: reserve pieces themselves are the committed selectors. */
+.reserve-panel--choosing .reserve-grid { min-height: 74px; }
+.reserve-panel--choosing .reserve-button { display: none; }
+.board-cell--reserve-selectable { cursor: pointer !important; }
+.board-cell--reserve-selectable:hover { box-shadow: inset 0 0 0 3px rgba(36,91,150,.35); }
+.placement-alert-piece { display:inline-block; width:30px; height:30px; margin-left:7px; vertical-align:middle; }
