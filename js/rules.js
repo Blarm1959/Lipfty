@@ -65,14 +65,20 @@
   }
 
   const WINNING_LINES = buildStraightLines();
-  const WINNING_SQUARES = [...buildAxisAlignedSquares(), ...buildDiagonalSquares()];
+  const AXIS_ALIGNED_SQUARES = buildAxisAlignedSquares();
+  const TIGHT_SQUARES = AXIS_ALIGNED_SQUARES.filter(pattern => {
+    const a = pattern[0], b = pattern[1];
+    return Math.abs(col(b) - col(a)) === 1;
+  });
+  const WINNING_SQUARES = AXIS_ALIGNED_SQUARES;
   const WINNING_PATTERNS = [...WINNING_LINES, ...WINNING_SQUARES];
 
   function row(index) { return Math.floor(index / SIZE); }
   function col(index) { return index % SIZE; }
 
-  function checkWin(board) {
-    for (const pattern of WINNING_PATTERNS) {
+  function checkWin(board, allowSpacedCorners = false) {
+    const patterns = [...WINNING_LINES, ...(allowSpacedCorners ? AXIS_ALIGNED_SQUARES : TIGHT_SQUARES)];
+    for (const pattern of patterns) {
       const pieces = pattern.map(index => board[index]);
       if (pieces.some(piece => !piece)) continue;
       const colour = pieces[0].colour;

@@ -24,15 +24,22 @@ board = emptyBoard();
 [3, 8, 13, 18].forEach(i => board[i] = piece("white"));
 assert.deepEqual(R.checkWin(board), { line: [3, 8, 13, 18], colour: "white" });
 
-// Board-aligned 3x3 square: corners (1,1), (1,4), (4,4), (4,1).
+// Tight 2x2 board-aligned square wins by default.
+board = emptyBoard();
+[7, 8, 14, 13].forEach(i => board[i] = piece("black"));
+assert.deepEqual(R.checkWin(board), { line: [7, 8, 14, 13], colour: "black" });
+
+// A spaced board-aligned square is disabled by default but can be enabled.
 board = emptyBoard();
 [7, 10, 28, 25].forEach(i => board[i] = piece("black"));
-assert.deepEqual(R.checkWin(board), { line: [7, 10, 28, 25], colour: "black" });
+assert.equal(R.checkWin(board), null);
+assert.deepEqual(R.checkWin(board, true), { line: [7, 10, 28, 25], colour: "black" });
 
-// 45-degree diamond centred on (2,2), radius 2.
+// 45-degree diamond corners never count as a square win.
 board = emptyBoard();
 [2, 16, 26, 12].forEach(i => board[i] = piece("white"));
-assert.deepEqual(R.checkWin(board), { line: [2, 16, 26, 12], colour: "white" });
+assert.equal(R.checkWin(board), null);
+assert.equal(R.checkWin(board, true), null);
 
 // Three matching pieces are not enough.
 board = emptyBoard();
