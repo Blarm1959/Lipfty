@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Lipfty 3">
   <meta name="application-name" content="Lipfty 3">
-  <meta name="description" content="Lipfty 3 is a shared-piece 6×6 strategy game: place or move in Stage 1, then move or jump in Stage 2.">
+  <meta name="description" content="Lipfty 4 is a shared-piece 6×6 strategy game with placement, movement, jumping and compulsory corner returns.">
   <title>Lipfty 3</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/lipfty-192.png" type="image/png">
@@ -21,10 +21,10 @@
     <header class="app-header">
       <div>
         <p class="eyebrow">Shared-piece strategy</p>
-        <h1>Lipfty 3</h1>
+        <h1>Lipfty 4</h1>
       </div>
       <span class="mobile-version" id="mobile-version" aria-hidden="true"></span>
-      <div class="header-actions"><button class="icon-button" id="help-button" type="button" aria-label="How to play">?</button><button class="stage2-test-button" id="stage2-test-button" type="button" aria-label="Random Stage 2 test" title="Random Stage 2 test">2</button><button class="icon-button" id="settings-button" type="button" aria-label="Settings">⚙</button></div>
+      <div class="header-actions"><button class="icon-button" id="help-button" type="button" aria-label="How to play">?</button><button class="icon-button" id="settings-button" type="button" aria-label="Settings">⚙</button></div>
     </header>
 
     <main class="game-layout">
@@ -72,10 +72,10 @@
 
         <aside class="rules-panel">
           <h2>Turn choices</h2>
-          <p><strong>First four turns:</strong> alternate normally. On your turn choose and place any remaining top-corner piece. No colour is given and moving is not allowed.</p>
-          <p><strong>Then:</strong> use the colour your opponent gives you. Place that colour, or move a board piece of that colour. Jumping is not allowed in Stage 1.</p>
-          <p>If you <strong>move</strong>, take any two corner markers off the board. Each of the next two compulsory placements returns one marker to an empty corner.</p>
-          <p><strong>After all 28 pieces are down:</strong> move or jump either colour freely.</p>
+          <p><strong>First four turns:</strong> alternate normally. On your turn choose and place any remaining top-corner piece. No colour is given; moving and jumping are not allowed.</p>
+          <p><strong>Then:</strong> use the colour your opponent gives you. Place that colour, move a board piece of that colour, or jump with that colour.</p>
+          <p>If you <strong>move</strong>, take any two corner markers off the board. Each of the next two compulsory reserve placements returns one marker.</p>
+          <p>If you <strong>jump</strong>, every jumped piece goes on top of a free corner marker. Those corner pieces must all be placed before moving or jumping resumes.</p>
           <p class="panel-help">You cannot move the piece your opponent moved on their previous turn.</p>
         </aside>
       </section>
@@ -106,7 +106,6 @@
       </section>
       <section class="wizard-step" data-wizard-step="3" hidden><h3>Final options</h3>
         <fieldset class="setup-fieldset"><legend>Move timer</legend><div class="choice-grid"><label><input checked name="timer" type="radio" value="30"><span>30 seconds</span></label><label><input name="timer" type="radio" value="45"><span>45 seconds</span></label><label><input name="timer" type="radio" value="60"><span>60 seconds</span></label><label><input name="timer" type="radio" value="0"><span>Unlimited</span></label></div></fieldset> 
-        <fieldset class="setup-fieldset"><legend>End-game draw limit</legend><div class="choice-grid"><label><input checked name="endgameDrawLimit" type="radio" value="12"><span>12 turns</span></label><label><input name="endgameDrawLimit" type="radio" value="18"><span>18 turns</span></label><label><input name="endgameDrawLimit" type="radio" value="24"><span>24 turns</span></label></div><p class="setup-help">Forced replacements count as end-game turns. A win on the final allowed turn takes priority over the draw.</p></fieldset>
         <fieldset class="setup-fieldset"><legend>Game feel</legend><div class="toggle-list"><label class="toggle-row"><span><strong>Sound effects</strong><small>Subtle sounds for selecting, placing and winning</small></span><input checked id="setting-sound" type="checkbox"></label><label class="toggle-row"><span><strong>Animations</strong><small>Piece movement and winning highlights</small></span><input checked id="setting-animations" type="checkbox"></label></div></fieldset>
         <fieldset class="setup-fieldset"><legend>Language</legend><select class="text-input" id="setting-language"><option value="en-GB">British English</option></select></fieldset><button class="button button--secondary settings-statistics-button" id="view-statistics-button" type="button">View statistics</button><div class="setup-summary" id="setup-summary"></div>
       </section>
@@ -116,21 +115,20 @@
   <dialog id="statistics-dialog"><div class="dialog-heading"><div><p class="dialog-eyebrow">Lipfty</p><h2>Statistics</h2></div><button class="dialog-close" id="close-statistics" type="button">×</button></div><div class="statistics-summary"><span><strong id="stat-played">0</strong><small>Played</small></span><span><strong id="stat-wins">0</strong><small>Won</small></span><span><strong id="stat-losses">0</strong><small>Lost</small></span><span><strong id="stat-win-rate">0%</strong><small>Win rate</small></span></div></dialog>
   <dialog id="help-dialog">
     <div class="dialog-heading">
-      <div><p class="dialog-eyebrow">How to play</p><h2>Lipfty 3</h2></div>
+      <div><p class="dialog-eyebrow">How to play</p><h2>Lipfty 4</h2></div>
       <button class="dialog-close" id="close-help" type="button" aria-label="Close">×</button>
     </div>
     <div class="rules-copy">
-      <p><strong>Objective.</strong> Lipfty is played on the inner 6×6 area of a standard 8×8 board using a full 32-piece draughts/checkers set. Fourteen pieces of each colour are playable in Stage 1; one extra piece of each colour starts underneath each of that colour's two corner reserve pieces. The playable pieces are shared by both players. Online they are shown as Red and Blue; for physical play, use the two colours supplied with any standard draughts/checkers set. The four underneath corner pieces are not playable; after the top corner pieces enter play, they become visible corner markers used to show compulsory placements. Win with four pieces of the same colour either consecutive in a horizontal, vertical or diagonal straight line, or on the four corners of any square aligned at 90° or 45° to the board.</p>
-      <p><strong>Opening play.</strong> Choose the first player, then alternate normally. For the first four turns, the player whose turn it is chooses one of the four playable top-corner pieces and places it on any empty square in the inner 6×6 area. These four turns are placement-only: the opponent does not choose the colour and no piece may be moved. Once all four top-corner pieces have been placed, normal Stage 1 colour-giving begins: the player who has just completed a turn chooses which colour the opponent must use. The opponent may place a new piece of that colour or move an existing piece of that colour one adjacent square. Jumping is not allowed during Stage 1.</p>
-      <p><strong>Compulsory placements.</strong> If you move instead of placing during Stage 1, temporarily remove any two of the four corner-marker pieces; their colours do not matter. The next two turns must be placements: first your opponent places, then you place. After each compulsory placement, return one removed marker to any empty outer corner. When all four corner markers are back, moving is available again. If only one playable colour remains in reserve, it is selected automatically. This ensures that all 28 playable pieces eventually reach the board.</p>
-      <p><strong>Moving and jumping.</strong> Moves may be horizontal, vertical or diagonal. A normal move is one square into an adjacent empty square. Once Stage 2 begins, jumps are also allowed horizontally, vertically or diagonally: a jump goes over an adjacent piece into the empty square immediately beyond it. After jumping, you may continue jumping with the same piece and may change direction.</p>
-      <p>During one multi-jump you may not return to a square already visited. If <strong>Undo Previous Jump</strong> is enabled in Settings, an immediate jump back to the square just left is allowed, but longer loops are still not allowed. If no legal further jump is available, the turn ends automatically.</p>
-      <p>You may not move the exact piece your opponent moved on their immediately preceding turn. A newly placed or replaced piece is not protected by this rule.</p>
-      <p><strong>End game.</strong> Once all 28 pieces are on the board, colour-giving ends and pieces of either colour may be moved. On a turn where removal is active, the first jump removes the piece that was jumped over. Any further jumps in the same multi-jump do not remove another piece.</p>
-      <p>The opponent must use their next turn to put the removed piece back on any empty square except the square from which it was removed. Replacing the piece uses the whole turn and may itself create a winning position.</p>
-      <p><strong>After a replacement.</strong> The player who caused the removal then gets one normal turn in which they may move or jump, but a jump on that turn does <em>not</em> remove another piece. After that turn, first-jump removal becomes active again. This prevents repeated jump-remove-replace cycles from denying the opponent normal play.</p>
-      <p><strong>End-game limit.</strong> The default limit is <strong>12 end-game turns in total</strong>. Settings can extend this to 18 or 24 turns. If nobody has won when the selected limit is reached, the game is a draw. A win created on the final allowed turn takes precedence over the draw.</p>
-      <p><strong>Winning.</strong> Five consecutive matching-colour pieces in any horizontal, vertical or diagonal straight line wins. A win takes effect immediately, including during a multi-jump or forced replacement.</p>
+      <p><strong>Objective.</strong> Lipfty is played on the inner 6×6 area of a standard 8×8 board using a full 32-piece draughts/checkers set. Fourteen pieces of each colour are playable; one extra piece of each colour starts underneath each of that colour's two corner reserve pieces. The playable pieces are shared by both players. Online they are shown as Red and Blue. The four underneath corner pieces are not playable: after the opening they act as physical markers for compulsory placements and as bases for pieces removed by jumps. Win with four pieces of the same colour either consecutive in a horizontal, vertical or diagonal straight line, or on the four corners of any square aligned at 90° or 45° to the board.</p>
+      <p><strong>Opening play.</strong> Choose the first player, then alternate normally. For the first four turns, the player whose turn it is chooses one of the four playable top-corner pieces and places it on any empty square in the inner 6×6 area. These four turns are placement-only: the opponent does not choose the colour and no piece may be moved or jumped. Once all four top-corner pieces have been placed, normal colour-giving begins: the player who has just completed a turn chooses which colour the opponent must use.</p>
+      <p><strong>Normal play.</strong> Use the colour your opponent gives you. You may place a reserve piece of that colour, move an existing board piece of that colour one adjacent square, or jump with an existing board piece of that colour. Moves and jumps may be horizontal, vertical or diagonal.</p>
+      <p><strong>Move compulsory placements.</strong> If you make an ordinary one-square move instead of placing or jumping, temporarily remove any two of the four bottom corner-marker pieces; their colours do not matter. The next two turns must be reserve placements, first by your opponent and then by you. After each placement return one marker to an empty outer corner. If no normal reserve piece is available, any remaining placement obligation ends and normal play resumes.</p>
+      <p><strong>Jumping.</strong> A jump goes over an adjacent piece into the empty square immediately beyond it. Every piece jumped over is removed from the 6×6 board and placed on top of one free corner marker. A corner may hold only one such playable top piece, so a multi-jump can contain at most four jumps and must stop when all four corners are occupied.</p>
+      <p>During one multi-jump you may not return to a square already visited. If <strong>Undo Previous Jump</strong> is enabled in Settings, an immediate jump back to the square just left is allowed, but longer loops are still not allowed. If no legal further jump is available, or all four corner positions are full, the jump ends automatically.</p>
+      <p><strong>Returning jumped pieces.</strong> If any playable pieces are sitting on top of corner markers, they have absolute priority. Players alternate placing one available top-corner piece onto any empty square. The player chooses which available corner colour to place; the opponent does not give the colour. No ordinary reserve placement, move or jump is allowed until every top-corner piece has returned to the 6×6 board.</p>
+      <p>You may not move the exact piece your opponent moved on their immediately preceding turn. A newly placed piece is not protected by this rule.</p>
+      <p><strong>Draw.</strong> Lipfty 4 has one continuous stage. There is no Stage 2 and no fixed end-game turn limit. If a player reaches a turn where neither colour can provide any legal placement, move or jump, the game is a draw by stalemate.</p>
+      <p><strong>Winning.</strong> Four consecutive matching-colour pieces in any horizontal, vertical or diagonal straight line wins, as do matching pieces on the four corners of any board-aligned or 45° diamond square. A win takes effect immediately, including during a multi-jump or compulsory placement.</p>
       <p><strong>Undo and timer.</strong> If last-move Undo is enabled, the previous play can be undone even after a win, including a computer win. The move timer may be set to 30, 45 or 60 seconds, or Unlimited. Reaching zero does not force the turn to end. The timer stops when the game is won or drawn and resumes appropriately if a winning play is undone.</p>
     </div>
   </dialog>
