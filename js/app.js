@@ -92,7 +92,8 @@
   }
 
   function updateJumpUnlock() {
-    if (!state.jumpUnlocked && reservePieceCount() <= 8) state.jumpUnlocked = true;
+    // Lipfty 4.1: jumping is available throughout normal play.
+    state.jumpUnlocked = true;
   }
 
   function beginFinalFourIfReady() {
@@ -185,12 +186,12 @@
 
       // The exact piece moved by the opponent on the preceding turn is protected.
       opponentProtectedPieceId: null,
-      // Jumped pieces sit on the four physical corner markers until players
-      // alternate placing every one of them back onto the board.
+      // Lipfty 4.1 jumps are non-capturing single jumps. They have the same
+      // consequence as an ordinary move: two compulsory placement turns.
       jumpCornerPieces: [null, null, null, null],
       jumpCount: 0,
       jumpFlashIndex: null,
-      jumpUnlocked: false,
+      jumpUnlocked: true,
 
       // Once all 28 normal playable pieces are on the board, the four marker
       // pieces become the final four placement-only pieces.
@@ -323,7 +324,7 @@
       if (!piece || piece.colour !== colour) continue;
       if (piece.id === state.opponentProtectedPieceId) continue;
       if (rules.adjacentDestinations(state.board, from).length) return true;
-      if (state.jumpUnlocked && firstFreeJumpCorner() >= 0 && rules.jumpDestinations(state.board, from).length) return true;
+      if (legalSingleJumps(from).length) return true;
     }
 
     return false;
@@ -354,7 +355,7 @@
       const remaining = state.openingPlacementTurnsRemaining;
       return `${actor}: compulsory placement — place ${colourTitle(state.assignedColour)}. ${remaining} placement turn${remaining === 1 ? "" : "s"} remain${remaining === 1 ? "s" : ""} before moving or jumping is allowed again.`;
     }
-    return `${actor}: use ${colourTitle(state.assignedColour)} — place or move${state.jumpUnlocked ? ", or jump" : ""}.`;
+    return `${actor}: use ${colourTitle(state.assignedColour)} — place, move, or make a single jump over the opposite colour.`;
   }
 
   function processFlow(message = null) {
@@ -603,16 +604,18 @@
     render();
   }
 
-  function legalJumpContinuations(from) {
-    if (!state.jumpUnlocked || state.finalFourPhase || state.forcedPlacement || initialCornerPhase() || (!state.jumpInProgress && jumpCornerPiecesRemain()) || firstFreeJumpCorner() < 0 || state.jumpCount >= 2) return [];
-    const jumps = rules.jumpDestinations(state.board, from);
-    if (!state.jumpInProgress) return jumps;
-    const visited = new Set(state.jumpVisited || []);
-    return jumps.filter(jump => {
-      // Optional immediate reversal only. Any older visited square remains illegal.
-      if (settings.undoPreviousJump && jump.to === state.jumpPreviousIndex) return true;
-      return !visited.has(jump.to);
+  function legalSingleJumps(from) {
+    if (state.finalFourPhase || state.forcedPlacement || initialCornerPhase()) return [];
+    const movingPiece = state.board[from];
+    if (!movingPiece) return [];
+    return rules.jumpDestinations(state.board, from).filter(jump => {
+      const jumpedPiece = state.board[jump.over];
+      return jumpedPiece && jumpedPiece.colour !== movingPiece.colour;
     });
+  }
+
+  function legalJumpContinuations(from) {
+    return legalSingleJumps(from);
   }
 
   function humanMovePiece(from, to, jump = null, afterFlash = false) {
@@ -633,47 +636,13 @@
     state.board[from] = null;
     state.selectedPieceIndex = to;
 
-    if (jump && state.board[jump.over]) {
-      const slot = firstFreeJumpCorner();
-      if (slot < 0) return;
-      const jumpedPiece = state.board[jump.over];
-      state.jumpCornerPieces[slot] = jumpedPiece;
-      state.remaining[jumpedPiece.colour] += 1;
-      state.board[jump.over] = null;
-      state.jumpCount += 1;
-    }
-
+    // A Lipfty 4.1 jump never removes the piece jumped over. It is a single
+    // tactical leap and immediately triggers the same two placements as a move.
     if (checkAndFinishWin(piece.id)) return;
 
-    if (!jump) {
-      clearSelection();
-      finishTurn(piece.id, true);
-      return;
-    }
-
-    if (!state.jumpInProgress) state.jumpVisited = [from];
-    if (!state.jumpVisited.includes(to)) state.jumpVisited.push(to);
-    state.jumpPreviousIndex = from;
-    state.jumpInProgress = true;
-    state.jumpPieceIndex = to;
-    state.legalMoves.clear();
-    state.legalJumps = new Map(
-      legalJumpContinuations(to).map(jump => [jump.to, jump])
-    );
-
-    if (state.legalJumps.size === 0) {
-      state.jumpInProgress = false;
-      state.jumpPieceIndex = null;
-      state.jumpVisited = [];
-      state.jumpPreviousIndex = null;
-      clearSelection();
-      jumpControls.hidden = true;
-      finishTurn(piece.id, false, false, true);
-      return;
-    }
-
-    jumpControls.hidden = false;
-    processFlow();
+    clearSelection();
+    jumpControls.hidden = true;
+    finishTurn(piece.id, !jump, false, !!jump);
   }
 
   function handleCell(index) {
@@ -731,10 +700,8 @@
       for (const to of rules.adjacentDestinations(state.board, from)) {
         actions.push({ type: "move", from, to });
       }
-      if (state.jumpUnlocked && firstFreeJumpCorner() >= 0) {
-        for (const jump of rules.jumpDestinations(state.board, from)) {
-          actions.push({ type: "jump", from, to: jump.to, over: jump.over });
-        }
+      for (const jump of legalSingleJumps(from)) {
+        actions.push({ type: "jump", from, to: jump.to, over: jump.over });
       }
     }
 
@@ -748,9 +715,7 @@
     } else {
       board[action.to] = board[action.from];
       board[action.from] = null;
-      if (action.type === "jump" && action.over !== undefined) {
-        board[action.over] = null;
-      }
+      // Single jumps are non-capturing: the jumped piece stays in place.
     }
     return board;
   }
@@ -954,70 +919,11 @@
   function computerPlayResolvedAction(action, piece, firstJumpOver) {
       state.board[action.to] = piece;
       state.board[action.from] = null;
-      if (action.type === "jump" && firstJumpOver !== null && state.board[firstJumpOver]) {
-        const slot = firstFreeJumpCorner();
-        if (slot >= 0) {
-          const jumpedPiece = state.board[firstJumpOver];
-          state.jumpCornerPieces[slot] = jumpedPiece;
-          state.remaining[jumpedPiece.colour] += 1;
-          state.board[firstJumpOver] = null;
-          state.jumpCount = 1;
-        }
-      }
 
+      // Lipfty 4.1 single jumps do not remove the jumped-over piece.
       if (checkAndFinishWin(piece.id)) {
         computerBusy = false;
         return;
-      }
-
-      if (action.type === "jump") {
-        // A computer may continue a multi-jump. It always takes an immediate
-        // winning continuation; otherwise Standard/Expert may make one extra
-        // useful jump, capped to avoid loops.
-        let current = action.to;
-        const visited = new Set([action.from, action.to]);
-        let jumpCount = 1;
-
-        while (jumpCount < 2 && firstFreeJumpCorner() >= 0) {
-          const options = rules.jumpDestinations(state.board, current)
-            .filter(j => !visited.has(j.to));
-          if (!options.length) break;
-
-          let next = null;
-          const winningOption = options.find(j => {
-            const b = cloneBoard(state.board);
-            b[j.to] = b[current];
-            b[current] = null;
-            b[j.over] = null;
-            return !!rules.checkWin(b);
-          });
-
-          if (winningOption) next = winningOption;
-          else if (settings.level !== "beginner" && jumpCount === 1) {
-            next = options[Math.floor(Math.random() * options.length)];
-          }
-
-          if (!next) break;
-
-          state.board[next.to] = state.board[current];
-          state.board[current] = null;
-          const slot = firstFreeJumpCorner();
-          if (slot >= 0 && state.board[next.over]) {
-            const jumpedPiece = state.board[next.over];
-            state.jumpCornerPieces[slot] = jumpedPiece;
-            state.remaining[jumpedPiece.colour] += 1;
-            state.board[next.over] = null;
-          }
-          current = next.to;
-          visited.add(current);
-          jumpCount += 1;
-          state.jumpCount = jumpCount;
-
-          if (checkAndFinishWin(piece.id)) {
-            computerBusy = false;
-            return;
-          }
-        }
       }
 
       computerBusy = false;
@@ -1162,7 +1068,7 @@
       ? `Opening · top-corner pieces first · ${state.openingCornerPlacementsRemaining} placement${state.openingCornerPlacementsRemaining === 1 ? "" : "s"} remaining`
       : jumpCornerPiecesRemain()
         ? `Corner return · ${jumpCornerPieces().length} jumped piece${jumpCornerPieces().length === 1 ? "" : "s"} must be placed before normal play resumes`
-        : `Main play · use the colour given: place or move${state.jumpUnlocked ? ", or jump" : " · jumping unlocks when 8 reserve pieces remain"}.`;
+        : `Main play · use the colour given: place, move, or make one jump over an opposite-colour piece.`;
 
     const placementAlert = document.getElementById("placement-alert");
     if (placementAlert) {
