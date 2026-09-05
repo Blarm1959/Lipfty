@@ -983,19 +983,26 @@
         const finalMarkerPlayed = cornerSlot >= 0 && state.finalFourPhase && !state.finalCornerPieces[cornerSlot];
         const pickedHere = state.selectedReserveIndex === displayIndex;
         const displayedColour = jumpedCornerPiece?.colour || activeColour;
+        // A human-picked reserve piece is physically "in hand" in the Colour to use
+        // box.  It still belongs to the reserve until it is placed, but must no
+        // longer be counted amongst the pieces drawn around the edge.
+        const heldNormalReservePiece = state.selectedReserveIndex !== null &&
+          ![0, 7, 56, 63].includes(state.selectedReserveIndex) &&
+          state.reserveLayout.active[state.selectedReserveIndex] === activeColour;
         const activeTarget = activeColour
           ? (corner
             ? Math.min(state.cornerTopRemaining[activeColour], state.remaining[activeColour])
-            : normalReserveRemaining(activeColour))
+            : Math.max(0, normalReserveRemaining(activeColour) - (heldNormalReservePiece ? 1 : 0)))
           : 0;
         const activeCounter = corner ? reserveShown.corner : reserveShown.other;
         const initialCornerPiece = corner && !jumpedCornerPiece && !!activeColour && activeCounter[activeColour] < activeTarget;
         let activeReservePiece = !!jumpedCornerPiece || initialCornerPiece ||
           (!corner && !!activeColour && activeCounter[activeColour] < activeTarget);
         if (pickedHere && activeReservePiece && activeColour) {
-          // The picked piece is now visually in the Colour to use box, so it
-          // still consumes one visible reserve count at its original location.
-          activeCounter[activeColour] += 1;
+          // The picked piece has left its physical edge square immediately.
+          // For ordinary reserve pieces activeTarget already excludes the held
+          // piece, so do not consume another visible reserve slot here.
+          if (corner) activeCounter[activeColour] += 1;
           activeReservePiece = false;
         }
 
