@@ -33,10 +33,16 @@
       level: "standard",
       starter: "random",
       undo: true,
-      language: "en-GB", colour1: "red", colour2: "blue", timer: 30, sound: true, animations: true, undoPreviousJump: false, winLevel: 1
+      language: "en-GB", colour1: "red", colour2: "blue", timer: 30, sound: true, animations: true, undoPreviousJump: false, allowJump: false, allowMove: false, allowDiagonal: false, allowSquare: false, allowSpacedSquare: false, allowDiamond: false, allowSpacedDiamond: false
     };
     try {
-      return { ...defaults, ...JSON.parse(localStorage.getItem("lipfty-settings") || "{}") };
+      const saved = JSON.parse(localStorage.getItem("lipfty-settings") || "{}");
+      if (saved.winLevel && saved.allowJump === undefined) {
+        const level = Number(saved.winLevel) || 1;
+        Object.assign(saved, { allowJump: level >= 2, allowMove: level >= 3, allowDiagonal: level >= 4, allowSquare: level >= 5, allowSpacedSquare: level >= 6, allowDiamond: level >= 7, allowSpacedDiamond: level >= 8 });
+      }
+      delete saved.winLevel;
+      return { ...defaults, ...saved };
     } catch (_) {
       return defaults;
     }
@@ -308,8 +314,8 @@
   const COLOURS={red:["Red","#d6423a"],blue:["Blue","#2d65ad"],green:["Green","#318653"],yellow:["Yellow","#e2ad34"],purple:["Purple","#7955a6"],orange:["Orange","#d97832"],black:["Black","#1d1d1d"],white:["White","#f8f8f4"]};
   function colourKey(colour){return colour==="black"?settings.colour1:settings.colour2;}
   function colourTitle(colour){return COLOURS[colourKey(colour)][0];}
-  function jumpAllowed(){return Number(settings.winLevel || 1) >= 2;}
-  function moveAllowed(){return Number(settings.winLevel || 1) >= 3;}
+  function jumpAllowed(){return !!settings.allowJump;}
+  function moveAllowed(){return !!settings.allowMove;}
   function applyPieceColours(){document.documentElement.style.setProperty("--piece-black",COLOURS[settings.colour1][1]);document.documentElement.style.setProperty("--piece-white",COLOURS[settings.colour2][1]);}
 
   function canUseColour(colour) {
@@ -504,7 +510,7 @@
   }
 
   function checkAndFinishWin(movedPieceId = null) {
-    const win = rules.checkWin(state.board, settings.winLevel);
+    const win = rules.checkWin(state.board, settings);
     if (!win) return false;
 
     state.winner = state.currentPlayer;
@@ -804,7 +810,7 @@
   }
 
   function actionWins(action) {
-    return !!rules.checkWin(boardAfterAction(action), settings.winLevel);
+    return !!rules.checkWin(boardAfterAction(action), settings);
   }
 
   function actionScore(action) {
@@ -877,7 +883,7 @@
           if (state.board[to]) continue;
           const board = cloneBoard(state.board);
           board[to] = { id: -1, colour };
-          if (rules.checkWin(board, settings.winLevel)) return true;
+          if (rules.checkWin(board, settings)) return true;
         }
         return false;
       });
@@ -890,7 +896,7 @@
           if (state.board[to]) continue;
           const board = cloneBoard(state.board);
           board[to] = { id: -1, colour };
-          if (rules.checkWin(board, settings.winLevel)) return false;
+          if (rules.checkWin(board, settings)) return false;
         }
         return true;
       });
@@ -1306,9 +1312,9 @@
       const colours = shuffled([...Array(14).fill("black"), ...Array(14).fill("white")]);
       occupied.forEach((index, i) => { state.board[index] = { id: nextPieceId++, colour: colours[i] }; });
       attempts += 1;
-    } while (rules.checkWin(state.board, settings.winLevel) && attempts < 10000);
+    } while (rules.checkWin(state.board, settings) && attempts < 10000);
 
-    if (rules.checkWin(state.board, settings.winLevel)) {
+    if (rules.checkWin(state.board, settings)) {
       setStatus("Could not create a non-winning End test position. Try again.");
       render();
       return;
@@ -1397,14 +1403,20 @@
   function fv(n){return settingsForm.querySelector(`[name="${n}"]:checked`)?.value} function sr(n,v){const e=settingsForm.querySelector(`[name="${n}"][value="${v}"]`);if(e)e.checked=true}
   function syncMode(){const one=fv("gameMode")==="computer";difficultyField.hidden=!one;player2Label.hidden=one;document.getElementById("player1-label-text").textContent=one?"Player name":"Player 1 name";document.getElementById("starter-player-label").textContent=one?"Player":"Player 1";document.getElementById("starter-other-label").textContent=one?"Computer":"Player 2";}
   function syncDifficulty(){const n=Number(difficultyInput.value),names=["","Beginner","Standard","Expert"];document.getElementById("difficulty-name").textContent=`${n} · ${names[n]}`;}
-  function syncWinLevel(){const n=Number(document.getElementById("setting-win-level").value),names=["","Horizontal / vertical","+ Jump","+ Move","+ Diagonal","+ Squares","+ Spaced squares","+ Diamonds","+ Spaced diamonds"];document.getElementById("win-level-name").textContent=`${n} · ${names[n]}`;}
-  document.getElementById("setting-win-level").addEventListener("input",syncWinLevel);
+  const ruleOptionIds=["allowJump","allowMove","allowDiagonal","allowSquare","allowSpacedSquare","allowDiamond","allowSpacedDiamond"];
+  function syncRuleDependencies(){
+    const square=document.getElementById("setting-allow-square").checked,diamond=document.getElementById("setting-allow-diamond").checked;
+    document.getElementById("setting-allow-spaced-square").disabled=!square;
+    document.getElementById("setting-allow-spaced-diamond").disabled=!diamond;
+  }
+  document.querySelectorAll("[data-rule-option]").forEach(e=>e.addEventListener("change",syncRuleDependencies));
   function showStep(n){wizardStep=Math.max(0,Math.min(3,n));wizardSteps.forEach((e,i)=>e.hidden=i!==wizardStep);wizardIndicators.forEach((e,i)=>{e.classList.toggle("wizard-progress-step--active",i===wizardStep);e.classList.toggle("wizard-progress-step--complete",i<wizardStep)});wizardBack.hidden=wizardStep===0;wizardNext.hidden=wizardStep===3;wizardStart.hidden=wizardStep!==3;if(wizardStep===3)summary();}
   function coloursValid(){return fv("colour1")!==fv("colour2")}
-  function summary(){const one=fv("gameMode")==="computer",level=["","Beginner","Standard","Expert"][Number(difficultyInput.value)],winLevel=Number(document.getElementById("setting-win-level").value);document.getElementById("setup-summary").textContent=`${one?"Player vs Computer · "+level:"Two players"} · ${COLOURS[fv("colour1")][0]} / ${COLOURS[fv("colour2")][0]} · Lipfty Level ${winLevel} wins · ${fv("timer")==="0"?"Unlimited":fv("timer")+"-second"} turns · stalemate draw`;}
-  function openSettings(){sr("gameMode",settings.mode);difficultyInput.value=settings.level==="beginner"?1:settings.level==="expert"?3:2;sr("allowUndo",settings.undo?"yes":"no");sr("undoPreviousJump",settings.undoPreviousJump?"yes":"no");sr("colour1",settings.colour1);sr("colour2",settings.colour2);player1Input.value=settings.player1;player2Input.value=settings.player2;sr("starter",settings.starter);sr("timer",String(settings.timer));document.getElementById("setting-win-level").value=String(settings.winLevel||1);syncWinLevel();document.getElementById("setting-sound").checked=settings.sound;document.getElementById("setting-animations").checked=settings.animations;syncMode();syncDifficulty();showStep(0);settingsDialog.showModal();}
+  function selectedRuleSummary(){const labels=[];document.querySelectorAll("[data-rule-option]:checked").forEach(e=>labels.push(e.dataset.ruleLabel));return labels.length?labels.join(", "):"Basic placement only";}
+  function summary(){const one=fv("gameMode")==="computer",level=["","Beginner","Standard","Expert"][Number(difficultyInput.value)];document.getElementById("setup-summary").textContent=`${one?"Player vs Computer · "+level:"Two players"} · ${COLOURS[fv("colour1")][0]} / ${COLOURS[fv("colour2")][0]} · ${selectedRuleSummary()} · ${fv("timer")==="0"?"Unlimited":fv("timer")+"-second"} turns · stalemate draw`;}
+  function openSettings(){sr("gameMode",settings.mode);difficultyInput.value=settings.level==="beginner"?1:settings.level==="expert"?3:2;sr("allowUndo",settings.undo?"yes":"no");sr("undoPreviousJump",settings.undoPreviousJump?"yes":"no");sr("colour1",settings.colour1);sr("colour2",settings.colour2);player1Input.value=settings.player1;player2Input.value=settings.player2;sr("starter",settings.starter);sr("timer",String(settings.timer));ruleOptionIds.forEach(k=>{document.getElementById(`setting-${k.replace(/[A-Z]/g,m=>"-"+m.toLowerCase())}`).checked=!!settings[k];});syncRuleDependencies();document.getElementById("setting-sound").checked=settings.sound;document.getElementById("setting-animations").checked=settings.animations;syncMode();syncDifficulty();showStep(0);settingsDialog.showModal();}
   settingsForm.querySelectorAll('[name="gameMode"]').forEach(e=>e.addEventListener("change",syncMode));difficultyInput.addEventListener("input",syncDifficulty);wizardNext.addEventListener("click",()=>{if(wizardStep===1&&!coloursValid()){setStatus("Choose two different piece colours.");return}showStep(wizardStep+1)});wizardBack.addEventListener("click",()=>showStep(wizardStep-1));document.getElementById("settings-button").addEventListener("click",openSettings);document.getElementById("close-settings").addEventListener("click",()=>settingsDialog.close());document.getElementById("cancel-settings").addEventListener("click",()=>settingsDialog.close());
-  settingsForm.addEventListener("submit",e=>{e.preventDefault();if(!coloursValid()){showStep(1);return}const n=Number(difficultyInput.value);settings={...settings,mode:fv("gameMode"),player1:player1Input.value.trim()||"Player",player2:player2Input.value.trim()||"Player 2",level:n===1?"beginner":n===3?"expert":"standard",starter:fv("starter"),undo:fv("allowUndo")==="yes",undoPreviousJump:fv("undoPreviousJump")==="yes",colour1:fv("colour1"),colour2:fv("colour2"),timer:Number(fv("timer")),winLevel:Number(document.getElementById("setting-win-level").value),sound:document.getElementById("setting-sound").checked,animations:document.getElementById("setting-animations").checked,language:document.getElementById("setting-language").value};saveSettings();settingsDialog.close();startNewGame();});
+  settingsForm.addEventListener("submit",e=>{e.preventDefault();if(!coloursValid()){showStep(1);return}const n=Number(difficultyInput.value),ruleSettings={};ruleOptionIds.forEach(k=>{ruleSettings[k]=document.getElementById(`setting-${k.replace(/[A-Z]/g,m=>"-"+m.toLowerCase())}`).checked;});if(!ruleSettings.allowSquare)ruleSettings.allowSpacedSquare=false;if(!ruleSettings.allowDiamond)ruleSettings.allowSpacedDiamond=false;settings={...settings,...ruleSettings,mode:fv("gameMode"),player1:player1Input.value.trim()||"Player",player2:player2Input.value.trim()||"Player 2",level:n===1?"beginner":n===3?"expert":"standard",starter:fv("starter"),undo:fv("allowUndo")==="yes",undoPreviousJump:fv("undoPreviousJump")==="yes",colour1:fv("colour1"),colour2:fv("colour2"),timer:Number(fv("timer")),sound:document.getElementById("setting-sound").checked,animations:document.getElementById("setting-animations").checked,language:document.getElementById("setting-language").value};saveSettings();settingsDialog.close();startNewGame();});
   const statisticsDialog=document.getElementById("statistics-dialog");document.getElementById("view-statistics-button").addEventListener("click",()=>statisticsDialog.showModal());document.getElementById("close-statistics").addEventListener("click",()=>statisticsDialog.close());
 
   // Help

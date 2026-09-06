@@ -82,14 +82,14 @@
   function row(index) { return Math.floor(index / SIZE); }
   function col(index) { return index % SIZE; }
 
-  function checkWin(board, winLevel = 1) {
-    const level = Math.max(1, Math.min(8, Number(winLevel) || 1));
+  function checkWin(board, options = {}) {
+    const rules = options && typeof options === "object" ? options : {};
     const patterns = [...ORTHOGONAL_LINES];
-    if (level >= 4) patterns.push(...DIAGONAL_LINES);
-    if (level >= 5) patterns.push(...TIGHT_SQUARES);
-    if (level >= 6) patterns.push(...AXIS_ALIGNED_SQUARES);
-    if (level >= 7) patterns.push(...TIGHT_DIAMONDS);
-    if (level >= 8) patterns.push(...WINNING_DIAMONDS);
+    if (rules.allowDiagonal) patterns.push(...DIAGONAL_LINES);
+    if (rules.allowSquare) patterns.push(...TIGHT_SQUARES);
+    if (rules.allowSquare && rules.allowSpacedSquare) patterns.push(...AXIS_ALIGNED_SQUARES);
+    if (rules.allowDiamond) patterns.push(...TIGHT_DIAMONDS);
+    if (rules.allowDiamond && rules.allowSpacedDiamond) patterns.push(...WINNING_DIAMONDS);
     for (const pattern of patterns) {
       const pieces = pattern.map(index => board[index]);
       if (pieces.some(piece => !piece)) continue;
