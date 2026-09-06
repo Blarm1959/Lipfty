@@ -395,7 +395,10 @@
     beginFinalFourIfReady();
 
     if (state.choosingColour) {
-      const legalColours = ["black", "white"].filter(canUseColour);
+      const normalHandedPiece = !initialCornerPhase() && !state.finalFourPhase && !jumpCornerPiecesRemain();
+      const legalColours = normalHandedPiece
+        ? rules.availableReserveColours({ black: normalReserveRemaining("black"), white: normalReserveRemaining("white") }).filter(canUseColour)
+        : ["black", "white"].filter(canUseColour);
       if (!legalColours.length) {
         state.winner = "draw";
         computerBusy = false;
@@ -815,7 +818,10 @@
     computerBusy = true;
     render();
 
-    const legalColours = ["black", "white"].filter(canUseColour);
+    const normalHandedPiece = !initialCornerPhase() && !state.finalFourPhase && !jumpCornerPiecesRemain();
+    const legalColours = normalHandedPiece
+      ? rules.availableReserveColours({ black: normalReserveRemaining("black"), white: normalReserveRemaining("white") }).filter(canUseColour)
+      : ["black", "white"].filter(canUseColour);
     if (!legalColours.length) {
       computerBusy = false;
       setStatus("No colour can be given. Start a new game.");

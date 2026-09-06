@@ -30,6 +30,11 @@ assert.deepEqual(R.checkWin(put([2,16,26,12],"white"), 5), { line:[2,16,26,12], 
 assert.equal(R.checkWin(put([0,1,2]), 5), null);
 assert.equal(R.checkWin(put([0,9,14,29]), 5), null);
 
+// A colour with no physical reserve piece cannot be handed to the next player.
+assert.deepEqual(R.availableReserveColours({ black: 8, white: 0 }), ["black"]);
+assert.deepEqual(R.availableReserveColours({ black: 0, white: 3 }), ["white"]);
+assert.deepEqual(R.availableReserveColours({ black: 0, white: 0 }), []);
+
 let board=emptyBoard(); board[0]=piece("white");
 assert.deepEqual(R.adjacentDestinations(board,0).sort((a,b)=>a-b),[1,6,7]);
 board[1]=piece("black"); assert.equal(R.jumpDestinations(board,0).some(j=>j.to===2&&j.over===1),true);

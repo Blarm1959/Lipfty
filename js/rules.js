@@ -97,6 +97,10 @@
     return null;
   }
 
+  function availableReserveColours(remainingByColour, colours = ["black", "white"]) {
+    return colours.filter(colour => Number(remainingByColour?.[colour] || 0) > 0);
+  }
+
   function adjacentDestinations(board, from) {
     const result = [];
     const r = row(from), c = col(from);
@@ -129,5 +133,5 @@
     return result;
   }
 
-  window.LipftyRules = { SIZE, WIN_LENGTH, WINNING_LINES, WINNING_SQUARES, WINNING_DIAMONDS, WINNING_PATTERNS, checkWin, adjacentDestinations, jumpDestinations };
+  window.LipftyRules = { SIZE, WIN_LENGTH, WINNING_LINES, WINNING_SQUARES, WINNING_DIAMONDS, WINNING_PATTERNS, checkWin, availableReserveColours, adjacentDestinations, jumpDestinations };
 })();
