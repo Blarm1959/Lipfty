@@ -7,9 +7,8 @@
   function indexOf(r, c) { return r * SIZE + c; }
   function inBounds(r, c) { return r >= 0 && r < SIZE && c >= 0 && c < SIZE; }
 
-  function buildStraightLines() {
+  function buildStraightLines(directions) {
     const lines = [];
-    const directions = [[0, 1], [1, 0]];
 
     for (let r = 0; r < SIZE; r += 1) {
       for (let c = 0; c < SIZE; c += 1) {
@@ -64,7 +63,9 @@
     return squares;
   }
 
-  const WINNING_LINES = buildStraightLines();
+  const ORTHOGONAL_LINES = buildStraightLines([[0, 1], [1, 0]]);
+  const DIAGONAL_LINES = buildStraightLines([[1, 1], [1, -1]]);
+  const WINNING_LINES = [...ORTHOGONAL_LINES, ...DIAGONAL_LINES];
   const AXIS_ALIGNED_SQUARES = buildAxisAlignedSquares();
   const TIGHT_SQUARES = AXIS_ALIGNED_SQUARES.filter(pattern => {
     const a = pattern[0], b = pattern[1];
@@ -82,12 +83,13 @@
   function col(index) { return index % SIZE; }
 
   function checkWin(board, winLevel = 1) {
-    const level = Math.max(1, Math.min(5, Number(winLevel) || 1));
-    const patterns = [...WINNING_LINES];
-    if (level >= 2) patterns.push(...TIGHT_SQUARES);
-    if (level >= 3) patterns.push(...AXIS_ALIGNED_SQUARES);
-    if (level >= 4) patterns.push(...TIGHT_DIAMONDS);
-    if (level >= 5) patterns.push(...WINNING_DIAMONDS);
+    const level = Math.max(1, Math.min(8, Number(winLevel) || 1));
+    const patterns = [...ORTHOGONAL_LINES];
+    if (level >= 4) patterns.push(...DIAGONAL_LINES);
+    if (level >= 5) patterns.push(...TIGHT_SQUARES);
+    if (level >= 6) patterns.push(...AXIS_ALIGNED_SQUARES);
+    if (level >= 7) patterns.push(...TIGHT_DIAMONDS);
+    if (level >= 8) patterns.push(...WINNING_DIAMONDS);
     for (const pattern of patterns) {
       const pieces = pattern.map(index => board[index]);
       if (pieces.some(piece => !piece)) continue;

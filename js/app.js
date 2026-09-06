@@ -300,6 +300,8 @@
   const COLOURS={red:["Red","#d6423a"],blue:["Blue","#2d65ad"],green:["Green","#318653"],yellow:["Yellow","#e2ad34"],purple:["Purple","#7955a6"],orange:["Orange","#d97832"],black:["Black","#1d1d1d"],white:["White","#f8f8f4"]};
   function colourKey(colour){return colour==="black"?settings.colour1:settings.colour2;}
   function colourTitle(colour){return COLOURS[colourKey(colour)][0];}
+  function jumpAllowed(){return Number(settings.winLevel || 1) >= 2;}
+  function moveAllowed(){return Number(settings.winLevel || 1) >= 3;}
   function applyPieceColours(){document.documentElement.style.setProperty("--piece-black",COLOURS[settings.colour1][1]);document.documentElement.style.setProperty("--piece-white",COLOURS[settings.colour2][1]);}
 
   function canUseColour(colour) {
@@ -325,8 +327,8 @@
       const piece = state.board[from];
       if (!piece || piece.colour !== colour) continue;
       if (piece.id === state.opponentProtectedPieceId) continue;
-      if (rules.adjacentDestinations(state.board, from).length) return true;
-      if (legalSingleJumps(from).length) return true;
+      if (moveAllowed() && rules.adjacentDestinations(state.board, from).length) return true;
+      if (jumpAllowed() && legalSingleJumps(from).length) return true;
     }
 
     return false;
@@ -376,7 +378,9 @@
       const remaining = state.openingPlacementTurnsRemaining;
       return `${actor}: compulsory placement — place ${colourTitle(state.assignedColour)}. ${remaining} placement turn${remaining === 1 ? "" : "s"} remain${remaining === 1 ? "s" : ""} before moving or jumping is allowed again.`;
     }
-    return `${actor}: use ${colourTitle(state.assignedColour)} — place, move, or make a single jump over the opposite colour.`;
+    if (moveAllowed()) return `${actor}: use ${colourTitle(state.assignedColour)} — place, move, or make a single jump over the opposite colour.`;
+    if (jumpAllowed()) return `${actor}: use ${colourTitle(state.assignedColour)} — place, or make a single jump over the opposite colour.`;
+    return `${actor}: use ${colourTitle(state.assignedColour)} — place the handed reserve piece.`;
   }
 
   function processFlow(message = null) {
@@ -436,6 +440,21 @@
           state.legalMoves.clear();
           state.legalJumps.clear();
           message = `${colourTitle(oneCornerColour)} is the only corner colour remaining, so a piece is picked up automatically.`;
+        }
+      }
+
+      // If exactly one normal reserve piece remains, handing it over is inevitable.
+      // Pick up that exact physical piece automatically for either player.
+      if (state.choosingColour && normalHandedPiece &&
+          normalReserveRemaining("black") + normalReserveRemaining("white") === 1) {
+        const onlyColour = normalReserveRemaining("black") === 1 ? "black" : "white";
+        const pickedIndex = firstVisibleReserveIndex(onlyColour, "normal");
+        if (pickedIndex !== null) {
+          state.selectedReserveIndex = pickedIndex;
+          state.assignedColour = onlyColour;
+          state.choosingColour = false;
+          clearSelection();
+          message = `${colourTitle(onlyColour)} is the only reserve piece remaining, so it is picked up automatically.`;
         }
       }
     }
@@ -630,10 +649,10 @@
 
     state.selectedPieceIndex = index;
     state.legalMoves = new Set(
-      state.jumpInProgress ? [] : rules.adjacentDestinations(state.board, index)
+      state.jumpInProgress || !moveAllowed() ? [] : rules.adjacentDestinations(state.board, index)
     );
     state.legalJumps = new Map(
-      legalJumpContinuations(index).map(jump => [jump.to, jump])
+      (jumpAllowed() ? legalJumpContinuations(index) : []).map(jump => [jump.to, jump])
     );
 
     if (state.legalMoves.size === 0 && state.legalJumps.size === 0) {
@@ -648,7 +667,7 @@
   }
 
   function legalSingleJumps(from) {
-    if (state.finalFourPhase || state.forcedPlacement || initialCornerPhase()) return [];
+    if (!jumpAllowed() || state.finalFourPhase || state.forcedPlacement || initialCornerPhase()) return [];
     const movingPiece = state.board[from];
     if (!movingPiece) return [];
     return rules.jumpDestinations(state.board, from).filter(jump => {
@@ -740,11 +759,15 @@
       if (colour && piece.colour !== colour) continue;
       if (piece.id === state.opponentProtectedPieceId) continue;
 
-      for (const to of rules.adjacentDestinations(state.board, from)) {
-        actions.push({ type: "move", from, to });
+      if (moveAllowed()) {
+        for (const to of rules.adjacentDestinations(state.board, from)) {
+          actions.push({ type: "move", from, to });
+        }
       }
-      for (const jump of legalSingleJumps(from)) {
-        actions.push({ type: "jump", from, to: jump.to, over: jump.over });
+      if (jumpAllowed()) {
+        for (const jump of legalSingleJumps(from)) {
+          actions.push({ type: "jump", from, to: jump.to, over: jump.over });
+        }
       }
     }
 
@@ -1356,7 +1379,7 @@
   function fv(n){return settingsForm.querySelector(`[name="${n}"]:checked`)?.value} function sr(n,v){const e=settingsForm.querySelector(`[name="${n}"][value="${v}"]`);if(e)e.checked=true}
   function syncMode(){const one=fv("gameMode")==="computer";difficultyField.hidden=!one;player2Label.hidden=one;document.getElementById("player1-label-text").textContent=one?"Player name":"Player 1 name";document.getElementById("starter-player-label").textContent=one?"Player":"Player 1";document.getElementById("starter-other-label").textContent=one?"Computer":"Player 2";}
   function syncDifficulty(){const n=Number(difficultyInput.value),names=["","Beginner","Standard","Expert"];document.getElementById("difficulty-name").textContent=`${n} · ${names[n]}`;}
-  function syncWinLevel(){const n=Number(document.getElementById("setting-win-level").value),names=["","Horizontal / vertical","+ Squares","+ Spaced squares","+ Diamonds","+ Spaced diamonds"];document.getElementById("win-level-name").textContent=`${n} · ${names[n]}`;}
+  function syncWinLevel(){const n=Number(document.getElementById("setting-win-level").value),names=["","Horizontal / vertical","+ Jump","+ Move","+ Diagonal","+ Squares","+ Spaced squares","+ Diamonds","+ Spaced diamonds"];document.getElementById("win-level-name").textContent=`${n} · ${names[n]}`;}
   document.getElementById("setting-win-level").addEventListener("input",syncWinLevel);
   function showStep(n){wizardStep=Math.max(0,Math.min(3,n));wizardSteps.forEach((e,i)=>e.hidden=i!==wizardStep);wizardIndicators.forEach((e,i)=>{e.classList.toggle("wizard-progress-step--active",i===wizardStep);e.classList.toggle("wizard-progress-step--complete",i<wizardStep)});wizardBack.hidden=wizardStep===0;wizardNext.hidden=wizardStep===3;wizardStart.hidden=wizardStep!==3;if(wizardStep===3)summary();}
   function coloursValid(){return fv("colour1")!==fv("colour2")}
