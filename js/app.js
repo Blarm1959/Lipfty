@@ -667,7 +667,7 @@
     }
 
     // With no piece selected, an empty square means "place" when a reserve/final piece is available.
-    if (!piece && state.selectedPieceIndex === null && state.assignedColour &&
+    if (!piece && state.selectedPieceIndex === null && state.assignedColour && state.selectedReserveIndex !== null &&
         (state.finalFourPhase || normalReserveRemaining(state.assignedColour) > 0)) {
       placePiece(index);
       return;
@@ -942,12 +942,27 @@
   }
 
   function chooseReservePiece(displayIndex, colour) {
-    if (state.winner !== null || !state.choosingColour || computerBusy || isComputer(state.colourChooser)) return;
-    if (!canUseColour(colour)) return;
-    // Picking a reserve/corner piece is final for the turn, like picking up a
-    // physical piece. The chosen piece is shown in Colour to use until placed.
+    if (state.winner !== null || computerBusy) return;
+
+    // Opening, compulsory-placement and Final Four turns are genuine physical
+    // piece choices: the player picks an actual reserve/corner piece and is
+    // committed to placing it.
+    if (state.choosingColour) {
+      if (isComputer(state.colourChooser) || !canUseColour(colour)) return;
+      if (!(initialCornerPhase() || state.finalFourPhase || state.forcedPlacement || jumpCornerPiecesRemain())) return;
+      state.selectedReserveIndex = displayIndex;
+      chooseColour(colour);
+      return;
+    }
+
+    // On a normal turn the opponent has only GIVEN a colour. The current player
+    // may still move or jump. Only when they decide to place do they pick up an
+    // actual edge piece; from that point the placement is committed.
+    if (isComputer(state.currentPlayer) || state.selectedReserveIndex !== null || state.selectedPieceIndex !== null) return;
+    if (state.assignedColour !== colour || normalReserveRemaining(colour) <= 0) return;
     state.selectedReserveIndex = displayIndex;
-    chooseColour(colour);
+    setStatus(`${participantName(state.currentPlayer)}: place the chosen ${colourTitle(colour)} reserve piece.`);
+    render();
   }
 
   function renderBoard() {
@@ -1033,12 +1048,16 @@
             : `${activeReservePiece ? `${colourTitle(activeColour)} reserve piece` : "Empty reserve square"}`
         );
         const humanChooser = state.winner === null && state.choosingColour && !computerBusy && !isComputer(state.colourChooser);
+        const humanNormalPlacementChoice = state.winner === null && !state.choosingColour && !computerBusy &&
+          !isComputer(state.currentPlayer) && !state.forcedPlacement && !initialCornerPhase() && !state.finalFourPhase &&
+          !jumpCornerPiecesRemain() && state.selectedReserveIndex === null && state.selectedPieceIndex === null;
         let selectableColour = null;
         if (humanChooser) {
           if (initialCornerPhase() && corner && initialCornerPiece) selectableColour = activeColour;
           else if (state.finalFourPhase && corner && !finalMarkerPlayed && state.finalCornerPieces[cornerSlot]) selectableColour = state.finalCornerPieces[cornerSlot];
           else if (state.forcedPlacement && !corner && activeReservePiece) selectableColour = activeColour;
-          else if (!initialCornerPhase() && !state.finalFourPhase && !state.forcedPlacement && activeReservePiece) selectableColour = displayedColour;
+        } else if (humanNormalPlacementChoice && !corner && activeReservePiece && activeColour === state.assignedColour) {
+          selectableColour = activeColour;
         }
         cell.disabled = !selectableColour;
         if (selectableColour) {
@@ -1145,9 +1164,13 @@
       !computerBusy &&
       !isComputer(state.colourChooser);
 
-    // Human colour/piece choice is made directly from the physical reserve ring.
-    blackButton.disabled = true;
-    whiteButton.disabled = true;
+    // During normal play the opponent only gives a colour here. During opening,
+    // compulsory placements and Final Four the player instead picks an actual
+    // piece from the edge/corner, so these colour-giving buttons stay disabled.
+    const normalColourGiving = humanChooser && !initialCornerPhase() && !state.finalFourPhase &&
+      !state.forcedPlacement && !jumpCornerPiecesRemain();
+    blackButton.disabled = !normalColourGiving || !canUseColour("black");
+    whiteButton.disabled = !normalColourGiving || !canUseColour("white");
 
     const showAssigned =
       state.winner === null &&
