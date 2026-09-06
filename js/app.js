@@ -1242,7 +1242,7 @@
     );
 
     undoButton.hidden = !settings.undo;
-    undoButton.disabled = computerBusy || checkpoints.length === 0 || (state.winner === null && (state.selectedReserveIndex !== null || state.selectedPieceIndex !== null));
+    undoButton.disabled = computerBusy || checkpoints.length === 0;
 
     jumpControls.hidden = !state.jumpInProgress;
     renderBoard();

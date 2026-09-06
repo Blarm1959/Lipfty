@@ -40,4 +40,12 @@ assert.deepEqual(R.adjacentDestinations(board,0).sort((a,b)=>a-b),[1,6,7]);
 board[1]=piece("black"); assert.equal(R.jumpDestinations(board,0).some(j=>j.to===2&&j.over===1),true);
 board[6]=piece("black"); assert.equal(R.jumpDestinations(board,0).some(j=>j.to===12&&j.over===6),true);
 board[7]=piece("black"); assert.equal(R.jumpDestinations(board,0).some(j=>j.to===14&&j.over===7),true);
-console.log("Lipfty 5 level-based win rules tests passed.");
+
+// Undo restores the preceding completed decision even after the current piece has been handed/picked.
+// Piece commitment prevents cancelling that selection; it must not suppress completed-turn Undo.
+const fs = require("node:fs");
+const appSource = fs.readFileSync(require.resolve("../js/app.js"), "utf8");
+assert.match(appSource, /undoButton\.disabled = computerBusy \|\| checkpoints\.length === 0;/);
+assert.doesNotMatch(appSource, /undoButton\.disabled[^;]*(selectedReserveIndex|selectedPieceIndex)/);
+
+console.log("Lipfty 5 level-based win rules and Undo regression tests passed.");
