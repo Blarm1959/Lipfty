@@ -209,6 +209,10 @@
       ...state,
       board: state.board.map(piece => piece ? { ...piece } : null),
       remaining: { ...state.remaining },
+      reserveLayout: {
+        active: [...state.reserveLayout.active],
+        locked: [...state.reserveLayout.locked]
+      },
       cornerTopRemaining: { ...state.cornerTopRemaining },
       jumpCornerPieces: state.jumpCornerPieces.map(piece => piece ? { ...piece } : null),
       finalCornerPieces: [...state.finalCornerPieces],
@@ -254,6 +258,10 @@
       ...snap.state,
       board: snap.state.board.map(piece => piece ? { ...piece } : null),
       remaining: { ...snap.state.remaining },
+      reserveLayout: {
+        active: [...snap.state.reserveLayout.active],
+        locked: [...snap.state.reserveLayout.locked]
+      },
       cornerTopRemaining: { ...snap.state.cornerTopRemaining },
       jumpCornerPieces: snap.state.jumpCornerPieces.map(piece => piece ? { ...piece } : null),
       finalCornerPieces: [...snap.state.finalCornerPieces],
@@ -575,6 +583,14 @@
   }
 
 
+  function consumeSelectedNormalReservePiece(colour) {
+    const pickedIndex = state.selectedReserveIndex;
+    if (pickedIndex === null || [0, 7, 56, 63].includes(pickedIndex)) return;
+    if (state.reserveLayout.active[pickedIndex] === colour) {
+      state.reserveLayout.active[pickedIndex] = null;
+    }
+  }
+
   function placePiece(index) {
     if (computerBusy || state.choosingColour || jumpCornerPiecesRemain()) return;
     const colour = state.assignedColour;
@@ -604,6 +620,7 @@
     if (cornerOpeningPlacement && state.cornerTopRemaining[colour] <= 0) return;
 
     state.board[index] = { id: nextPieceId++, colour };
+    if (!cornerOpeningPlacement) consumeSelectedNormalReservePiece(colour);
     state.remaining[colour] -= 1;
     if (cornerOpeningPlacement) {
       state.cornerTopRemaining[colour] -= 1;
@@ -961,6 +978,7 @@
       if (action.type === "place") {
         const cornerOpeningPlacement = initialCornerPhase();
         state.board[action.to] = { id: nextPieceId++, colour: action.colour };
+        if (!cornerOpeningPlacement) consumeSelectedNormalReservePiece(action.colour);
         state.remaining[action.colour] -= 1;
         if (cornerOpeningPlacement) {
           state.cornerTopRemaining[action.colour] -= 1;

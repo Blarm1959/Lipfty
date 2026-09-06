@@ -51,8 +51,17 @@ assert.match(appSource, /function jumpAllowed\(\)\{return Number\(settings\.winL
 assert.match(appSource, /function moveAllowed\(\)\{return Number\(settings\.winLevel \|\| 1\) >= 3;\}/);
 // Exactly one remaining normal reserve piece is automatically picked up.
 assert.match(appSource, /normalReserveRemaining\("black"\) \+ normalReserveRemaining\("white"\) === 1/);
+// The exact normal reserve-ring piece selected must be the one consumed on placement.
+assert.match(appSource, /function consumeSelectedNormalReservePiece\(colour\)/);
+assert.match(appSource, /state\.reserveLayout\.active\[pickedIndex\] = null;/);
+assert.match(appSource, /if \(!cornerOpeningPlacement\) consumeSelectedNormalReservePiece\(colour\);/);
+assert.match(appSource, /if \(!cornerOpeningPlacement\) consumeSelectedNormalReservePiece\(action\.colour\);/);
+// Undo snapshots must preserve the physical reserve layout after exact pieces are consumed.
+assert.match(appSource, /active: \[\.\.\.state\.reserveLayout\.active\]/);
+assert.match(appSource, /active: \[\.\.\.snap\.state\.reserveLayout\.active\]/);
+
 // Undo remains a completed-turn facility despite piece commitment.
 assert.match(appSource, /undoButton\.disabled = computerBusy \|\| checkpoints\.length === 0;/);
 assert.doesNotMatch(appSource, /undoButton\.disabled[^;]*(selectedReserveIndex|selectedPieceIndex)/);
 
-console.log("Lipfty 5 eight-level rules, final-reserve auto-pick and Undo regression tests passed.");
+console.log("Lipfty 5 eight-level rules, exact reserve-piece identity, final-reserve auto-pick and Undo regression tests passed.");
