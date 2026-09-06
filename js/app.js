@@ -398,8 +398,15 @@
           : state.forcedPlacement
             ? ["black", "white"].filter(colour => normalReserveRemaining(colour) > 0)
             : [];
-      const automaticColour = reserveColours.length === 1 ? reserveColours[0] :
-        (legalColours.length === 1 ? legalColours[0] : null);
+      // Forced placements are physical piece choices. Even when only one colour
+      // remains, a human player must click the actual reserve/corner piece to pick
+      // it up before choosing its destination. Auto-selection is only appropriate
+      // on a normal opponent-gives-colour turn.
+      const physicalPieceChoice = initialCornerPhase() || state.finalFourPhase ||
+        jumpCornerPiecesRemain() || state.forcedPlacement;
+      const automaticColour = physicalPieceChoice
+        ? null
+        : (legalColours.length === 1 ? legalColours[0] : null);
       if (automaticColour) {
         state.assignedColour = automaticColour;
         state.choosingColour = false;
