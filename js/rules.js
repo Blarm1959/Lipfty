@@ -9,7 +9,7 @@
 
   function buildStraightLines() {
     const lines = [];
-    const directions = [[0, 1], [1, 0], [1, 1], [1, -1]];
+    const directions = [[0, 1], [1, 0]];
 
     for (let r = 0; r < SIZE; r += 1) {
       for (let c = 0; c < SIZE; c += 1) {
@@ -70,14 +70,24 @@
     const a = pattern[0], b = pattern[1];
     return Math.abs(col(b) - col(a)) === 1;
   });
+  const TIGHT_DIAMONDS = buildDiagonalSquares().filter(pattern => {
+    const a = pattern[0], b = pattern[1];
+    return Math.abs(row(b) - row(a)) === 1;
+  });
   const WINNING_SQUARES = AXIS_ALIGNED_SQUARES;
-  const WINNING_PATTERNS = [...WINNING_LINES, ...WINNING_SQUARES];
+  const WINNING_DIAMONDS = buildDiagonalSquares();
+  const WINNING_PATTERNS = [...WINNING_LINES, ...WINNING_SQUARES, ...WINNING_DIAMONDS];
 
   function row(index) { return Math.floor(index / SIZE); }
   function col(index) { return index % SIZE; }
 
-  function checkWin(board, allowSpacedCorners = false) {
-    const patterns = [...WINNING_LINES, ...(allowSpacedCorners ? AXIS_ALIGNED_SQUARES : TIGHT_SQUARES)];
+  function checkWin(board, winLevel = 1) {
+    const level = Math.max(1, Math.min(5, Number(winLevel) || 1));
+    const patterns = [...WINNING_LINES];
+    if (level >= 2) patterns.push(...TIGHT_SQUARES);
+    if (level >= 3) patterns.push(...AXIS_ALIGNED_SQUARES);
+    if (level >= 4) patterns.push(...TIGHT_DIAMONDS);
+    if (level >= 5) patterns.push(...WINNING_DIAMONDS);
     for (const pattern of patterns) {
       const pieces = pattern.map(index => board[index]);
       if (pieces.some(piece => !piece)) continue;
@@ -119,5 +129,5 @@
     return result;
   }
 
-  window.LipftyRules = { SIZE, WIN_LENGTH, WINNING_LINES, WINNING_SQUARES, WINNING_PATTERNS, checkWin, adjacentDestinations, jumpDestinations };
+  window.LipftyRules = { SIZE, WIN_LENGTH, WINNING_LINES, WINNING_SQUARES, WINNING_DIAMONDS, WINNING_PATTERNS, checkWin, adjacentDestinations, jumpDestinations };
 })();
