@@ -1031,26 +1031,24 @@
         const finalMarkerPlayed = cornerSlot >= 0 && state.finalFourPhase && !state.finalCornerPieces[cornerSlot];
         const pickedHere = state.selectedReserveIndex === displayIndex;
         const displayedColour = jumpedCornerPiece?.colour || activeColour;
-        // A human-picked reserve piece is physically "in hand" in the Colour to use
-        // box.  It still belongs to the reserve until it is placed, but must no
-        // longer be counted amongst the pieces drawn around the edge.
-        const heldNormalReservePiece = state.selectedReserveIndex !== null &&
-          ![0, 7, 56, 63].includes(state.selectedReserveIndex) &&
-          state.reserveLayout.active[state.selectedReserveIndex] === activeColour;
+        // The selected reserve index is the exact physical piece being held.
+        // Keep the normal visible target unchanged here: when the renderer reaches
+        // that exact square, pickedHere hides it and consumes its one reserve slot.
+        // This prevents an earlier/later same-colour piece from disappearing instead.
         const activeTarget = activeColour
           ? (corner
             ? Math.min(state.cornerTopRemaining[activeColour], state.remaining[activeColour])
-            : Math.max(0, normalReserveRemaining(activeColour) - (heldNormalReservePiece ? 1 : 0)))
+            : normalReserveRemaining(activeColour))
           : 0;
         const activeCounter = corner ? reserveShown.corner : reserveShown.other;
         const initialCornerPiece = corner && !jumpedCornerPiece && !!activeColour && activeCounter[activeColour] < activeTarget;
         let activeReservePiece = !!jumpedCornerPiece || initialCornerPiece ||
           (!corner && !!activeColour && activeCounter[activeColour] < activeTarget);
         if (pickedHere && activeReservePiece && activeColour) {
-          // The picked piece has left its physical edge square immediately.
-          // For ordinary reserve pieces activeTarget already excludes the held
-          // piece, so do not consume another visible reserve slot here.
-          if (corner) activeCounter[activeColour] += 1;
+          // The exact picked piece has left its physical edge square and is now
+          // shown in Colour to use. Consume this slot so no other same-colour
+          // reserve piece is removed in its place.
+          activeCounter[activeColour] += 1;
           activeReservePiece = false;
         }
 
