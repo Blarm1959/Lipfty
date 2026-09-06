@@ -332,6 +332,25 @@
     return false;
   }
 
+  function firstVisibleReserveIndex(colour, mode = "normal") {
+    const corners = [0, 7, 56, 63];
+    if (mode === "opening") {
+      if (state.cornerTopRemaining[colour] <= 0) return null;
+      return corners.find(i => state.reserveLayout.active[i] === colour) ?? null;
+    }
+    if (mode === "final") {
+      const slot = state.finalCornerPieces.findIndex(c => c === colour);
+      return slot >= 0 ? corners[slot] : null;
+    }
+    const count = normalReserveRemaining(colour);
+    if (count <= 0) return null;
+    const candidates = [];
+    for (let i = 0; i < 64; i += 1) {
+      if (!corners.includes(i) && state.reserveLayout.active[i] === colour) candidates.push(i);
+    }
+    return candidates[Math.min(count - 1, candidates.length - 1)] ?? null;
+  }
+
   function colourPrompt() {
     if (initialCornerPhase() || jumpCornerPiecesRemain() || state.finalFourPhase) {
       const actor = participantName(state.currentPlayer);
@@ -398,20 +417,23 @@
           : state.forcedPlacement
             ? ["black", "white"].filter(colour => normalReserveRemaining(colour) > 0)
             : [];
-      // Forced placements are physical piece choices. Even when only one colour
-      // remains, a human player must click the actual reserve/corner piece to pick
-      // it up before choosing its destination. Auto-selection is only appropriate
-      // on a normal opponent-gives-colour turn.
-      const physicalPieceChoice = initialCornerPhase() || state.finalFourPhase ||
-        jumpCornerPiecesRemain() || state.forcedPlacement;
-      const automaticColour = physicalPieceChoice
-        ? null
-        : (legalColours.length === 1 ? legalColours[0] : null);
-      if (automaticColour) {
-        state.assignedColour = automaticColour;
-        state.choosingColour = false;
-        clearSelection();
-        message = `${colourTitle(automaticColour)} is the only available colour, so it is selected automatically.`;
+      // Opening and Final Four are self-chosen physical corner pieces. If every
+      // remaining choice is the same colour, there is no meaningful choice: pick
+      // one of those actual corner pieces up automatically and put it "in hand".
+      const selfChosenCorner = initialCornerPhase() || state.finalFourPhase;
+      const oneCornerColour = selfChosenCorner && reserveColours.length === 1 ? reserveColours[0] : null;
+      if (oneCornerColour) {
+        const mode = initialCornerPhase() ? "opening" : "final";
+        const pickedIndex = firstVisibleReserveIndex(oneCornerColour, mode);
+        if (pickedIndex !== null) {
+          state.selectedReserveIndex = pickedIndex;
+          state.assignedColour = oneCornerColour;
+          state.choosingColour = false;
+          state.selectedPieceIndex = null;
+          state.legalMoves.clear();
+          state.legalJumps.clear();
+          message = `${colourTitle(oneCornerColour)} is the only corner colour remaining, so a piece is picked up automatically.`;
+        }
       }
     }
 
@@ -832,11 +854,13 @@
 
     flowTimer = setTimeout(() => {
       computerBusy = false;
+      const mode = initialCornerPhase() ? "opening" : state.finalFourPhase ? "final" : "normal";
+      state.selectedReserveIndex = firstVisibleReserveIndex(colour, mode);
       state.assignedColour = colour;
       state.choosingColour = false;
       processFlow(choosingOwnCorner
-        ? `Computer chooses a top-corner ${colourTitle(colour)} piece to place.`
-        : `Computer gives ${participantName(state.currentPlayer)} ${colourTitle(colour)}.`);
+        ? `Computer picks up a top-corner ${colourTitle(colour)} piece to place.`
+        : `Computer picks up a ${colourTitle(colour)} reserve piece and gives it to ${participantName(state.currentPlayer)}.`);
     }, 250);
   }
 
@@ -951,22 +975,24 @@
   function chooseReservePiece(displayIndex, colour) {
     if (state.winner !== null || computerBusy) return;
 
-    // Opening, compulsory-placement and Final Four turns are genuine physical
-    // piece choices: the player picks an actual reserve/corner piece and is
-    // committed to placing it.
     if (state.choosingColour) {
       if (isComputer(state.colourChooser) || !canUseColour(colour)) return;
-      if (!(initialCornerPhase() || state.finalFourPhase || state.forcedPlacement || jumpCornerPiecesRemain())) return;
-      state.selectedReserveIndex = displayIndex;
-      chooseColour(colour);
+
+      // Opening/Final Four: the player picks their own actual corner piece.
+      // Normal play: the opponent picks an actual reserve piece and hands it to
+      // the player; its colour is the colour to use for PLACE, MOVE or JUMP.
+      const cornerChoice = initialCornerPhase() || state.finalFourPhase;
+      const forcedOwnPiece = state.forcedPlacement || jumpCornerPiecesRemain();
+      if (cornerChoice || forcedOwnPiece || (!initialCornerPhase() && !state.finalFourPhase)) {
+        state.selectedReserveIndex = displayIndex;
+        chooseColour(colour);
+      }
       return;
     }
 
-    // On a normal turn the opponent has only GIVEN a colour. The current player
-    // may still move or jump. Only when they decide to place do they pick up an
-    // actual edge piece; from that point the placement is committed.
+    // During a compulsory placement the current player chooses the actual piece.
     if (isComputer(state.currentPlayer) || state.selectedReserveIndex !== null || state.selectedPieceIndex !== null) return;
-    if (state.assignedColour !== colour || normalReserveRemaining(colour) <= 0) return;
+    if (!state.forcedPlacement || state.assignedColour !== colour || normalReserveRemaining(colour) <= 0) return;
     state.selectedReserveIndex = displayIndex;
     setStatus(`${participantName(state.currentPlayer)}: place the chosen ${colourTitle(colour)} reserve piece.`);
     render();
@@ -1063,7 +1089,11 @@
           if (initialCornerPhase() && corner && initialCornerPiece) selectableColour = activeColour;
           else if (state.finalFourPhase && corner && !finalMarkerPlayed && state.finalCornerPieces[cornerSlot]) selectableColour = state.finalCornerPieces[cornerSlot];
           else if (state.forcedPlacement && !corner && activeReservePiece) selectableColour = activeColour;
-        } else if (humanNormalPlacementChoice && !corner && activeReservePiece && activeColour === state.assignedColour) {
+          else if (!initialCornerPhase() && !state.finalFourPhase && !state.forcedPlacement &&
+                   !jumpCornerPiecesRemain() && !corner && activeReservePiece && canUseColour(activeColour)) {
+            selectableColour = activeColour;
+          }
+        } else if (humanNormalPlacementChoice && state.forcedPlacement && !corner && activeReservePiece && activeColour === state.assignedColour) {
           selectableColour = activeColour;
         }
         cell.disabled = !selectableColour;
@@ -1136,7 +1166,7 @@
       ? `Opening · top-corner pieces first · ${state.openingCornerPlacementsRemaining} placement${state.openingCornerPlacementsRemaining === 1 ? "" : "s"} remaining`
       : jumpCornerPiecesRemain()
         ? `Corner return · ${jumpCornerPieces().length} jumped piece${jumpCornerPieces().length === 1 ? "" : "s"} must be placed before normal play resumes`
-        : `Main play · use the colour given: place, move, or make one jump over an opposite-colour piece.`;
+        : `Main play · opponent hands you a reserve piece: place it, or move/jump a board piece of that colour.`;
 
     const placementAlert = document.getElementById("placement-alert");
     if (placementAlert) {
@@ -1171,13 +1201,10 @@
       !computerBusy &&
       !isComputer(state.colourChooser);
 
-    // During normal play the opponent only gives a colour here. During opening,
-    // compulsory placements and Final Four the player instead picks an actual
-    // piece from the edge/corner, so these colour-giving buttons stay disabled.
-    const normalColourGiving = humanChooser && !initialCornerPhase() && !state.finalFourPhase &&
-      !state.forcedPlacement && !jumpCornerPiecesRemain();
-    blackButton.disabled = !normalColourGiving || !canUseColour("black");
-    whiteButton.disabled = !normalColourGiving || !canUseColour("white");
+    // Colour is always communicated by an actual physical reserve piece: the
+    // chooser clicks the edge piece and it appears here as the piece "in hand".
+    blackButton.disabled = true;
+    whiteButton.disabled = true;
 
     const showAssigned =
       state.winner === null &&
