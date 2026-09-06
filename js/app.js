@@ -1410,7 +1410,7 @@
     document.getElementById("setting-allow-spaced-diamond").disabled=!diamond;
   }
   document.querySelectorAll("[data-rule-option]").forEach(e=>e.addEventListener("change",syncRuleDependencies));
-  function showStep(n){wizardStep=Math.max(0,Math.min(3,n));wizardSteps.forEach((e,i)=>e.hidden=i!==wizardStep);wizardIndicators.forEach((e,i)=>{e.classList.toggle("wizard-progress-step--active",i===wizardStep);e.classList.toggle("wizard-progress-step--complete",i<wizardStep)});wizardBack.hidden=wizardStep===0;wizardNext.hidden=wizardStep===3;wizardStart.hidden=wizardStep!==3;if(wizardStep===3)summary();}
+  function showStep(n){wizardStep=Math.max(0,Math.min(4,n));wizardSteps.forEach((e,i)=>e.hidden=i!==wizardStep);wizardIndicators.forEach((e,i)=>{e.classList.toggle("wizard-progress-step--active",i===wizardStep);e.classList.toggle("wizard-progress-step--complete",i<wizardStep)});wizardBack.hidden=wizardStep===0;wizardNext.hidden=wizardStep===4;wizardStart.hidden=wizardStep!==4;if(wizardStep===4)summary();}
   function coloursValid(){return fv("colour1")!==fv("colour2")}
   function selectedRuleSummary(){const labels=[];document.querySelectorAll("[data-rule-option]:checked").forEach(e=>labels.push(e.dataset.ruleLabel));return labels.length?labels.join(", "):"Basic placement only";}
   function summary(){const one=fv("gameMode")==="computer",level=["","Beginner","Standard","Expert"][Number(difficultyInput.value)];document.getElementById("setup-summary").textContent=`${one?"Player vs Computer · "+level:"Two players"} · ${COLOURS[fv("colour1")][0]} / ${COLOURS[fv("colour2")][0]} · ${selectedRuleSummary()} · ${fv("timer")==="0"?"Unlimited":fv("timer")+"-second"} turns · stalemate draw`;}
