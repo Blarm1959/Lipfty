@@ -41,6 +41,17 @@ s.board[14]={id:1,colour:"black"};s.board[15]={id:2,colour:"black"};s.board[16]=
 assert.ok(S.immediateWinningActions(s,"black",{}).length>0);
 assert.equal(S.immediateWinningActions(s,"white",{}).length,0);
 assert.equal(S.chooseColour(s,{},"tactical"),"white");
+
+// Reporting regression: aggregate action counts and chess-style P1 score.
+const reportBatch=S.runBatch({games:12,seed:400,rules:{allowJump:true,allowMove:true,allowDiagonal:true,allowSquare:true,allowSpacedSquare:true}});
+assert.equal(reportBatch.wins[0]+reportBatch.wins[1]+reportBatch.draws,12);
+assert.equal(reportBatch.firstPlayerScorePct,100*(reportBatch.wins[0]+reportBatch.draws/2)/12);
+assert.ok(Number.isInteger(reportBatch.placements)&&reportBatch.placements>0);
+assert.ok(Number.isInteger(reportBatch.moves)&&reportBatch.moves>=0);
+assert.ok(Number.isInteger(reportBatch.jumps)&&reportBatch.jumps>=0);
+assert.ok(Number.isInteger(reportBatch.forcedPlacements)&&reportBatch.forcedPlacements>=0);
+assert.ok(reportBatch.minTurns<=reportBatch.maxTurns);
+
 console.log("Lipfty 6 analysis simulator tests passed.");
 
 // Optimisation regression: the analysis-only fast win checker must agree with
