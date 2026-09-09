@@ -34,4 +34,11 @@ const r1=S.runBatch({games:20,seed:100,rules:{}}), r2=S.runBatch({games:20,seed:
 assert.deepEqual(r1,r2);assert.equal(r1.games,20);assert.equal(r1.wins[0]+r1.wins[1]+r1.draws,20);
 const rr=S.runBatch({games:10,seed:200,strength:"random",rules:{allowMove:true,allowJump:true,allowDiagonal:true}});
 assert.equal(rr.games,10);
+// Tactical hand-over regression: with three black pieces in a row and both
+// reserve colours available, never give black when white is safe.
+s=S.freshState(300);s.openingRemaining=0;s.cornerRemaining={black:0,white:0};s.normalRemaining={black:10,white:10};
+s.board[14]={id:1,colour:"black"};s.board[15]={id:2,colour:"black"};s.board[16]={id:3,colour:"black"};s.nextPieceId=4;
+assert.ok(S.immediateWinningActions(s,"black",{}).length>0);
+assert.equal(S.immediateWinningActions(s,"white",{}).length,0);
+assert.equal(S.chooseColour(s,{},"tactical"),"white");
 console.log("Lipfty 6 analysis simulator tests passed.");

@@ -73,18 +73,37 @@ function boardAfter(s,a) {
   return b;
 }
 function actionWins(s,a,rules){ return !!R.checkWin(boardAfter(s,a),rules); }
+function immediateWinningActions(s, colour, rules) {
+  return enumerateActions(s,colour,rules).filter(a=>actionWins(s,a,rules));
+}
+function hasImmediateWinningAction(s, colour, rules) {
+  for(const a of enumerateActions(s,colour,rules)) if(actionWins(s,a,rules)) return true;
+  return false;
+}
 function immediateWinningPlacements(s, colour, rules) {
-  if(s.normalRemaining[colour]<=0 && s.openingRemaining===0 && !s.finalFour) return 0;
-  let n=0; for(const to of emptySquares(s)){ const b=cloneBoard(s.board); b[to]={id:-1,colour}; if(R.checkWin(b,rules)) n++; } return n;
+  return immediateWinningActions(s,colour,rules).filter(a=>a.type.includes("place")).length;
+}
+function stateAfterForEvaluation(s,a,rules) {
+  const t={...s,board:cloneBoard(s.board),cornerRemaining:{...s.cornerRemaining},normalRemaining:{...s.normalRemaining},finalPieces:[...s.finalPieces]};
+  applyAction(t,a,rules);
+  return t;
+}
+function handoverDanger(s,rules) {
+  const colours=availableColours(s);
+  if(!colours.length) return {minWins:0,safe:true};
+  const safe=colours.some(c=>!hasImmediateWinningAction(s,c,rules));
+  return {safe};
 }
 function chooseColour(s, rules, strength="tactical") {
   const colours=availableColours(s); if(colours.length===1) return colours[0];
   if(strength==="random" || s.openingRemaining>0 || s.finalFour) return colours[Math.floor(s.rng()*colours.length)];
   // During normal play the finishing player hands the next player a reserve colour.
-  // Prefer a colour that does not give an immediate winning placement.
-  const scored=colours.map(c=>({c,score:immediateWinningPlacements(s,c,rules)}));
-  const min=Math.min(...scored.map(x=>x.score)), best=scored.filter(x=>x.score===min);
-  return best[Math.floor(s.rng()*best.length)].c;
+  // Evaluate every legal action the receiver could make with each colour, not
+  // just placements. Never hand over an immediately winning colour when a
+  // safer colour is available.
+  const safe=colours.filter(c=>!hasImmediateWinningAction(s,c,rules));
+  const best=safe.length?safe:colours;
+  return best[Math.floor(s.rng()*best.length)];
 }
 function chooseAction(s, colour, rules, strength="tactical") {
   const actions=enumerateActions(s,colour,rules); if(!actions.length) return null;
@@ -98,6 +117,12 @@ function chooseAction(s, colour, rules, strength="tactical") {
     const rr=Math.floor(a.to/6),cc=a.to%6; score += (2.5-Math.abs(rr-2.5))+(2.5-Math.abs(cc-2.5));
     if(a.type==="jump") score+=0.25;
     const win=R.checkWin(b,rules); if(win) score+=100000;
+    // A Lipfty action also determines the position from which this player will
+    // hand a reserve piece to the opponent. Strongly prefer actions that leave
+    // at least one safe colour to hand over; avoid creating a position where
+    // every available colour lets the opponent win immediately.
+    const next=stateAfterForEvaluation(s,a,rules), danger=handoverDanger(next,rules);
+    if(danger.safe) score+=2000; else score-=2000;
     // Count enabled threats for the colour used by this action.
     for(const to of b.map((p,i)=>p?null:i).filter(i=>i!==null)) { const bb=cloneBoard(b); bb[to]={id:-1,colour}; if(R.checkWin(bb,rules)) score+=8; }
     const opp=colour==="black"?"white":"black";
@@ -157,4 +182,4 @@ function runBatch({rules={},games=1000,seed=1,strength="tactical"}={}) {
   for(const g of results){if(g.winner==="draw")draws++;else wins[g.winner]++; total+=g.turns; finals+=g.reachedFinalFour?1:0; min=Math.min(min,g.turns);max=Math.max(max,g.turns);if(g.winType)formations[g.winType]=(formations[g.winType]||0)+1;}
   return {games,wins,draws,firstPlayerWinPct:100*wins[0]/games,secondPlayerWinPct:100*wins[1]/games,drawPct:100*draws/games,averageTurns:total/games,minTurns:min,maxTurns:max,finalFourPct:100*finals/games,formations};
 }
-module.exports={normaliseRules,allRuleConfigurations,freshState,availableColours,enumerateActions,boardAfter,chooseColour,chooseAction,applyAction,playGame,runBatch,classifyWin};
+module.exports={normaliseRules,allRuleConfigurations,freshState,availableColours,enumerateActions,boardAfter,chooseColour,chooseAction,applyAction,playGame,runBatch,classifyWin,immediateWinningActions};
