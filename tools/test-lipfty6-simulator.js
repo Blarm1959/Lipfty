@@ -42,3 +42,15 @@ assert.ok(S.immediateWinningActions(s,"black",{}).length>0);
 assert.equal(S.immediateWinningActions(s,"white",{}).length,0);
 assert.equal(S.chooseColour(s,{},"tactical"),"white");
 console.log("Lipfty 6 analysis simulator tests passed.");
+
+// Optimisation regression: the analysis-only fast win checker must agree with
+// the authoritative Lipfty 5 rules checker for every configuration on seeded
+// generated boards.
+const R=global.LipftyRules;
+for(const rules of S.allRuleConfigurations()) {
+  for(let seed=1;seed<=12;seed++) {
+    const rng=(function(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};})(seed*7919);
+    const board=Array.from({length:36},(_,i)=>{const x=rng();return x<0.45?null:{id:i+1,colour:x<0.725?"black":"white"};});
+    assert.deepEqual(S.fastCheckWin(board,rules),R.checkWin(board,rules));
+  }
+}

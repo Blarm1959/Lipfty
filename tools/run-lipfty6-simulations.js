@@ -32,6 +32,17 @@ function ruleLabel(r) {
   return enabled.length ? enabled.join(", ") : "Basic (all optional rules off)";
 }
 
+
+function formatDuration(ms) {
+  const seconds = ms / 1000;
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds - minutes * 60;
+  if (minutes < 60) return `${minutes}m${remainder.toFixed(1).padStart(4, "0")}s`;
+  const hours = Math.floor(minutes / 60), mins = minutes % 60;
+  return `${hours}h${String(mins).padStart(2,"0")}m${remainder.toFixed(1).padStart(4,"0")}s`;
+}
+
 function printHelp() {
   console.log("Usage: node .\\tools\\run-lipfty6-simulations.js [--games N] [--seed N] [--strength tactical|random]");
 }
@@ -43,9 +54,11 @@ function main(argv = process.argv.slice(2)) {
   console.log(`Lipfty 6 simulation: ${configs.length} configurations x ${options.games} games = ${configs.length * options.games} games`);
   console.log(`Player strength: ${options.strength}; base seed: ${options.seed}`);
   console.log("");
-  console.log(" #  P1 win%  P2 win%  Draw%  Avg turns  Final4%  Rules");
-  console.log("--  -------  -------  -----  ---------  -------  -----");
+  console.log(" #  P1 win%  P2 win%  Draw%  Avg turns  Final4%  Line time  Total time  Rules");
+  console.log("--  -------  -------  -----  ---------  -------  ---------  ----------  -----");
+  const runStart = process.hrtime.bigint();
   configs.forEach((rules, index) => {
+    const lineStart = process.hrtime.bigint();
     const result = runBatch({ rules, games: options.games, seed: options.seed, strength: options.strength });
     const n = String(index + 1).padStart(2);
     const p1 = result.firstPlayerWinPct.toFixed(1).padStart(7);
@@ -53,8 +66,16 @@ function main(argv = process.argv.slice(2)) {
     const dr = result.drawPct.toFixed(1).padStart(5);
     const av = result.averageTurns.toFixed(1).padStart(9);
     const f4 = result.finalFourPct.toFixed(1).padStart(7);
-    console.log(`${n}  ${p1}  ${p2}  ${dr}  ${av}  ${f4}  ${ruleLabel(rules)}`);
+    const now = process.hrtime.bigint();
+    const lineMs = Number(now - lineStart) / 1e6, totalMs = Number(now - runStart) / 1e6;
+    const lineTime = formatDuration(lineMs).padStart(9), totalTime = formatDuration(totalMs).padStart(10);
+    console.log(`${n}  ${p1}  ${p2}  ${dr}  ${av}  ${f4}  ${lineTime}  ${totalTime}  ${ruleLabel(rules)}`);
   });
+  const elapsedMs = Number(process.hrtime.bigint() - runStart) / 1e6;
+  console.log("");
+  console.log(`Completed: ${configs.length * options.games} games`);
+  console.log(`Total simulation time: ${formatDuration(elapsedMs)}`);
+  console.log(`Average: ${(elapsedMs / (configs.length * options.games) / 1000).toFixed(3)} seconds/game`);
 }
 
 if (require.main === module) {
@@ -62,4 +83,4 @@ if (require.main === module) {
   catch (err) { console.error(`Error: ${err.message}`); process.exitCode = 1; }
 }
 
-module.exports = { parseArgs, ruleLabel, main };
+module.exports = { parseArgs, ruleLabel, formatDuration, main };

@@ -8,7 +8,47 @@ const R = global.LipftyRules;
 
 const COLOURS = ["black", "white"];
 const OTHER = p => 1 - p;
-const cloneBoard = board => board.map(p => p ? { ...p } : null);
+const cloneBoard = board => board.slice();
+
+// Analysis-only win cache. Build the enabled pattern list once per rule set,
+// then index it by board cell so hypothetical actions only inspect patterns
+// that could have changed. This preserves js/rules.js pattern ordering.
+const patternCache = new Map();
+function patternKey(rules) {
+  const r=normaliseRules(rules);
+  return [r.allowDiagonal,r.allowSquare,r.allowSpacedSquare,r.allowDiamond,r.allowSpacedDiamond].map(Number).join("");
+}
+function patternGroups() {
+  const straight=R.WINNING_LINES;
+  const orth=straight.filter(p=>{const rs=p.map(i=>Math.floor(i/6)),cs=p.map(i=>i%6);return new Set(rs).size===1||new Set(cs).size===1;});
+  const diag=straight.filter(p=>!orth.includes(p));
+  const tightSquare=R.WINNING_SQUARES.filter(p=>Math.abs((p[1]%6)-(p[0]%6))===1);
+  const tightDiamond=R.WINNING_DIAMONDS.filter(p=>Math.abs(Math.floor(p[1]/6)-Math.floor(p[0]/6))===1);
+  return {orth,diag,tightSquare,tightDiamond};
+}
+const PATTERN_GROUPS=patternGroups();
+function compiledPatterns(rules) {
+  const key=patternKey(rules);
+  if(patternCache.has(key)) return patternCache.get(key);
+  const r=normaliseRules(rules), patterns=[...PATTERN_GROUPS.orth];
+  if(r.allowDiagonal) patterns.push(...PATTERN_GROUPS.diag);
+  if(r.allowSquare) patterns.push(...PATTERN_GROUPS.tightSquare);
+  if(r.allowSquare&&r.allowSpacedSquare) patterns.push(...R.WINNING_SQUARES);
+  if(r.allowDiamond) patterns.push(...PATTERN_GROUPS.tightDiamond);
+  if(r.allowDiamond&&r.allowSpacedDiamond) patterns.push(...R.WINNING_DIAMONDS);
+  const byCell=Array.from({length:36},()=>[]);
+  for(const pattern of patterns) for(const cell of pattern) byCell[cell].push(pattern);
+  const result={patterns,byCell}; patternCache.set(key,result); return result;
+}
+function fastCheckWin(board,rules,changedCell=null) {
+  const compiled=compiledPatterns(rules);
+  const patterns=changedCell===null?compiled.patterns:compiled.byCell[changedCell];
+  for(const pattern of patterns){
+    const first=board[pattern[0]]; if(!first) continue;
+    if(pattern.every(i=>board[i]&&board[i].colour===first.colour)) return {line:[...pattern],colour:first.colour};
+  }
+  return null;
+}
 
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -68,11 +108,11 @@ function enumerateActions(s, colour, rules) {
   return actions;
 }
 function boardAfter(s,a) {
-  const b=cloneBoard(s.board);
+  const b=s.board.slice();
   if(a.type.includes("place")) b[a.to]={id:-1,colour:a.colour}; else { b[a.to]=b[a.from]; b[a.from]=null; }
   return b;
 }
-function actionWins(s,a,rules){ return !!R.checkWin(boardAfter(s,a),rules); }
+function actionWins(s,a,rules){ return !!fastCheckWin(boardAfter(s,a),rules,a.to); }
 function immediateWinningActions(s, colour, rules) {
   return enumerateActions(s,colour,rules).filter(a=>actionWins(s,a,rules));
 }
@@ -116,7 +156,7 @@ function chooseAction(s, colour, rules, strength="tactical") {
     const b=boardAfter(s,a); let score=s.rng()*0.01;
     const rr=Math.floor(a.to/6),cc=a.to%6; score += (2.5-Math.abs(rr-2.5))+(2.5-Math.abs(cc-2.5));
     if(a.type==="jump") score+=0.25;
-    const win=R.checkWin(b,rules); if(win) score+=100000;
+    const win=fastCheckWin(b,rules,a.to); if(win) score+=100000;
     // A Lipfty action also determines the position from which this player will
     // hand a reserve piece to the opponent. Strongly prefer actions that leave
     // at least one safe colour to hand over; avoid creating a position where
@@ -124,9 +164,9 @@ function chooseAction(s, colour, rules, strength="tactical") {
     const next=stateAfterForEvaluation(s,a,rules), danger=handoverDanger(next,rules);
     if(danger.safe) score+=2000; else score-=2000;
     // Count enabled threats for the colour used by this action.
-    for(const to of b.map((p,i)=>p?null:i).filter(i=>i!==null)) { const bb=cloneBoard(b); bb[to]={id:-1,colour}; if(R.checkWin(bb,rules)) score+=8; }
+    for(const to of b.map((p,i)=>p?null:i).filter(i=>i!==null)) { const old=b[to]; b[to]={id:-1,colour}; if(fastCheckWin(b,rules,to)) score+=8; b[to]=old; }
     const opp=colour==="black"?"white":"black";
-    for(const to of b.map((p,i)=>p?null:i).filter(i=>i!==null)) { const bb=cloneBoard(b); bb[to]={id:-1,colour:opp}; if(R.checkWin(bb,rules)) score-=6; }
+    for(const to of b.map((p,i)=>p?null:i).filter(i=>i!==null)) { const old=b[to]; b[to]={id:-1,colour:opp}; if(fastCheckWin(b,rules,to)) score-=6; b[to]=old; }
     if(score>bestScore+1e-9){bestScore=score;best=[a];} else if(Math.abs(score-bestScore)<1e-9) best.push(a);
   }
   return best[Math.floor(s.rng()*best.length)];
@@ -154,7 +194,7 @@ function applyAction(s,a,rules) {
     else s.normalRemaining[a.colour]--;
   } else { const p=s.board[a.from]; movedId=p.id; s.board[a.to]=p; s.board[a.from]=null; }
   s.turns++;
-  const win=R.checkWin(s.board,rules);
+  const win=fastCheckWin(s.board,rules,a.to);
   if(win){s.winner=s.currentPlayer;return {ended:true,winType:classifyWin(win),win};}
   if(a.type==="final-place" && s.finalPieces.length===0){s.winner="draw";return {ended:true};}
   if(a.type==="move" || a.type==="jump") s.forcedPlacements=(s.normalRemaining.black+s.normalRemaining.white)>0?2:0;
@@ -182,4 +222,4 @@ function runBatch({rules={},games=1000,seed=1,strength="tactical"}={}) {
   for(const g of results){if(g.winner==="draw")draws++;else wins[g.winner]++; total+=g.turns; finals+=g.reachedFinalFour?1:0; min=Math.min(min,g.turns);max=Math.max(max,g.turns);if(g.winType)formations[g.winType]=(formations[g.winType]||0)+1;}
   return {games,wins,draws,firstPlayerWinPct:100*wins[0]/games,secondPlayerWinPct:100*wins[1]/games,drawPct:100*draws/games,averageTurns:total/games,minTurns:min,maxTurns:max,finalFourPct:100*finals/games,formations};
 }
-module.exports={normaliseRules,allRuleConfigurations,freshState,availableColours,enumerateActions,boardAfter,chooseColour,chooseAction,applyAction,playGame,runBatch,classifyWin,immediateWinningActions};
+module.exports={normaliseRules,allRuleConfigurations,freshState,availableColours,enumerateActions,boardAfter,chooseColour,chooseAction,applyAction,playGame,runBatch,classifyWin,immediateWinningActions,fastCheckWin};
