@@ -251,35 +251,58 @@ function applyAction(s,a,rules) {
   if(s.normalRemaining.black+s.normalRemaining.white===0 && s.openingRemaining===0){s.forcedPlacements=0;s.finalFour=true;s.reachedFinalFour=true;}
   return {ended:false};
 }
+function normalForcedColourInfo(s) {
+  if(s.openingRemaining>0 || s.finalFour) return null;
+  const colours=availableColours(s);
+  if(colours.length!==1) return null;
+  const colour=colours[0];
+  return {colour,exhaustedColour:COLOURS.find(c=>c!==colour)};
+}
 function playGame({rules={},seed=1,strength="tactical",maxTurns=500}={}) {
   rules=normaliseRules(rules); const s=freshState(seed); const stats={placements:0,moves:0,jumps:0,forcedPlacements:0};
   while(!s.winner && s.turns<maxTurns) {
+    const forcedColourInfo=normalForcedColourInfo(s);
     const colour=chooseColour(s,rules,strength), wasForced=s.forcedPlacements>0;
     const action=chooseAction(s,colour,rules,strength);
     if(!action){s.winner="draw";break;}
     if(action.type.includes("place")) stats.placements++; else if(action.type==="move") stats.moves++; else stats.jumps++;
     if(wasForced) stats.forcedPlacements++;
-    const result=applyAction(s,action,rules); if(result.ended) return {...stats,winner:s.winner,turns:s.turns,reachedFinalFour:s.reachedFinalFour,winType:result.winType||null};
+    const result=applyAction(s,action,rules);
+    if(result.ended) return {
+      ...stats,winner:s.winner,turns:s.turns,reachedFinalFour:s.reachedFinalFour,winType:result.winType||null,
+      forcedNormalColourWin:s.winner!=="draw"&&!!forcedColourInfo,
+      forcedNormalColour:forcedColourInfo?.colour||null,
+      exhaustedNormalColour:forcedColourInfo?.exhaustedColour||null
+    };
   }
-  return {...stats,winner:s.winner||"draw",turns:s.turns,reachedFinalFour:s.reachedFinalFour,winType:null};
+  return {...stats,winner:s.winner||"draw",turns:s.turns,reachedFinalFour:s.reachedFinalFour,winType:null,forcedNormalColourWin:false,forcedNormalColour:null,exhaustedNormalColour:null};
 }
 function runBatch({rules={},games=1000,seed=1,strength="tactical"}={}) {
   const results=[]; for(let i=0;i<games;i++) results.push(playGame({rules,seed:seed+i,strength}));
-  const wins=[0,0], formations={}, winTurns=[{},{}], drawTurns={};
+  const wins=[0,0], formations={}, winTurns=[{},{}], drawTurns={}, forcedNormalColourWins=[0,0];
+  const forcedNormalExhausted={black:[0,0],white:[0,0]};
   let draws=0,total=0,finals=0,min=Infinity,max=0,placements=0,moves=0,jumps=0,forcedPlacements=0;
   for(const g of results){
     if(g.winner==="draw"){draws++;drawTurns[g.turns]=(drawTurns[g.turns]||0)+1;}
-    else {wins[g.winner]++;winTurns[g.winner][g.turns]=(winTurns[g.winner][g.turns]||0)+1;}
+    else {
+      wins[g.winner]++;winTurns[g.winner][g.turns]=(winTurns[g.winner][g.turns]||0)+1;
+      if(g.forcedNormalColourWin){
+        forcedNormalColourWins[g.winner]++;
+        forcedNormalExhausted[g.exhaustedNormalColour][g.winner]++;
+      }
+    }
     total+=g.turns; finals+=g.reachedFinalFour?1:0; min=Math.min(min,g.turns);max=Math.max(max,g.turns);
     placements+=g.placements; moves+=g.moves; jumps+=g.jumps; forcedPlacements+=g.forcedPlacements;
     if(g.winType)formations[g.winType]=(formations[g.winType]||0)+1;
   }
+  const forcedNormalColourWinTotal=forcedNormalColourWins[0]+forcedNormalColourWins[1];
   return {
     games,wins,draws,
     firstPlayerWinPct:100*wins[0]/games,secondPlayerWinPct:100*wins[1]/games,drawPct:100*draws/games,
     firstPlayerScorePct:100*(wins[0]+draws/2)/games,
     averageTurns:total/games,minTurns:min,maxTurns:max,finalFourPct:100*finals/games,
-    placements,moves,jumps,forcedPlacements,formations,winTurns,drawTurns
+    placements,moves,jumps,forcedPlacements,formations,winTurns,drawTurns,
+    forcedNormalColourWins,forcedNormalColourWinTotal,forcedNormalColourWinPct:100*forcedNormalColourWinTotal/games,forcedNormalExhausted
   };
 }
-module.exports={normaliseRules,allRuleConfigurations,recommendedRuleConfigurations,freshState,availableColours,enumerateActions,boardAfter,chooseColour,chooseAction,applyAction,playGame,runBatch,classifyWin,immediateWinningActions,fastCheckWin,neutralPatternPotential,handoverColourDanger};
+module.exports={normaliseRules,allRuleConfigurations,recommendedRuleConfigurations,freshState,availableColours,enumerateActions,boardAfter,chooseColour,chooseAction,applyAction,normalForcedColourInfo,playGame,runBatch,classifyWin,immediateWinningActions,fastCheckWin,neutralPatternPotential,handoverColourDanger};

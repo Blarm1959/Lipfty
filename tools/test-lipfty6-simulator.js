@@ -144,3 +144,30 @@ const turnBatch=S.runBatch({games:40,seed:611,rules:{allowDiagonal:true}});
 assert.equal(Object.values(turnBatch.winTurns[0]).reduce((a,b)=>a+b,0),turnBatch.wins[0]);
 assert.equal(Object.values(turnBatch.winTurns[1]).reduce((a,b)=>a+b,0),turnBatch.wins[1]);
 assert.equal(Object.values(turnBatch.drawTurns).reduce((a,b)=>a+b,0),turnBatch.draws);
+
+// Lipfty 6.0.12: identify wins made while only one normal-reserve colour is
+// available, and retain which colour had already been exhausted.
+s=S.freshState(612);
+s.openingRemaining=0;
+s.cornerRemaining={black:0,white:0};
+s.normalRemaining={black:0,white:3};
+assert.deepEqual(S.normalForcedColourInfo(s),{colour:"white",exhaustedColour:"black"});
+s.normalRemaining={black:2,white:0};
+assert.deepEqual(S.normalForcedColourInfo(s),{colour:"black",exhaustedColour:"white"});
+s.normalRemaining={black:2,white:2};
+assert.equal(S.normalForcedColourInfo(s),null);
+s.openingRemaining=1;
+s.normalRemaining={black:0,white:2};
+assert.equal(S.normalForcedColourInfo(s),null);
+s.openingRemaining=0;
+s.finalFour=true;
+assert.equal(S.normalForcedColourInfo(s),null);
+
+const forcedBatch=S.runBatch({games:80,seed:612,rules:{allowDiagonal:true,allowSquare:true,allowSpacedSquare:true}});
+assert.equal(forcedBatch.forcedNormalColourWinTotal,forcedBatch.forcedNormalColourWins[0]+forcedBatch.forcedNormalColourWins[1]);
+assert.equal(forcedBatch.forcedNormalColourWinTotal,
+  forcedBatch.forcedNormalExhausted.black[0]+forcedBatch.forcedNormalExhausted.black[1]+
+  forcedBatch.forcedNormalExhausted.white[0]+forcedBatch.forcedNormalExhausted.white[1]);
+assert.ok(forcedBatch.forcedNormalColourWins[0]<=forcedBatch.wins[0]);
+assert.ok(forcedBatch.forcedNormalColourWins[1]<=forcedBatch.wins[1]);
+assert.equal(forcedBatch.forcedNormalColourWinPct,100*forcedBatch.forcedNormalColourWinTotal/forcedBatch.games);

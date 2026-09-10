@@ -61,13 +61,18 @@ function formationCount(result, name) { return result.formations[name] || 0; }
 function turnDistribution(values) {
   return Object.entries(values || {}).sort((a,b)=>Number(a[0])-Number(b[0])).map(([turn,count])=>`${turn}:${count}`).join(";");
 }
+function pct(part,total) { return total ? 100*part/total : 0; }
 
 const CSV_HEADERS = [
   "configuration","rules","games","strength","seed",
   "p1_wins","p2_wins","draws","p1_win_pct","p2_win_pct","draw_pct","p1_score_pct",
   "average_turns","shortest_game","longest_game","final_four_pct",
   "horizontal_wins","vertical_wins","diagonal_wins","square_wins","spaced_square_wins","diamond_wins","spaced_diamond_wins","other_wins",
-  "placements","moves","jumps","forced_placements","p1_win_turns","p2_win_turns","draw_turns","line_seconds","total_seconds"
+  "placements","moves","jumps","forced_placements","p1_win_turns","p2_win_turns","draw_turns",
+  "forced_normal_colour_wins","forced_normal_colour_win_pct","forced_normal_p1_wins","forced_normal_p2_wins",
+  "forced_normal_p1_share_of_p1_wins_pct","forced_normal_p2_share_of_p2_wins_pct",
+  "black_exhausted_p1_wins","black_exhausted_p2_wins","white_exhausted_p1_wins","white_exhausted_p2_wins",
+  "line_seconds","total_seconds"
 ];
 
 function csvRow(index, rules, result, options, lineMs, totalMs) {
@@ -80,6 +85,11 @@ function csvRow(index, rules, result, options, lineMs, totalMs) {
     formationCount(result,"square"), formationCount(result,"spaced-square"), formationCount(result,"diamond"), formationCount(result,"spaced-diamond"), formationCount(result,"other"),
     result.placements, result.moves, result.jumps, result.forcedPlacements,
     turnDistribution(result.winTurns[0]), turnDistribution(result.winTurns[1]), turnDistribution(result.drawTurns),
+    result.forcedNormalColourWinTotal, result.forcedNormalColourWinPct.toFixed(3),
+    result.forcedNormalColourWins[0], result.forcedNormalColourWins[1],
+    pct(result.forcedNormalColourWins[0],result.wins[0]).toFixed(3), pct(result.forcedNormalColourWins[1],result.wins[1]).toFixed(3),
+    result.forcedNormalExhausted.black[0], result.forcedNormalExhausted.black[1],
+    result.forcedNormalExhausted.white[0], result.forcedNormalExhausted.white[1],
     (lineMs/1000).toFixed(3), (totalMs/1000).toFixed(3)
   ].map(csvEscape).join(",");
 }
@@ -122,6 +132,8 @@ function main(argv = process.argv.slice(2)) {
     const label = selected[index].name ? `${selected[index].name}: ${ruleLabel(rules)}` : ruleLabel(rules);
     console.log(`${n}  ${p1}  ${p2}  ${dr}  ${score}  ${av}  ${min}  ${max}  ${f4}  ${lineTime}  ${totalTime}  ${label}`);
     console.log(`    Win turns: P1 ${turnDistribution(result.winTurns[0]) || "none"} | P2 ${turnDistribution(result.winTurns[1]) || "none"} | Draw ${turnDistribution(result.drawTurns) || "none"}`);
+    console.log(`    Forced normal-colour wins: ${result.forcedNormalColourWinTotal}/${result.games} (${result.forcedNormalColourWinPct.toFixed(1)}% games) | P1 ${result.forcedNormalColourWins[0]}/${result.wins[0]} wins (${pct(result.forcedNormalColourWins[0],result.wins[0]).toFixed(1)}%) | P2 ${result.forcedNormalColourWins[1]}/${result.wins[1]} wins (${pct(result.forcedNormalColourWins[1],result.wins[1]).toFixed(1)}%)`);
+    console.log(`    Exhausted colour: Black -> P1 ${result.forcedNormalExhausted.black[0]}, P2 ${result.forcedNormalExhausted.black[1]} | White -> P1 ${result.forcedNormalExhausted.white[0]}, P2 ${result.forcedNormalExhausted.white[1]}`);
     if (csvPath) csvLines.push(csvRow(index,rules,result,options,lineMs,totalMs));
   });
   const elapsedMs = Number(process.hrtime.bigint() - runStart) / 1e6;
@@ -141,4 +153,4 @@ if (require.main === module) {
   catch (err) { console.error(`Error: ${err.message}`); process.exitCode = 1; }
 }
 
-module.exports = { parseArgs, ruleLabel, formatDuration, csvEscape, defaultCsvPath, turnDistribution, csvRow, main };
+module.exports = { parseArgs, ruleLabel, formatDuration, csvEscape, defaultCsvPath, turnDistribution, pct, csvRow, main };
