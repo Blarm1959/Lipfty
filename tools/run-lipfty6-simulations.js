@@ -2,7 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const { allRuleConfigurations, runBatch } = require("./lipfty6-simulator.js");
+const { allRuleConfigurations, recommendedRuleConfigurations, runBatch } = require("./lipfty6-simulator.js");
 
 function parsePositiveInt(value, name) {
   const n = Number(value);
@@ -11,7 +11,7 @@ function parsePositiveInt(value, name) {
 }
 
 function parseArgs(argv) {
-  const options = { games: 100, seed: 1, strength: "tactical", csv: null };
+  const options = { games: 100, seed: 1, strength: "tactical", csv: null, recommended: false };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--games") options.games = parsePositiveInt(argv[++i], "--games");
@@ -19,6 +19,7 @@ function parseArgs(argv) {
     else if (arg === "--strength") options.strength = argv[++i];
     else if (arg === "--csv") options.csv = argv[++i];
     else if (arg === "--no-csv") options.csv = false;
+    else if (arg === "--recommended") options.recommended = true;
     else if (arg === "--help" || arg === "-h") options.help = true;
     else throw new Error(`Unknown option: ${arg}`);
   }
@@ -53,7 +54,7 @@ function csvEscape(value) {
 }
 
 function defaultCsvPath(options) {
-  return path.join("tools", `lipfty6-results-${options.strength}-${options.games}-seed${options.seed}.csv`);
+  return path.join("tools", `lipfty6-results-${options.recommended ? "recommended-" : ""}${options.strength}-${options.games}-seed${options.seed}.csv`);
 }
 
 function formationCount(result, name) { return result.formations[name] || 0; }
@@ -80,17 +81,20 @@ function csvRow(index, rules, result, options, lineMs, totalMs) {
 }
 
 function printHelp() {
-  console.log("Usage: node .\\tools\\run-lipfty6-simulations.js [--games N] [--seed N] [--strength tactical|random] [--csv FILE|--no-csv]");
+  console.log("Usage: node .\\tools\\run-lipfty6-simulations.js [--games N] [--seed N] [--strength tactical|random] [--recommended] [--csv FILE|--no-csv]");
+  console.log("Use --recommended to run only the three current Lipfty 6 candidates: Learning, Core and Standard.");
   console.log("By default a detailed CSV is written under tools\\ with a name based on strength, games and seed.");
 }
 
 function main(argv = process.argv.slice(2)) {
   const options = parseArgs(argv);
   if (options.help) { printHelp(); return; }
-  const configs = allRuleConfigurations();
+  const selected = options.recommended ? recommendedRuleConfigurations() : allRuleConfigurations().map(rules=>({name:null,rules}));
+  const configs = selected.map(x=>x.rules);
   const csvPath = options.csv === false ? null : (options.csv || defaultCsvPath(options));
   const csvLines = [CSV_HEADERS.join(",")];
   console.log(`Lipfty 6 simulation: ${configs.length} configurations x ${options.games} games = ${configs.length * options.games} games`);
+  if (options.recommended) console.log("Mode set: Learning, Core, Standard");
   console.log(`Player strength: ${options.strength}; base seed: ${options.seed}`);
   if (csvPath) console.log(`Detailed CSV: ${csvPath}`);
   console.log("");
@@ -111,7 +115,8 @@ function main(argv = process.argv.slice(2)) {
     const now = process.hrtime.bigint();
     const lineMs = Number(now - lineStart) / 1e6, totalMs = Number(now - runStart) / 1e6;
     const lineTime = formatDuration(lineMs).padStart(9), totalTime = formatDuration(totalMs).padStart(10);
-    console.log(`${n}  ${p1}  ${p2}  ${dr}  ${score}  ${av}  ${min}  ${max}  ${f4}  ${lineTime}  ${totalTime}  ${ruleLabel(rules)}`);
+    const label = selected[index].name ? `${selected[index].name}: ${ruleLabel(rules)}` : ruleLabel(rules);
+    console.log(`${n}  ${p1}  ${p2}  ${dr}  ${score}  ${av}  ${min}  ${max}  ${f4}  ${lineTime}  ${totalTime}  ${label}`);
     if (csvPath) csvLines.push(csvRow(index,rules,result,options,lineMs,totalMs));
   });
   const elapsedMs = Number(process.hrtime.bigint() - runStart) / 1e6;

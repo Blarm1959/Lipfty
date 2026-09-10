@@ -65,3 +65,56 @@ for(const rules of S.allRuleConfigurations()) {
     assert.deepEqual(S.fastCheckWin(board,rules),R.checkWin(board,rules));
   }
 }
+
+// Lipfty 6.0.7: the Tactical evaluator must treat colours as shared resources,
+// not as player-owned sides. Swapping every colour leaves positional value and
+// the geometry of the chosen action unchanged.
+const recommended=S.recommendedRuleConfigurations();
+assert.deepEqual(recommended.map(x=>x.name),["Learning","Core","Standard"]);
+assert.equal(recommended[0].rules.allowDiagonal,true);
+assert.equal(recommended[0].rules.allowMove,false);
+assert.equal(recommended[1].rules.allowSquare,true);
+assert.equal(recommended[1].rules.allowSpacedSquare,true);
+assert.equal(recommended[2].rules.allowMove,true);
+assert.equal(recommended[2].rules.allowJump,true);
+assert.equal(recommended.every(x=>!x.rules.allowDiamond&&!x.rules.allowSpacedDiamond),true);
+
+function colourSwapState(source,seed) {
+  const t=S.freshState(seed);
+  t.board=source.board.map(p=>p?{...p,colour:p.colour==="black"?"white":"black"}:null);
+  t.currentPlayer=source.currentPlayer;
+  t.openingRemaining=source.openingRemaining;
+  t.cornerRemaining={black:source.cornerRemaining.white,white:source.cornerRemaining.black};
+  t.normalRemaining={black:source.normalRemaining.white,white:source.normalRemaining.black};
+  t.finalPieces=source.finalPieces.map(c=>c==="black"?"white":"black");
+  t.forcedPlacements=source.forcedPlacements;
+  t.protectedPieceId=source.protectedPieceId;
+  t.nextPieceId=source.nextPieceId;
+  t.finalFour=source.finalFour;
+  t.reachedFinalFour=source.reachedFinalFour;
+  return t;
+}
+
+const symmetryRules={allowDiagonal:true,allowSquare:true,allowSpacedSquare:true,allowMove:true,allowJump:true};
+let original=S.freshState(607); original.openingRemaining=0; original.cornerRemaining={black:0,white:0}; original.normalRemaining={black:8,white:8};
+original.board[7]={id:1,colour:"black"}; original.board[8]={id:2,colour:"black"}; original.board[14]={id:3,colour:"white"}; original.board[20]={id:4,colour:"white"}; original.nextPieceId=5;
+let swapped=colourSwapState(original,607);
+assert.equal(S.neutralPatternPotential(original.board,symmetryRules),S.neutralPatternPotential(swapped.board,symmetryRules));
+assert.equal(S.handoverColourDanger(original,"black",symmetryRules),S.handoverColourDanger(swapped,"white",symmetryRules));
+assert.equal(S.handoverColourDanger(original,"white",symmetryRules),S.handoverColourDanger(swapped,"black",symmetryRules));
+const originalAction=S.chooseAction(original,"black",symmetryRules,"tactical");
+const swappedAction=S.chooseAction(swapped,"white",symmetryRules,"tactical");
+assert.equal(originalAction.type,swappedAction.type);
+assert.equal(originalAction.from,swappedAction.from);
+assert.equal(originalAction.to,swappedAction.to);
+
+// When both colours are immediately safe, the giver should choose the colour
+// whose best reply is less favourable to the receiver, rather than choosing
+// randomly between the safe colours.
+s=S.freshState(1); s.openingRemaining=0; s.cornerRemaining={black:0,white:0}; s.normalRemaining={black:8,white:8};
+s.board[3]={id:1,colour:"black"}; s.board[5]={id:2,colour:"white"}; s.board[7]={id:3,colour:"black"}; s.board[9]={id:4,colour:"black"}; s.board[14]={id:5,colour:"white"}; s.board[16]={id:6,colour:"black"}; s.nextPieceId=7;
+const handRules={allowDiagonal:true,allowSquare:true,allowSpacedSquare:true};
+assert.equal(S.immediateWinningActions(s,"black",handRules).length,0);
+assert.equal(S.immediateWinningActions(s,"white",handRules).length,0);
+assert.ok(S.handoverColourDanger(s,"white",handRules)<S.handoverColourDanger(s,"black",handRules));
+assert.equal(S.chooseColour(s,handRules,"tactical"),"white");

@@ -75,6 +75,13 @@ function allRuleConfigurations() {
     }));
   return out;
 }
+function recommendedRuleConfigurations() {
+  return [
+    {name:"Learning",rules:normaliseRules({allowDiagonal:true})},
+    {name:"Core",rules:normaliseRules({allowDiagonal:true,allowSquare:true,allowSpacedSquare:true})},
+    {name:"Standard",rules:normaliseRules({allowJump:true,allowMove:true,allowDiagonal:true,allowSquare:true,allowSpacedSquare:true})}
+  ];
+}
 function freshState(seed=1) {
   const rng=mulberry32(seed), cornerColours=shuffle(["black","black","white","white"],rng);
   return {
@@ -130,44 +137,75 @@ function stateAfterForEvaluation(s,a,rules) {
 }
 function handoverDanger(s,rules) {
   const colours=availableColours(s);
-  if(!colours.length) return {minWins:0,safe:true};
-  const safe=colours.some(c=>!hasImmediateWinningAction(s,c,rules));
-  return {safe};
+  if(!colours.length) return {safe:true,minImmediateWins:0};
+  const immediateWins=colours.map(c=>immediateWinningActions(s,c,rules).length);
+  return {safe:immediateWins.some(n=>n===0),minImmediateWins:Math.min(...immediateWins)};
 }
+
+// Colour-neutral positional potential. Lipfty colours are shared resources,
+// not player-owned armies, so Black and White contribute identically here.
+// Open patterns with more matching pieces are more tactically significant.
+function neutralPatternPotential(board,rules) {
+  const weights=[0,1,5,24,100000];
+  let score=0;
+  for(const pattern of compiledPatterns(rules).patterns) {
+    let black=0,white=0;
+    for(const i of pattern) {
+      const p=board[i]; if(!p) continue;
+      if(p.colour==="black") black++; else if(p.colour==="white") white++;
+    }
+    if(black&&white) continue;
+    score+=weights[black||white];
+  }
+  return score;
+}
+
+function actionPositionalScore(s,a,rules) {
+  const b=boardAfter(s,a);
+  if(fastCheckWin(b,rules,a.to)) return 1e9;
+  const rr=Math.floor(a.to/6),cc=a.to%6;
+  let score=(2.5-Math.abs(rr-2.5))+(2.5-Math.abs(cc-2.5));
+  if(a.type==="jump") score+=0.25;
+  score+=neutralPatternPotential(b,rules);
+  const next=stateAfterForEvaluation(s,a,rules), danger=handoverDanger(next,rules);
+  score+=danger.safe?2000:-2000-250*danger.minImmediateWins;
+  return score;
+}
+
+// Estimate how useful a handed colour is to the receiving player. The receiver
+// chooses their best legal action, so the giver should minimise this value.
+function handoverColourDanger(s,colour,rules) {
+  const actions=enumerateActions(s,colour,rules);
+  if(!actions.length) return -Infinity;
+  let best=-Infinity;
+  for(const a of actions) best=Math.max(best,actionPositionalScore(s,a,rules));
+  return best;
+}
+
 function chooseColour(s, rules, strength="tactical") {
   const colours=availableColours(s); if(colours.length===1) return colours[0];
   if(strength==="random" || s.openingRemaining>0 || s.finalFour) return colours[Math.floor(s.rng()*colours.length)];
-  // During normal play the finishing player hands the next player a reserve colour.
-  // Evaluate every legal action the receiver could make with each colour, not
-  // just placements. Never hand over an immediately winning colour when a
-  // safer colour is available.
   const safe=colours.filter(c=>!hasImmediateWinningAction(s,c,rules));
-  const best=safe.length?safe:colours;
+  const candidates=safe.length?safe:colours;
+  let best=[],bestDanger=Infinity;
+  for(const c of candidates) {
+    const danger=handoverColourDanger(s,c,rules);
+    if(danger<bestDanger-1e-9){bestDanger=danger;best=[c];}
+    else if(Math.abs(danger-bestDanger)<1e-9) best.push(c);
+  }
   return best[Math.floor(s.rng()*best.length)];
 }
 function chooseAction(s, colour, rules, strength="tactical") {
   const actions=enumerateActions(s,colour,rules); if(!actions.length) return null;
   if(strength==="random") return actions[Math.floor(s.rng()*actions.length)];
   const wins=actions.filter(a=>actionWins(s,a,rules)); if(wins.length) return wins[Math.floor(s.rng()*wins.length)];
-  // Rule-aware tactical heuristic: favour centre, enabled-pattern potential and
-  // actions that reduce the opponent colour's immediate winning placements.
+  // Tactical evaluation is deliberately colour-neutral: neither colour belongs
+  // to a player. Prefer strong board geometry while preserving a safe hand-over.
   let best=[],bestScore=-Infinity;
   for(const a of actions) {
-    const b=boardAfter(s,a); let score=s.rng()*0.01;
-    const rr=Math.floor(a.to/6),cc=a.to%6; score += (2.5-Math.abs(rr-2.5))+(2.5-Math.abs(cc-2.5));
-    if(a.type==="jump") score+=0.25;
-    const win=fastCheckWin(b,rules,a.to); if(win) score+=100000;
-    // A Lipfty action also determines the position from which this player will
-    // hand a reserve piece to the opponent. Strongly prefer actions that leave
-    // at least one safe colour to hand over; avoid creating a position where
-    // every available colour lets the opponent win immediately.
-    const next=stateAfterForEvaluation(s,a,rules), danger=handoverDanger(next,rules);
-    if(danger.safe) score+=2000; else score-=2000;
-    // Count enabled threats for the colour used by this action.
-    for(const to of b.map((p,i)=>p?null:i).filter(i=>i!==null)) { const old=b[to]; b[to]={id:-1,colour}; if(fastCheckWin(b,rules,to)) score+=8; b[to]=old; }
-    const opp=colour==="black"?"white":"black";
-    for(const to of b.map((p,i)=>p?null:i).filter(i=>i!==null)) { const old=b[to]; b[to]={id:-1,colour:opp}; if(fastCheckWin(b,rules,to)) score-=6; b[to]=old; }
-    if(score>bestScore+1e-9){bestScore=score;best=[a];} else if(Math.abs(score-bestScore)<1e-9) best.push(a);
+    const score=actionPositionalScore(s,a,rules)+s.rng()*0.01;
+    if(score>bestScore+1e-9){bestScore=score;best=[a];}
+    else if(Math.abs(score-bestScore)<1e-9) best.push(a);
   }
   return best[Math.floor(s.rng()*best.length)];
 }
@@ -234,4 +272,4 @@ function runBatch({rules={},games=1000,seed=1,strength="tactical"}={}) {
     placements,moves,jumps,forcedPlacements,formations
   };
 }
-module.exports={normaliseRules,allRuleConfigurations,freshState,availableColours,enumerateActions,boardAfter,chooseColour,chooseAction,applyAction,playGame,runBatch,classifyWin,immediateWinningActions,fastCheckWin};
+module.exports={normaliseRules,allRuleConfigurations,recommendedRuleConfigurations,freshState,availableColours,enumerateActions,boardAfter,chooseColour,chooseAction,applyAction,playGame,runBatch,classifyWin,immediateWinningActions,fastCheckWin,neutralPatternPotential,handoverColourDanger};
