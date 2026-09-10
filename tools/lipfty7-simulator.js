@@ -5,10 +5,9 @@
 // two reserve pieces together, keeps one to place, and gives the other to the
 // mover. Learning/Core are unchanged because they do not allow Move/Jump.
 //
-// IMPORTANT isolation note: v6.0.13 and the released app currently restrict a
-// jump to an opposite-colour piece. That conflicts with the intended Lipfty
-// rule (jump either colour), but is deliberately inherited here so this first
-// experiment changes only the compulsory-placement mechanism.
+// Jump colour is now an analysis parameter. The released Lipfty rule remains
+// opposite-colour-only; Lipfty 7 can also simulate an experimental any-colour
+// jump without changing the playable app or the Standard rule switches.
 global.window = global;
 if (!global.LipftyRules) require("../js/rules.js");
 const R = global.LipftyRules;
@@ -17,7 +16,13 @@ const COLOURS = ["black", "white"];
 const OTHER = p => 1 - p;
 const WIN_SCORE = 1e9;
 const RESPONSE_SEARCH_LIMIT = 6;
+const JUMP_POLICIES = ["opposite","any"];
 const patternCache = new Map();
+
+function normaliseJumpPolicy(value="opposite") {
+  if(!JUMP_POLICIES.includes(value))throw new Error(`jumpPolicy must be one of: ${JUMP_POLICIES.join(", ")}.`);
+  return value;
+}
 
 function patternKey(rules) {
   const r=normaliseRules(rules);
@@ -85,13 +90,14 @@ function recommendedRuleConfigurations() {
     {name:"Standard",rules:normaliseRules({allowJump:true,allowMove:true,allowDiagonal:true,allowSquare:true,allowSpacedSquare:true})}
   ];
 }
-function freshState(seed=1) {
+function freshState(seed=1,jumpPolicy="opposite") {
+  jumpPolicy=normaliseJumpPolicy(jumpPolicy);
   const rng=mulberry32(seed),cornerColours=shuffle(["black","black","white","white"],rng);
   return {
     board:Array(36).fill(null),currentPlayer:0,openingRemaining:4,cornerRemaining:{black:2,white:2},
     normalRemaining:{black:12,white:12},finalPieces:[...cornerColours],forcedPlacements:0,forcedQueue:[],
     awaitingMoveResponse:false,boundaryCornerOwed:false,protectedPieceId:null,nextPieceId:1,
-    finalFour:false,winner:null,turns:0,reachedFinalFour:false,rng
+    finalFour:false,winner:null,turns:0,reachedFinalFour:false,jumpPolicy,rng
   };
 }
 function cloneState(s) {
@@ -112,8 +118,9 @@ function availableColours(s) {
 function legalJumps(s,from,rules) {
   if(!rules.allowJump)return[];
   const moving=s.board[from];if(!moving)return[];
-  // Deliberately unchanged from v6.0.13 for experimental isolation.
-  return R.jumpDestinations(s.board,from).filter(j=>s.board[j.over]&&s.board[j.over].colour!==moving.colour);
+  const jumps=R.jumpDestinations(s.board,from).filter(j=>!!s.board[j.over]);
+  if(s.jumpPolicy==="any")return jumps;
+  return jumps.filter(j=>s.board[j.over].colour!==moving.colour);
 }
 function forcedPlacementActions(s,colour,source) {
   const type=source==="final"?"final-place":"place";
@@ -447,8 +454,8 @@ function emptyResponseStats() {
     boundaryCornerColours:{black:0,white:0}
   };
 }
-function playGame({rules={},seed=1,strength="tactical",maxTurns=500}={}) {
-  rules=normaliseRules(rules);const s=freshState(seed),stats=emptyResponseStats();
+function playGame({rules={},seed=1,strength="tactical",maxTurns=500,jumpPolicy="opposite"}={}) {
+  rules=normaliseRules(rules);jumpPolicy=normaliseJumpPolicy(jumpPolicy);const s=freshState(seed,jumpPolicy),stats=emptyResponseStats();
   while(!s.winner&&s.turns<maxTurns){
     const boundaryColour=commitBoundaryCorner(s,rules,strength);
     if(boundaryColour)stats.boundaryCornerColours[boundaryColour]++;
@@ -480,8 +487,16 @@ function playGame({rules={},seed=1,strength="tactical",maxTurns=500}={}) {
   }
   return{...stats,winner:s.winner||"draw",turns:s.turns,reachedFinalFour:s.reachedFinalFour,winType:null,resultCategory:"draw",winningActionType:null,winningResponseSlot:null,forcedNormalColourWin:false,forcedNormalColour:null,exhaustedNormalColour:null};
 }
-function runBatch({rules={},games=1000,seed=1,strength="tactical"}={}) {
-  const results=[];for(let i=0;i<games;i++)results.push(playGame({rules,seed:seed+i,strength}));
+function runBatch({rules={},games=1000,seed=1,strength="tactical",jumpPolicy="opposite",onProgress=null,progressEvery=null}={}) {
+  jumpPolicy=normaliseJumpPolicy(jumpPolicy);
+  const progressStep=typeof onProgress==="function"?(progressEvery===null?Math.max(1,Math.floor(games/20)):Math.max(1,Number(progressEvery))):0;
+  if(progressStep&&!Number.isInteger(progressStep))throw new Error("progressEvery must be a positive integer.");
+  const results=[];
+  for(let i=0;i<games;i++){
+    results.push(playGame({rules,seed:seed+i,strength,jumpPolicy}));
+    const completed=i+1;
+    if(progressStep&&(completed===games||completed%progressStep===0))onProgress({completed,games,jumpPolicy});
+  }
   const wins=[0,0],formations={},winTurns=[{},{}],drawTurns={},forcedNormalColourWins=[0,0];
   const forcedNormalExhausted={black:[0,0],white:[0,0]};
   const resultCategories={normalBoth:[0,0],normalOne:[0,0],finalFour:[0,0],openingFour:[0,0]};
@@ -489,8 +504,8 @@ function runBatch({rules={},games=1000,seed=1,strength="tactical"}={}) {
   const winningResponseSlots={first:[0,0],second:[0,0]};
   const responsePairs={"black+black":0,"black+white":0,"white+white":0};
   const responseAllocations={"black->black":0,"black->white":0,"white->black":0,"white->white":0};
-  const boundaryCornerColours={black:0,white:0};
-  let draws=0,total=0,finals=0,min=Infinity,max=0,placements=0,moves=0,jumps=0,forcedPlacements=0,twoPieceResponses=0,boundaryResponses=0;
+  const boundaryCornerColours={black:0,white:0},responseCountDistribution={};
+  let draws=0,total=0,finals=0,min=Infinity,max=0,placements=0,moves=0,jumps=0,forcedPlacements=0,twoPieceResponses=0,boundaryResponses=0,gamesWithMultipleResponses=0,maxResponsesPerGame=0;
   for(const g of results){
     if(g.winner==="draw"){draws++;drawTurns[g.turns]=(drawTurns[g.turns]||0)+1;}
     else{
@@ -505,6 +520,10 @@ function runBatch({rules={},games=1000,seed=1,strength="tactical"}={}) {
     total+=g.turns;finals+=g.reachedFinalFour?1:0;min=Math.min(min,g.turns);max=Math.max(max,g.turns);
     placements+=g.placements;moves+=g.moves;jumps+=g.jumps;forcedPlacements+=g.forcedPlacements;
     twoPieceResponses+=g.twoPieceResponses;boundaryResponses+=g.boundaryResponses;
+    const responseCount=g.twoPieceResponses+g.boundaryResponses;
+    responseCountDistribution[responseCount]=(responseCountDistribution[responseCount]||0)+1;
+    if(responseCount>1)gamesWithMultipleResponses++;
+    maxResponsesPerGame=Math.max(maxResponsesPerGame,responseCount);
     for(const k of Object.keys(responsePairs))responsePairs[k]+=g.responsePairs[k];
     for(const k of Object.keys(responseAllocations))responseAllocations[k]+=g.responseAllocations[k];
     boundaryCornerColours.black+=g.boundaryCornerColours.black;boundaryCornerColours.white+=g.boundaryCornerColours.white;
@@ -516,12 +535,13 @@ function runBatch({rules={},games=1000,seed=1,strength="tactical"}={}) {
     firstPlayerScorePct:100*(wins[0]+draws/2)/games,averageTurns:total/games,minTurns:min,maxTurns:max,finalFourPct:100*finals/games,
     placements,moves,jumps,forcedPlacements,formations,winTurns,drawTurns,resultCategories,winningActionTypes,winningResponseSlots,
     forcedNormalColourWins,forcedNormalColourWinTotal,forcedNormalColourWinPct:100*forcedNormalColourWinTotal/games,forcedNormalExhausted,
-    twoPieceResponses,boundaryResponses,responsePairs,responseAllocations,boundaryCornerColours
+    jumpPolicy,twoPieceResponses,boundaryResponses,responsePairs,responseAllocations,boundaryCornerColours,
+    responseCountDistribution,gamesWithMultipleResponses,maxResponsesPerGame,averageResponsesPerGame:(twoPieceResponses+boundaryResponses)/games
   };
 }
 
 module.exports={
-  normaliseRules,allRuleConfigurations,recommendedRuleConfigurations,freshState,availableColours,enumerateActions,boardAfter,
+  normaliseRules,normaliseJumpPolicy,allRuleConfigurations,recommendedRuleConfigurations,freshState,availableColours,enumerateActions,boardAfter,
   chooseColour,chooseAction,applyAction,commitMoveResponse,commitBoundaryCorner,normalForcedColourInfo,playGame,runBatch,classifyWin,
   immediateWinningActions,fastCheckWin,neutralPatternPotential,handoverColourDanger,responseAllocations,bestTwoPieceResponsePlan,
   chooseTwoPieceResponse,evaluateBoundaryFirstPlan,chooseBoundaryCornerColour,actionPositionalScore,baseActionPositionalScore

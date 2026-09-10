@@ -86,15 +86,45 @@ assert.equal(b1.twoPieceResponses+b1.boundaryResponses,b1.moves+b1.jumps-
 assert.equal(Object.values(b1.responsePairs).reduce((a,b)=>a+b,0),b1.twoPieceResponses);
 assert.equal(Object.values(b1.responseAllocations).reduce((a,b)=>a+b,0),b1.twoPieceResponses);
 assert.ok(b1.forcedPlacements>=0);
+assert.equal(b1.jumpPolicy,"opposite");
+assert.equal(Object.values(b1.responseCountDistribution).reduce((a,b)=>a+b,0),12);
+assert.equal(b1.twoPieceResponses+b1.boundaryResponses,12*b1.averageResponsesPerGame);
+assert.ok(b1.maxResponsesPerGame>=0);
 
-// Experimental isolation: do not silently fix the pre-existing v6.0.13 jump
-// geometry discrepancy in the same package. Both old and new currently reject
-// a same-colour jumped piece; this will be a separate bug-fix decision.
-for(const sim of [Old,S]){
-  s=sim.freshState(705);s.openingRemaining=0;s.cornerRemaining={black:0,white:0};
-  s.board[0]={id:1,colour:"black"};s.board[1]={id:2,colour:"black"};s.nextPieceId=3;
-  const jumps=sim.enumerateActions(s,"black",{allowJump:true}).filter(x=>x.type==="jump");
-  assert.equal(jumps.some(x=>x.from===0&&x.to===2&&x.over===1),false);
-}
+// Explicit opposite-colour mode must remain regression-identical to the v7.0.1
+// default so the new experiment does not alter the current Standard baseline.
+const explicitOpposite=S.runBatch({rules:standard,games:12,seed:704,strength:"tactical",jumpPolicy:"opposite"});
+assert.deepEqual(explicitOpposite,b1);
 
-console.log("Lipfty 7 two-piece response simulator tests passed.");
+// Progress is opt-in and reports completed game counts without affecting results.
+const progressMarks=[];
+const progressBatch=S.runBatch({rules:standard,games:5,seed:740,strength:"random",jumpPolicy:"opposite",progressEvery:2,onProgress:x=>progressMarks.push(x.completed)});
+assert.deepEqual(progressMarks,[2,4,5]);
+const progressControl=S.runBatch({rules:standard,games:5,seed:740,strength:"random",jumpPolicy:"opposite"});
+assert.deepEqual(progressBatch,progressControl);
+
+// The one-response-per-game result in the 5,000 tactical run is not an engine
+// limit: random play can legitimately produce repeated non-winning movements.
+const multiResponse=S.playGame({rules:standard,seed:9000,strength:"random",jumpPolicy:"opposite"});
+assert.ok(multiResponse.twoPieceResponses+multiResponse.boundaryResponses>1);
+
+// Jump colour is now a simulation-only parameter. Released/default Lipfty keeps
+// checkers-style opposite-colour jumping; experimental any-colour mode also
+// permits a jump over a same-colour piece.
+s=Old.freshState(705);s.openingRemaining=0;s.cornerRemaining={black:0,white:0};
+s.board[0]={id:1,colour:"black"};s.board[1]={id:2,colour:"black"};s.nextPieceId=3;
+let jumps=Old.enumerateActions(s,"black",{allowJump:true}).filter(x=>x.type==="jump");
+assert.equal(jumps.some(x=>x.from===0&&x.to===2&&x.over===1),false);
+
+s=S.freshState(705,"opposite");s.openingRemaining=0;s.cornerRemaining={black:0,white:0};
+s.board[0]={id:1,colour:"black"};s.board[1]={id:2,colour:"black"};s.nextPieceId=3;
+jumps=S.enumerateActions(s,"black",{allowJump:true}).filter(x=>x.type==="jump");
+assert.equal(jumps.some(x=>x.from===0&&x.to===2&&x.over===1),false);
+
+s=S.freshState(705,"any");s.openingRemaining=0;s.cornerRemaining={black:0,white:0};
+s.board[0]={id:1,colour:"black"};s.board[1]={id:2,colour:"black"};s.nextPieceId=3;
+jumps=S.enumerateActions(s,"black",{allowJump:true}).filter(x=>x.type==="jump");
+assert.equal(jumps.some(x=>x.from===0&&x.to===2&&x.over===1),true);
+assert.throws(()=>S.freshState(705,"invalid"),/jumpPolicy/);
+
+console.log("Lipfty 7 two-piece response and Jump-colour experiment tests passed.");
