@@ -54,7 +54,7 @@ function csvEscape(value) {
 }
 
 function defaultCsvPath(options) {
-  return path.join("tools", `lipfty6-results-${options.recommended ? "recommended-" : ""}${options.strength}-${options.games}-seed${options.seed}.csv`);
+  return path.join("C:\\bxd\\Lipfty-Simulation-Results", `lipfty6-results-${options.recommended ? "recommended-" : ""}${options.strength}-${options.games}-seed${options.seed}.csv`);
 }
 
 function formationCount(result, name) { return result.formations[name] || 0; }
@@ -83,7 +83,7 @@ function csvRow(index, rules, result, options, lineMs, totalMs) {
 function printHelp() {
   console.log("Usage: node .\\tools\\run-lipfty6-simulations.js [--games N] [--seed N] [--strength tactical|random] [--recommended] [--csv FILE|--no-csv]");
   console.log("Use --recommended to run only the three current Lipfty 6 candidates: Learning, Core and Standard.");
-  console.log("By default a detailed CSV is written under tools\\ with a name based on strength, games and seed.");
+  console.log("By default a detailed CSV is written under C:\\bxd\\Lipfty-Simulation-Results with a name based on strength, games and seed.");
 }
 
 function main(argv = process.argv.slice(2)) {
