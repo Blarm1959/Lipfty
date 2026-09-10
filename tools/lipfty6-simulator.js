@@ -137,9 +137,14 @@ function stateAfterForEvaluation(s,a,rules) {
 }
 function handoverDanger(s,rules) {
   const colours=availableColours(s);
-  if(!colours.length) return {safe:true,minImmediateWins:0};
+  if(!colours.length) return {safe:true,minImmediateWins:0,totalImmediateWins:0,immediateWins:[]};
   const immediateWins=colours.map(c=>immediateWinningActions(s,c,rules).length);
-  return {safe:immediateWins.some(n=>n===0),minImmediateWins:Math.min(...immediateWins)};
+  return {
+    safe:immediateWins.some(n=>n===0),
+    minImmediateWins:Math.min(...immediateWins),
+    totalImmediateWins:immediateWins.reduce((sum,n)=>sum+n,0),
+    immediateWins
+  };
 }
 
 // Colour-neutral positional potential. Lipfty colours are shared resources,
@@ -169,6 +174,10 @@ function actionPositionalScore(s,a,rules) {
   score+=neutralPatternPotential(b,rules);
   const next=stateAfterForEvaluation(s,a,rules), danger=handoverDanger(next,rules);
   score+=danger.safe?2000:-2000-250*danger.minImmediateWins;
+  // A safe hand-over is not enough: if the other available colour already has
+  // one or more winning replies, prefer actions that remove those latent
+  // threats before reserve exhaustion can force that colour to be handed over.
+  score-=750*danger.totalImmediateWins;
   return score;
 }
 

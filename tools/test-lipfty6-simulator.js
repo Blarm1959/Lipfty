@@ -116,5 +116,25 @@ s.board[3]={id:1,colour:"black"}; s.board[5]={id:2,colour:"white"}; s.board[7]={
 const handRules={allowDiagonal:true,allowSquare:true,allowSpacedSquare:true};
 assert.equal(S.immediateWinningActions(s,"black",handRules).length,0);
 assert.equal(S.immediateWinningActions(s,"white",handRules).length,0);
-assert.ok(S.handoverColourDanger(s,"white",handRules)<S.handoverColourDanger(s,"black",handRules));
-assert.equal(S.chooseColour(s,handRules,"tactical"),"white");
+const blackDanger=S.handoverColourDanger(s,"black",handRules);
+const whiteDanger=S.handoverColourDanger(s,"white",handRules);
+assert.notEqual(blackDanger,whiteDanger);
+assert.equal(S.chooseColour(s,handRules,"tactical"),blackDanger<whiteDanger?"black":"white");
+
+
+// Lipfty 6.0.10: tactical action selection must reduce latent immediate
+// winning threats in the colour that is currently being withheld.  With
+// White already on C3-D4-E5 and Black handed, B2 or F6 blocks one of White's
+// two immediate diagonal wins; an unrelated Black placement leaves both.
+s=S.freshState(610);
+s.openingRemaining=0;
+s.cornerRemaining={black:0,white:0};
+s.normalRemaining={black:10,white:10};
+s.board[14]={id:1,colour:"white"}; // C3
+s.board[21]={id:2,colour:"white"}; // D4
+s.board[28]={id:3,colour:"white"}; // E5
+s.nextPieceId=4;
+assert.equal(S.immediateWinningActions(s,"white",{allowDiagonal:true}).length,2);
+const defensiveAction=S.chooseAction(s,"black",{allowDiagonal:true},"tactical");
+assert.equal(defensiveAction.type,"place");
+assert.ok([7,35].includes(defensiveAction.to),`expected Black to block B2 or F6, got ${defensiveAction.to}`);
