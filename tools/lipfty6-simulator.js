@@ -265,10 +265,11 @@ function playGame({rules={},seed=1,strength="tactical",maxTurns=500}={}) {
 }
 function runBatch({rules={},games=1000,seed=1,strength="tactical"}={}) {
   const results=[]; for(let i=0;i<games;i++) results.push(playGame({rules,seed:seed+i,strength}));
-  const wins=[0,0], formations={};
+  const wins=[0,0], formations={}, winTurns=[{},{}], drawTurns={};
   let draws=0,total=0,finals=0,min=Infinity,max=0,placements=0,moves=0,jumps=0,forcedPlacements=0;
   for(const g of results){
-    if(g.winner==="draw")draws++;else wins[g.winner]++;
+    if(g.winner==="draw"){draws++;drawTurns[g.turns]=(drawTurns[g.turns]||0)+1;}
+    else {wins[g.winner]++;winTurns[g.winner][g.turns]=(winTurns[g.winner][g.turns]||0)+1;}
     total+=g.turns; finals+=g.reachedFinalFour?1:0; min=Math.min(min,g.turns);max=Math.max(max,g.turns);
     placements+=g.placements; moves+=g.moves; jumps+=g.jumps; forcedPlacements+=g.forcedPlacements;
     if(g.winType)formations[g.winType]=(formations[g.winType]||0)+1;
@@ -278,7 +279,7 @@ function runBatch({rules={},games=1000,seed=1,strength="tactical"}={}) {
     firstPlayerWinPct:100*wins[0]/games,secondPlayerWinPct:100*wins[1]/games,drawPct:100*draws/games,
     firstPlayerScorePct:100*(wins[0]+draws/2)/games,
     averageTurns:total/games,minTurns:min,maxTurns:max,finalFourPct:100*finals/games,
-    placements,moves,jumps,forcedPlacements,formations
+    placements,moves,jumps,forcedPlacements,formations,winTurns,drawTurns
   };
 }
 module.exports={normaliseRules,allRuleConfigurations,recommendedRuleConfigurations,freshState,availableColours,enumerateActions,boardAfter,chooseColour,chooseAction,applyAction,playGame,runBatch,classifyWin,immediateWinningActions,fastCheckWin,neutralPatternPotential,handoverColourDanger};

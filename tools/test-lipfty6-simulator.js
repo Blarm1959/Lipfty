@@ -138,3 +138,9 @@ assert.equal(S.immediateWinningActions(s,"white",{allowDiagonal:true}).length,2)
 const defensiveAction=S.chooseAction(s,"black",{allowDiagonal:true},"tactical");
 assert.equal(defensiveAction.type,"place");
 assert.ok([7,35].includes(defensiveAction.to),`expected Black to block B2 or F6, got ${defensiveAction.to}`);
+
+// Lipfty 6.0.11: diagnostic batches retain turn-by-turn result distributions.
+const turnBatch=S.runBatch({games:40,seed:611,rules:{allowDiagonal:true}});
+assert.equal(Object.values(turnBatch.winTurns[0]).reduce((a,b)=>a+b,0),turnBatch.wins[0]);
+assert.equal(Object.values(turnBatch.winTurns[1]).reduce((a,b)=>a+b,0),turnBatch.wins[1]);
+assert.equal(Object.values(turnBatch.drawTurns).reduce((a,b)=>a+b,0),turnBatch.draws);
