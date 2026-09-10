@@ -72,6 +72,9 @@ const CSV_HEADERS = [
   "forced_normal_colour_wins","forced_normal_colour_win_pct","forced_normal_p1_wins","forced_normal_p2_wins",
   "forced_normal_p1_share_of_p1_wins_pct","forced_normal_p2_share_of_p2_wins_pct",
   "black_exhausted_p1_wins","black_exhausted_p2_wins","white_exhausted_p1_wins","white_exhausted_p2_wins",
+  "both_normal_colours_p1_wins","both_normal_colours_p2_wins","one_normal_colour_p1_wins","one_normal_colour_p2_wins",
+  "final_four_p1_wins","final_four_p2_wins","draw_results",
+  "placement_p1_wins","placement_p2_wins","move_p1_wins","move_p2_wins","jump_p1_wins","jump_p2_wins",
   "line_seconds","total_seconds"
 ];
 
@@ -90,6 +93,12 @@ function csvRow(index, rules, result, options, lineMs, totalMs) {
     pct(result.forcedNormalColourWins[0],result.wins[0]).toFixed(3), pct(result.forcedNormalColourWins[1],result.wins[1]).toFixed(3),
     result.forcedNormalExhausted.black[0], result.forcedNormalExhausted.black[1],
     result.forcedNormalExhausted.white[0], result.forcedNormalExhausted.white[1],
+    result.resultCategories.normalBoth[0], result.resultCategories.normalBoth[1],
+    result.resultCategories.normalOne[0], result.resultCategories.normalOne[1],
+    result.resultCategories.finalFour[0], result.resultCategories.finalFour[1], result.draws,
+    result.winningActionTypes.placement[0], result.winningActionTypes.placement[1],
+    result.winningActionTypes.move[0], result.winningActionTypes.move[1],
+    result.winningActionTypes.jump[0], result.winningActionTypes.jump[1],
     (lineMs/1000).toFixed(3), (totalMs/1000).toFixed(3)
   ].map(csvEscape).join(",");
 }
@@ -134,6 +143,8 @@ function main(argv = process.argv.slice(2)) {
     console.log(`    Win turns: P1 ${turnDistribution(result.winTurns[0]) || "none"} | P2 ${turnDistribution(result.winTurns[1]) || "none"} | Draw ${turnDistribution(result.drawTurns) || "none"}`);
     console.log(`    Forced normal-colour wins: ${result.forcedNormalColourWinTotal}/${result.games} (${result.forcedNormalColourWinPct.toFixed(1)}% games) | P1 ${result.forcedNormalColourWins[0]}/${result.wins[0]} wins (${pct(result.forcedNormalColourWins[0],result.wins[0]).toFixed(1)}%) | P2 ${result.forcedNormalColourWins[1]}/${result.wins[1]} wins (${pct(result.forcedNormalColourWins[1],result.wins[1]).toFixed(1)}%)`);
     console.log(`    Exhausted colour: Black -> P1 ${result.forcedNormalExhausted.black[0]}, P2 ${result.forcedNormalExhausted.black[1]} | White -> P1 ${result.forcedNormalExhausted.white[0]}, P2 ${result.forcedNormalExhausted.white[1]}`);
+    console.log(`    Result categories: both normal colours -> P1 ${result.resultCategories.normalBoth[0]}, P2 ${result.resultCategories.normalBoth[1]} | one normal colour -> P1 ${result.resultCategories.normalOne[0]}, P2 ${result.resultCategories.normalOne[1]} | Final Four -> P1 ${result.resultCategories.finalFour[0]}, P2 ${result.resultCategories.finalFour[1]} | Draw ${result.draws}`);
+    if (rules.allowMove || rules.allowJump) console.log(`    Winning actions: Placement -> P1 ${result.winningActionTypes.placement[0]}, P2 ${result.winningActionTypes.placement[1]} | Move -> P1 ${result.winningActionTypes.move[0]}, P2 ${result.winningActionTypes.move[1]} | Jump -> P1 ${result.winningActionTypes.jump[0]}, P2 ${result.winningActionTypes.jump[1]}`);
     if (csvPath) csvLines.push(csvRow(index,rules,result,options,lineMs,totalMs));
   });
   const elapsedMs = Number(process.hrtime.bigint() - runStart) / 1e6;

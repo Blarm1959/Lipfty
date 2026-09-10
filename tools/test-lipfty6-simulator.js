@@ -171,3 +171,24 @@ assert.equal(forcedBatch.forcedNormalColourWinTotal,
 assert.ok(forcedBatch.forcedNormalColourWins[0]<=forcedBatch.wins[0]);
 assert.ok(forcedBatch.forcedNormalColourWins[1]<=forcedBatch.wins[1]);
 assert.equal(forcedBatch.forcedNormalColourWinPct,100*forcedBatch.forcedNormalColourWinTotal/forcedBatch.games);
+
+// Lipfty 6.0.13: account for every decisive result by phase and winning action
+// without changing the simulated game.  The one-normal-colour category must
+// exactly match the v6.0.12 forced-colour diagnostic.
+const categoryBatch=S.runBatch({games:80,seed:613,rules:{allowDiagonal:true,allowSquare:true,allowSpacedSquare:true}});
+const categoryWins=Object.values(categoryBatch.resultCategories).reduce((sum,pair)=>sum+pair[0]+pair[1],0);
+assert.equal(categoryWins,categoryBatch.wins[0]+categoryBatch.wins[1]);
+assert.deepEqual(categoryBatch.resultCategories.normalOne,categoryBatch.forcedNormalColourWins);
+assert.equal(categoryBatch.resultCategories.openingFour[0]+categoryBatch.resultCategories.openingFour[1],0);
+const categoryActionWins=Object.values(categoryBatch.winningActionTypes).reduce((sum,pair)=>sum+pair[0]+pair[1],0);
+assert.equal(categoryActionWins,categoryBatch.wins[0]+categoryBatch.wins[1]);
+assert.equal(categoryBatch.winningActionTypes.move[0]+categoryBatch.winningActionTypes.move[1],0);
+assert.equal(categoryBatch.winningActionTypes.jump[0]+categoryBatch.winningActionTypes.jump[1],0);
+
+const standardCategoryBatch=S.runBatch({games:40,seed:613,rules:{allowJump:true,allowMove:true,allowDiagonal:true,allowSquare:true,allowSpacedSquare:true}});
+const standardCategoryWins=Object.values(standardCategoryBatch.resultCategories).reduce((sum,pair)=>sum+pair[0]+pair[1],0);
+const standardActionWins=Object.values(standardCategoryBatch.winningActionTypes).reduce((sum,pair)=>sum+pair[0]+pair[1],0);
+assert.equal(standardCategoryWins,standardCategoryBatch.wins[0]+standardCategoryBatch.wins[1]);
+assert.equal(standardActionWins,standardCategoryBatch.wins[0]+standardCategoryBatch.wins[1]);
+assert.equal(standardCategoryBatch.resultCategories.normalOne[0]+standardCategoryBatch.resultCategories.normalOne[1],standardCategoryBatch.forcedNormalColourWinTotal);
+

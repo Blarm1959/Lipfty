@@ -262,6 +262,7 @@ function playGame({rules={},seed=1,strength="tactical",maxTurns=500}={}) {
   rules=normaliseRules(rules); const s=freshState(seed); const stats={placements:0,moves:0,jumps:0,forcedPlacements:0};
   while(!s.winner && s.turns<maxTurns) {
     const forcedColourInfo=normalForcedColourInfo(s);
+    const resultCategory=s.finalFour?"final-four":s.openingRemaining>0?"opening-four":forcedColourInfo?"normal-one-colour":"normal-both-colours";
     const colour=chooseColour(s,rules,strength), wasForced=s.forcedPlacements>0;
     const action=chooseAction(s,colour,rules,strength);
     if(!action){s.winner="draw";break;}
@@ -270,22 +271,29 @@ function playGame({rules={},seed=1,strength="tactical",maxTurns=500}={}) {
     const result=applyAction(s,action,rules);
     if(result.ended) return {
       ...stats,winner:s.winner,turns:s.turns,reachedFinalFour:s.reachedFinalFour,winType:result.winType||null,
+      resultCategory:s.winner==="draw"?"draw":resultCategory,
+      winningActionType:s.winner==="draw"?null:(action.type.includes("place")?"placement":action.type),
       forcedNormalColourWin:s.winner!=="draw"&&!!forcedColourInfo,
       forcedNormalColour:forcedColourInfo?.colour||null,
       exhaustedNormalColour:forcedColourInfo?.exhaustedColour||null
     };
   }
-  return {...stats,winner:s.winner||"draw",turns:s.turns,reachedFinalFour:s.reachedFinalFour,winType:null,forcedNormalColourWin:false,forcedNormalColour:null,exhaustedNormalColour:null};
+  return {...stats,winner:s.winner||"draw",turns:s.turns,reachedFinalFour:s.reachedFinalFour,winType:null,resultCategory:"draw",winningActionType:null,forcedNormalColourWin:false,forcedNormalColour:null,exhaustedNormalColour:null};
 }
 function runBatch({rules={},games=1000,seed=1,strength="tactical"}={}) {
   const results=[]; for(let i=0;i<games;i++) results.push(playGame({rules,seed:seed+i,strength}));
   const wins=[0,0], formations={}, winTurns=[{},{}], drawTurns={}, forcedNormalColourWins=[0,0];
   const forcedNormalExhausted={black:[0,0],white:[0,0]};
+  const resultCategories={normalBoth:[0,0],normalOne:[0,0],finalFour:[0,0],openingFour:[0,0]};
+  const winningActionTypes={placement:[0,0],move:[0,0],jump:[0,0]};
   let draws=0,total=0,finals=0,min=Infinity,max=0,placements=0,moves=0,jumps=0,forcedPlacements=0;
   for(const g of results){
     if(g.winner==="draw"){draws++;drawTurns[g.turns]=(drawTurns[g.turns]||0)+1;}
     else {
       wins[g.winner]++;winTurns[g.winner][g.turns]=(winTurns[g.winner][g.turns]||0)+1;
+      const categoryKey={"normal-both-colours":"normalBoth","normal-one-colour":"normalOne","final-four":"finalFour","opening-four":"openingFour"}[g.resultCategory];
+      if(categoryKey) resultCategories[categoryKey][g.winner]++;
+      if(g.winningActionType) winningActionTypes[g.winningActionType][g.winner]++;
       if(g.forcedNormalColourWin){
         forcedNormalColourWins[g.winner]++;
         forcedNormalExhausted[g.exhaustedNormalColour][g.winner]++;
@@ -301,7 +309,7 @@ function runBatch({rules={},games=1000,seed=1,strength="tactical"}={}) {
     firstPlayerWinPct:100*wins[0]/games,secondPlayerWinPct:100*wins[1]/games,drawPct:100*draws/games,
     firstPlayerScorePct:100*(wins[0]+draws/2)/games,
     averageTurns:total/games,minTurns:min,maxTurns:max,finalFourPct:100*finals/games,
-    placements,moves,jumps,forcedPlacements,formations,winTurns,drawTurns,
+    placements,moves,jumps,forcedPlacements,formations,winTurns,drawTurns,resultCategories,winningActionTypes,
     forcedNormalColourWins,forcedNormalColourWinTotal,forcedNormalColourWinPct:100*forcedNormalColourWinTotal/games,forcedNormalExhausted
   };
 }
