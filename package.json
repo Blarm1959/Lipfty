@@ -1,6 +1,6 @@
 {
   "name": "lipfty",
-  "version": "6.0.13",
+  "version": "7.0.1",
   "description": "A responsive Progressive Web App for the Lipfty shared-piece strategy game",
   "private": true,
   "scripts": {
