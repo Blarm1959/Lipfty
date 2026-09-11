@@ -1,4 +1,4 @@
-const VERSION = "7.0.4";
+const VERSION = "7.0.5";
 const STATIC_CACHE = `lipfty-static-v${VERSION}`;
 const RUNTIME_CACHE = `lipfty-runtime-v${VERSION}`;
 const APP_SHELL = [
