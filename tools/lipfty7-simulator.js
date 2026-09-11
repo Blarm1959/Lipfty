@@ -5,7 +5,11 @@
 //   committed  - responder chooses both reserve pieces before placing either;
 //   sequential - responder chooses/places their piece first, then chooses the
 //                remaining reserve piece that the mover must place.
-// The exactly-one-normal-reserve boundary rule is unchanged in both modes.
+// The exactly-one-normal-reserve boundary can also be compared independently:
+//   current          - responder places the last normal piece, then chooses the
+//                      mover's compulsory Final Four corner;
+//   responder-choice - responder chooses whether to place the last normal piece
+//                      or a corner first. The mover then places the other type.
 //
 // Jump colour remains an analysis parameter. The released Lipfty rule remains
 // opposite-colour-only; experimental any-colour jump is still available only
@@ -20,6 +24,7 @@ const WIN_SCORE = 1e9;
 const RESPONSE_SEARCH_LIMIT = 6;
 const JUMP_POLICIES = ["opposite","any"];
 const RESPONSE_POLICIES = ["committed","sequential"];
+const BOUNDARY_POLICIES = ["current","responder-choice"];
 const patternCache = new Map();
 
 function normaliseJumpPolicy(value="opposite") {
@@ -28,6 +33,10 @@ function normaliseJumpPolicy(value="opposite") {
 }
 function normaliseResponsePolicy(value="committed") {
   if(!RESPONSE_POLICIES.includes(value))throw new Error(`responsePolicy must be one of: ${RESPONSE_POLICIES.join(", ")}.`);
+  return value;
+}
+function normaliseBoundaryPolicy(value="current") {
+  if(!BOUNDARY_POLICIES.includes(value))throw new Error(`boundaryPolicy must be one of: ${BOUNDARY_POLICIES.join(", ")}.`);
   return value;
 }
 
@@ -97,15 +106,15 @@ function recommendedRuleConfigurations() {
     {name:"Standard",rules:normaliseRules({allowJump:true,allowMove:true,allowDiagonal:true,allowSquare:true,allowSpacedSquare:true})}
   ];
 }
-function freshState(seed=1,jumpPolicy="opposite",responsePolicy="committed") {
-  jumpPolicy=normaliseJumpPolicy(jumpPolicy);responsePolicy=normaliseResponsePolicy(responsePolicy);
+function freshState(seed=1,jumpPolicy="opposite",responsePolicy="committed",boundaryPolicy="current") {
+  jumpPolicy=normaliseJumpPolicy(jumpPolicy);responsePolicy=normaliseResponsePolicy(responsePolicy);boundaryPolicy=normaliseBoundaryPolicy(boundaryPolicy);
   const rng=mulberry32(seed),cornerColours=shuffle(["black","black","white","white"],rng);
   return {
     board:Array(36).fill(null),currentPlayer:0,openingRemaining:4,cornerRemaining:{black:2,white:2},
     normalRemaining:{black:12,white:12},finalPieces:[...cornerColours],forcedPlacements:0,forcedQueue:[],
-    awaitingMoveResponse:false,boundaryCornerOwed:false,sequentialSecondOwed:false,sequentialFirstColour:null,
+    awaitingMoveResponse:false,boundaryCornerOwed:false,boundarySelfCornerOwed:false,sequentialSecondOwed:false,sequentialFirstColour:null,
     protectedPieceId:null,nextPieceId:1,finalFour:false,winner:null,turns:0,reachedFinalFour:false,
-    jumpPolicy,responsePolicy,rng
+    jumpPolicy,responsePolicy,boundaryPolicy,rng
   };
 }
 function cloneState(s) {
@@ -135,7 +144,7 @@ function forcedPlacementActions(s,colour,source) {
   return emptySquares(s).map(to=>({type,to,colour}));
 }
 function enumerateActions(s,colour,rules) {
-  if(s.awaitingMoveResponse||(s.sequentialSecondOwed&&!s.forcedQueue.length)) return [];
+  if(s.awaitingMoveResponse||((s.sequentialSecondOwed||s.boundarySelfCornerOwed)&&!s.forcedQueue.length)) return [];
   if(s.forcedQueue.length) {
     const q=s.forcedQueue[0];
     if(colour!==q.colour)return[];
@@ -212,7 +221,7 @@ function applyAction(s,a,rules) {
 
   if(wasForced){
     s.forcedQueue.shift();
-    s.forcedPlacements=s.forcedQueue.length+(s.boundaryCornerOwed?1:0)+(s.sequentialSecondOwed?1:0);
+    s.forcedPlacements=s.forcedQueue.length+(s.boundaryCornerOwed?1:0)+(s.boundarySelfCornerOwed?1:0)+(s.sequentialSecondOwed?1:0);
   } else if(a.type==="move"||a.type==="jump") {
     if(normalReserveCount(s)>0){s.awaitingMoveResponse=true;s.forcedPlacements=2;}
   } else if(s.forcedPlacements>0) {
@@ -367,6 +376,100 @@ function chooseSequentialSecondColour(s,rules,strength="tactical") {
   const candidates=choices.filter(x=>Math.abs(x.moverOutcome-min)<1e-9);
   return candidates[Math.floor(s.rng()*candidates.length)].colour;
 }
+function evaluateMoverSelfCornerChoices(s,rules,limit=RESPONSE_SEARCH_LIMIT) {
+  const colours=[...new Set(s.finalPieces)],results=[];
+  for(const colour of colours){
+    const actions=topPlacementCandidates(s,colour,"final",rules,limit);
+    let moverOutcome=-Infinity,bestTo=null;
+    for(const action of actions){
+      const score=actionWins(s,action,rules)?WIN_SCORE:baseActionPositionalScore(s,action,rules);
+      if(score>moverOutcome){moverOutcome=score;bestTo=action.to;}
+    }
+    results.push({colour,to:bestTo,moverOutcome});
+  }
+  return results;
+}
+function chooseBoundarySelfCornerPlan(s,rules,strength="tactical") {
+  const colours=[...new Set(s.finalPieces)];
+  if(!colours.length)throw new Error("Boundary self-corner requested with no Final Four corner remaining.");
+  if(strength==="random"){
+    const colour=colours[Math.floor(s.rng()*colours.length)];
+    const actions=forcedPlacementActions(s,colour,"final");
+    const action=actions[Math.floor(s.rng()*actions.length)];
+    return{colour,to:action.to,moverOutcome:null};
+  }
+  const choices=evaluateMoverSelfCornerChoices(s,rules,RESPONSE_SEARCH_LIMIT);
+  const max=Math.max(...choices.map(x=>x.moverOutcome));
+  const candidates=choices.filter(x=>Math.abs(x.moverOutcome-max)<1e-9);
+  return candidates[Math.floor(s.rng()*candidates.length)];
+}
+function evaluateBoundaryResponderChoicePlan(s,rules,limit=RESPONSE_SEARCH_LIMIT) {
+  const normalColour=COLOURS.find(c=>s.normalRemaining[c]>0);
+  if(!normalColour)throw new Error("Boundary responder-choice requested with no normal reserve piece remaining.");
+  const plans=[];
+
+  // Option A: responder places the last normal reserve. The mover then chooses
+  // which Final Four corner to place for the second compulsory placement.
+  for(const first of topPlacementCandidates(s,normalColour,"normal",rules,limit)){
+    let moverOutcome;
+    if(actionWins(s,first,rules)){
+      moverOutcome=-WIN_SCORE;
+    }else{
+      const t=cloneState(s);
+      t.awaitingMoveResponse=false;t.boundaryCornerOwed=false;t.boundarySelfCornerOwed=true;
+      t.forcedQueue=[{colour:normalColour,source:"normal",responseSlot:1}];t.forcedPlacements=2;
+      applyAction(t,first,rules);
+      const corners=evaluateMoverSelfCornerChoices(t,rules,limit);
+      moverOutcome=Math.max(...corners.map(x=>x.moverOutcome));
+    }
+    plans.push({boundaryFirstSource:"normal",keep:normalColour,give:null,pair:"boundary-choice",firstColour:normalColour,firstTo:first.to,moverOutcome,firstStatic:placementStaticScore(s,first,rules)});
+  }
+
+  // Option B: responder chooses and places a Final Four corner first. The mover
+  // must then place the last normal reserve piece.
+  for(const cornerColour of [...new Set(s.finalPieces)]){
+    for(const first of topPlacementCandidates(s,cornerColour,"final",rules,limit)){
+      let moverOutcome;
+      if(actionWins(s,first,rules)){
+        moverOutcome=-WIN_SCORE;
+      }else{
+        const t=cloneState(s);
+        t.awaitingMoveResponse=false;t.boundaryCornerOwed=false;t.boundarySelfCornerOwed=false;
+        t.forcedQueue=[{colour:cornerColour,source:"final",responseSlot:1},{colour:normalColour,source:"normal",responseSlot:2}];t.forcedPlacements=2;
+        applyAction(t,first,rules);
+        const replies=topPlacementCandidates(t,normalColour,"normal",rules,limit);
+        moverOutcome=-Infinity;
+        for(const reply of replies){
+          const score=actionWins(t,reply,rules)?WIN_SCORE:baseActionPositionalScore(t,reply,rules);
+          if(score>moverOutcome)moverOutcome=score;
+        }
+      }
+      plans.push({boundaryFirstSource:"corner",keep:cornerColour,give:normalColour,pair:"boundary-choice",firstColour:cornerColour,firstTo:first.to,moverOutcome,firstStatic:placementStaticScore(s,first,rules)});
+    }
+  }
+  return plans;
+}
+function chooseBoundaryResponderChoicePlan(s,rules,strength="tactical") {
+  const normalColour=COLOURS.find(c=>s.normalRemaining[c]>0);
+  if(!normalColour)throw new Error("Boundary responder-choice requested with no normal reserve piece remaining.");
+  if(strength==="random"){
+    if(s.rng()<0.5){
+      const actions=forcedPlacementActions(s,normalColour,"normal");
+      const first=actions[Math.floor(s.rng()*actions.length)];
+      return{boundaryFirstSource:"normal",keep:normalColour,give:null,pair:"boundary-choice",firstColour:normalColour,firstTo:first.to,moverOutcome:null,firstStatic:null};
+    }
+    const colours=[...new Set(s.finalPieces)],cornerColour=colours[Math.floor(s.rng()*colours.length)];
+    const actions=forcedPlacementActions(s,cornerColour,"final"),first=actions[Math.floor(s.rng()*actions.length)];
+    return{boundaryFirstSource:"corner",keep:cornerColour,give:normalColour,pair:"boundary-choice",firstColour:cornerColour,firstTo:first.to,moverOutcome:null,firstStatic:null};
+  }
+  const plans=evaluateBoundaryResponderChoicePlan(s,rules,RESPONSE_SEARCH_LIMIT);
+  const min=Math.min(...plans.map(x=>x.moverOutcome));
+  let candidates=plans.filter(x=>Math.abs(x.moverOutcome-min)<1e-9);
+  const bestStatic=Math.max(...candidates.map(x=>x.firstStatic));
+  candidates=candidates.filter(x=>Math.abs(x.firstStatic-bestStatic)<1e-9);
+  return candidates[Math.floor(s.rng()*candidates.length)];
+}
+
 function evaluateCornerChoiceForMover(s,rules,limit=RESPONSE_SEARCH_LIMIT) {
   const colours=[...new Set(s.finalPieces)],results=[];
   for(const colour of colours){
@@ -437,6 +540,11 @@ function movementResponseScore(s,a,rules) {
   for(const colour of COLOURS){
     if(t.normalRemaining[colour]>0&&immediateWinningPlacementCount(t,colour,"normal",rules)>0) return-WIN_SCORE;
   }
+  if(count===1&&t.boundaryPolicy==="responder-choice"){
+    for(const colour of [...new Set(t.finalPieces)]){
+      if(immediateWinningPlacementCount(t,colour,"final",rules)>0)return-WIN_SCORE;
+    }
+  }
 
   let score=baseActionPositionalScore(s,a,rules);
   if(count>=2){
@@ -483,21 +591,35 @@ function commitMoveResponse(s,rules,strength="tactical") {
   const count=normalReserveCount(s);
   if(count<1)throw new Error("Move/Jump response requested with no normal reserve piece remaining.");
   let plan;
-  if(count===1){
+  if(count===1&&s.boundaryPolicy==="responder-choice"){
+    plan=chooseBoundaryResponderChoicePlan(s,rules,strength);
+    if(plan.boundaryFirstSource==="normal"){
+      s.forcedQueue=[{colour:plan.firstColour,source:"normal",responseSlot:1,plannedTo:plan.firstTo}];
+      s.boundarySelfCornerOwed=true;
+    }else{
+      const normalColour=COLOURS.find(c=>s.normalRemaining[c]>0);
+      s.forcedQueue=[
+        {colour:plan.firstColour,source:"final",responseSlot:1,plannedTo:plan.firstTo},
+        {colour:normalColour,source:"normal",responseSlot:2}
+      ];
+      s.boundarySelfCornerOwed=false;
+    }
+    s.boundaryCornerOwed=false;s.sequentialSecondOwed=false;s.sequentialFirstColour=null;
+  }else if(count===1){
     plan=chooseBoundaryFirstPlan(s,rules,strength);
     s.forcedQueue=[{colour:plan.keep,source:"normal",responseSlot:1,plannedTo:plan.firstTo}];
-    s.boundaryCornerOwed=true;s.sequentialSecondOwed=false;s.sequentialFirstColour=null;
+    s.boundaryCornerOwed=true;s.boundarySelfCornerOwed=false;s.sequentialSecondOwed=false;s.sequentialFirstColour=null;
   }else if(s.responsePolicy==="sequential"){
     plan=chooseSequentialFirstPlan(s,rules,strength);
     s.forcedQueue=[{colour:plan.keep,source:"normal",responseSlot:1,plannedTo:plan.firstTo}];
-    s.boundaryCornerOwed=false;s.sequentialSecondOwed=true;s.sequentialFirstColour=plan.keep;
+    s.boundaryCornerOwed=false;s.boundarySelfCornerOwed=false;s.sequentialSecondOwed=true;s.sequentialFirstColour=plan.keep;
   }else{
     plan=chooseTwoPieceResponse(s,rules,strength);
     s.forcedQueue=[
       {colour:plan.keep,source:"normal",responseSlot:1,plannedTo:plan.firstTo},
       {colour:plan.give,source:"normal",responseSlot:2}
     ];
-    s.boundaryCornerOwed=false;s.sequentialSecondOwed=false;s.sequentialFirstColour=null;
+    s.boundaryCornerOwed=false;s.boundarySelfCornerOwed=false;s.sequentialSecondOwed=false;s.sequentialFirstColour=null;
   }
   s.awaitingMoveResponse=false;s.forcedPlacements=2;
   return plan;
@@ -510,6 +632,13 @@ function commitSequentialSecond(s,rules,strength="tactical") {
   s.forcedQueue=[{colour:second,source:"normal",responseSlot:2}];
   s.sequentialSecondOwed=false;s.sequentialFirstColour=null;s.forcedPlacements=1;
   return{keep:first,give:second,pair:responsePairKey(first,second)};
+}
+function commitBoundarySelfCorner(s,rules,strength="tactical") {
+  if(!s.boundarySelfCornerOwed||s.forcedQueue.length||!s.finalFour)return null;
+  const plan=chooseBoundarySelfCornerPlan(s,rules,strength);
+  s.forcedQueue=[{colour:plan.colour,source:"final",responseSlot:2,plannedTo:plan.to}];
+  s.boundarySelfCornerOwed=false;s.forcedPlacements=1;
+  return plan;
 }
 function commitBoundaryCorner(s,rules,strength="tactical") {
   if(!s.boundaryCornerOwed||s.forcedQueue.length||!s.finalFour)return null;
@@ -535,20 +664,23 @@ function normalForcedColourInfo(s) {
 function emptyResponseStats() {
   return {
     placements:0,moves:0,jumps:0,forcedPlacements:0,twoPieceResponses:0,boundaryResponses:0,sequentialSecondChoices:0,
+    boundaryFirstSources:{normal:0,corner:0},
     responsePairs:{"black+black":0,"black+white":0,"white+white":0},
     responseAllocations:{"black->black":0,"black->white":0,"white->black":0,"white->white":0},
-    boundaryCornerColours:{black:0,white:0}
+    boundaryCornerColours:{black:0,white:0},boundarySelfCornerColours:{black:0,white:0},boundaryResponderCornerColours:{black:0,white:0}
   };
 }
-function playGame({rules={},seed=1,strength="tactical",maxTurns=500,jumpPolicy="opposite",responsePolicy="committed"}={}) {
-  rules=normaliseRules(rules);jumpPolicy=normaliseJumpPolicy(jumpPolicy);responsePolicy=normaliseResponsePolicy(responsePolicy);
-  const s=freshState(seed,jumpPolicy,responsePolicy),stats=emptyResponseStats();
+function playGame({rules={},seed=1,strength="tactical",maxTurns=500,jumpPolicy="opposite",responsePolicy="committed",boundaryPolicy="current"}={}) {
+  rules=normaliseRules(rules);jumpPolicy=normaliseJumpPolicy(jumpPolicy);responsePolicy=normaliseResponsePolicy(responsePolicy);boundaryPolicy=normaliseBoundaryPolicy(boundaryPolicy);
+  const s=freshState(seed,jumpPolicy,responsePolicy,boundaryPolicy),stats=emptyResponseStats();
   while(!s.winner&&s.turns<maxTurns){
     const sequentialPlan=commitSequentialSecond(s,rules,strength);
     if(sequentialPlan){
       stats.sequentialSecondChoices++;stats.responsePairs[sequentialPlan.pair]++;
       stats.responseAllocations[`${sequentialPlan.keep}->${sequentialPlan.give}`]++;
     }
+    const boundarySelfPlan=commitBoundarySelfCorner(s,rules,strength);
+    if(boundarySelfPlan)stats.boundarySelfCornerColours[boundarySelfPlan.colour]++;
     const boundaryColour=commitBoundaryCorner(s,rules,strength);
     if(boundaryColour)stats.boundaryCornerColours[boundaryColour]++;
 
@@ -570,7 +702,13 @@ function playGame({rules={},seed=1,strength="tactical",maxTurns=500,jumpPolicy="
     };
     if(action.type==="move"||action.type==="jump"){
       const plan=commitMoveResponse(s,rules,strength);
-      if(plan.pair==="boundary-one")stats.boundaryResponses++;
+      if(plan.pair==="boundary-one"||plan.pair==="boundary-choice"){
+        stats.boundaryResponses++;
+        if(plan.boundaryFirstSource){
+          stats.boundaryFirstSources[plan.boundaryFirstSource]++;
+          if(plan.boundaryFirstSource==="corner")stats.boundaryResponderCornerColours[plan.firstColour]++;
+        }
+      }
       else{
         stats.twoPieceResponses++;
         if(plan.pair!=="sequential-pending"){
@@ -581,15 +719,15 @@ function playGame({rules={},seed=1,strength="tactical",maxTurns=500,jumpPolicy="
   }
   return{...stats,winner:s.winner||"draw",turns:s.turns,reachedFinalFour:s.reachedFinalFour,winType:null,resultCategory:"draw",winningActionType:null,winningResponseSlot:null,forcedNormalColourWin:false,forcedNormalColour:null,exhaustedNormalColour:null};
 }
-function runBatch({rules={},games=1000,seed=1,strength="tactical",jumpPolicy="opposite",responsePolicy="committed",onProgress=null,progressEvery=null}={}) {
-  jumpPolicy=normaliseJumpPolicy(jumpPolicy);responsePolicy=normaliseResponsePolicy(responsePolicy);
+function runBatch({rules={},games=1000,seed=1,strength="tactical",jumpPolicy="opposite",responsePolicy="committed",boundaryPolicy="current",onProgress=null,progressEvery=null}={}) {
+  jumpPolicy=normaliseJumpPolicy(jumpPolicy);responsePolicy=normaliseResponsePolicy(responsePolicy);boundaryPolicy=normaliseBoundaryPolicy(boundaryPolicy);
   const progressStep=typeof onProgress==="function"?(progressEvery===null?Math.max(1,Math.floor(games/20)):Math.max(1,Number(progressEvery))):0;
   if(progressStep&&!Number.isInteger(progressStep))throw new Error("progressEvery must be a positive integer.");
   const results=[];
   for(let i=0;i<games;i++){
-    results.push(playGame({rules,seed:seed+i,strength,jumpPolicy,responsePolicy}));
+    results.push(playGame({rules,seed:seed+i,strength,jumpPolicy,responsePolicy,boundaryPolicy}));
     const completed=i+1;
-    if(progressStep&&(completed===games||completed%progressStep===0))onProgress({completed,games,jumpPolicy,responsePolicy});
+    if(progressStep&&(completed===games||completed%progressStep===0))onProgress({completed,games,jumpPolicy,responsePolicy,boundaryPolicy});
   }
   const wins=[0,0],formations={},winTurns=[{},{}],drawTurns={},forcedNormalColourWins=[0,0];
   const forcedNormalExhausted={black:[0,0],white:[0,0]};
@@ -598,7 +736,7 @@ function runBatch({rules={},games=1000,seed=1,strength="tactical",jumpPolicy="op
   const winningResponseSlots={first:[0,0],second:[0,0]};
   const responsePairs={"black+black":0,"black+white":0,"white+white":0};
   const responseAllocations={"black->black":0,"black->white":0,"white->black":0,"white->white":0};
-  const boundaryCornerColours={black:0,white:0},responseCountDistribution={};
+  const boundaryCornerColours={black:0,white:0},boundarySelfCornerColours={black:0,white:0},boundaryResponderCornerColours={black:0,white:0},boundaryFirstSources={normal:0,corner:0},responseCountDistribution={};
   let draws=0,total=0,finals=0,min=Infinity,max=0,placements=0,moves=0,jumps=0,forcedPlacements=0,twoPieceResponses=0,boundaryResponses=0,sequentialSecondChoices=0,gamesWithMultipleResponses=0,maxResponsesPerGame=0;
   for(const g of results){
     if(g.winner==="draw"){draws++;drawTurns[g.turns]=(drawTurns[g.turns]||0)+1;}
@@ -621,6 +759,9 @@ function runBatch({rules={},games=1000,seed=1,strength="tactical",jumpPolicy="op
     for(const k of Object.keys(responsePairs))responsePairs[k]+=g.responsePairs[k];
     for(const k of Object.keys(responseAllocations))responseAllocations[k]+=g.responseAllocations[k];
     boundaryCornerColours.black+=g.boundaryCornerColours.black;boundaryCornerColours.white+=g.boundaryCornerColours.white;
+    boundarySelfCornerColours.black+=g.boundarySelfCornerColours.black;boundarySelfCornerColours.white+=g.boundarySelfCornerColours.white;
+    boundaryResponderCornerColours.black+=g.boundaryResponderCornerColours.black;boundaryResponderCornerColours.white+=g.boundaryResponderCornerColours.white;
+    boundaryFirstSources.normal+=g.boundaryFirstSources.normal;boundaryFirstSources.corner+=g.boundaryFirstSources.corner;
     if(g.winType)formations[g.winType]=(formations[g.winType]||0)+1;
   }
   const forcedNormalColourWinTotal=forcedNormalColourWins[0]+forcedNormalColourWins[1];
@@ -629,15 +770,16 @@ function runBatch({rules={},games=1000,seed=1,strength="tactical",jumpPolicy="op
     firstPlayerScorePct:100*(wins[0]+draws/2)/games,averageTurns:total/games,minTurns:min,maxTurns:max,finalFourPct:100*finals/games,
     placements,moves,jumps,forcedPlacements,formations,winTurns,drawTurns,resultCategories,winningActionTypes,winningResponseSlots,
     forcedNormalColourWins,forcedNormalColourWinTotal,forcedNormalColourWinPct:100*forcedNormalColourWinTotal/games,forcedNormalExhausted,
-    jumpPolicy,responsePolicy,twoPieceResponses,boundaryResponses,sequentialSecondChoices,responsePairs,responseAllocations,boundaryCornerColours,
+    jumpPolicy,responsePolicy,boundaryPolicy,twoPieceResponses,boundaryResponses,sequentialSecondChoices,responsePairs,responseAllocations,boundaryCornerColours,
+    boundarySelfCornerColours,boundaryResponderCornerColours,boundaryFirstSources,
     responseCountDistribution,gamesWithMultipleResponses,maxResponsesPerGame,averageResponsesPerGame:(twoPieceResponses+boundaryResponses)/games
   };
 }
 
 module.exports={
-  normaliseRules,normaliseJumpPolicy,normaliseResponsePolicy,allRuleConfigurations,recommendedRuleConfigurations,freshState,availableColours,enumerateActions,boardAfter,
-  chooseColour,chooseAction,applyAction,commitMoveResponse,commitSequentialSecond,commitBoundaryCorner,normalForcedColourInfo,playGame,runBatch,classifyWin,
+  normaliseRules,normaliseJumpPolicy,normaliseResponsePolicy,normaliseBoundaryPolicy,allRuleConfigurations,recommendedRuleConfigurations,freshState,availableColours,enumerateActions,boardAfter,
+  chooseColour,chooseAction,applyAction,commitMoveResponse,commitSequentialSecond,commitBoundarySelfCorner,commitBoundaryCorner,normalForcedColourInfo,playGame,runBatch,classifyWin,
   immediateWinningActions,fastCheckWin,neutralPatternPotential,handoverColourDanger,responseAllocations,bestTwoPieceResponsePlan,
   chooseTwoPieceResponse,evaluateSequentialFirstPlan,evaluateSequentialSecondChoices,chooseSequentialFirstPlan,chooseSequentialSecondColour,
-  evaluateBoundaryFirstPlan,chooseBoundaryCornerColour,actionPositionalScore,baseActionPositionalScore
+  evaluateBoundaryFirstPlan,chooseBoundaryCornerColour,evaluateBoundaryResponderChoicePlan,chooseBoundaryResponderChoicePlan,evaluateMoverSelfCornerChoices,chooseBoundarySelfCornerPlan,actionPositionalScore,baseActionPositionalScore
 };

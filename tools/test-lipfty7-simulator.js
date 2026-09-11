@@ -170,7 +170,76 @@ s=S.freshState(705,"any");s.openingRemaining=0;s.cornerRemaining={black:0,white:
 s.board[0]={id:1,colour:"black"};s.board[1]={id:2,colour:"black"};s.nextPieceId=3;
 jumps=S.enumerateActions(s,"black",{allowJump:true}).filter(x=>x.type==="jump");
 assert.equal(jumps.some(x=>x.from===0&&x.to===2&&x.over===1),true);
+
+
+// NEW boundary experiment: with exactly one normal reserve left, the responder
+// may choose the last normal piece first OR choose/place a Final Four corner
+// first. The mover must then place the other type. The cleaner sequential rule
+// remains in force for ordinary 2+-reserve responses.
+//
+// Random seed 3 chooses the normal-first branch. After the responder places the
+// last reserve, the mover chooses their own corner for the second placement.
+s=S.freshState(3,"opposite","sequential","responder-choice");
+s.openingRemaining=0;s.cornerRemaining={black:0,white:0};s.normalRemaining={black:1,white:0};
+s.board[0]={id:1,colour:"black"};s.nextPieceId=2;
+S.applyAction(s,{type:"move",from:0,to:1,colour:"black"},standard);
+let boundaryChoice=S.commitMoveResponse(s,standard,"random");
+assert.equal(boundaryChoice.pair,"boundary-choice");
+assert.equal(boundaryChoice.boundaryFirstSource,"normal");
+assert.equal(s.forcedQueue.length,1);
+assert.equal(s.forcedQueue[0].source,"normal");
+assert.equal(s.boundarySelfCornerOwed,true);
+let boundaryFirst=S.chooseAction(s,s.forcedQueue[0].colour,standard,"random");
+S.applyAction(s,boundaryFirst,standard);
+assert.equal(s.normalRemaining.black,0);
+assert.equal(s.finalFour,true);
+assert.equal(s.currentPlayer,0,"mover must make the second compulsory placement");
+assert.equal(s.boundarySelfCornerOwed,true);
+const selfCorner=S.commitBoundarySelfCorner(s,standard,"random");
+assert.ok(selfCorner&&["black","white"].includes(selfCorner.colour));
+assert.equal(s.forcedQueue[0].source,"final");
+assert.equal(s.forcedQueue[0].responseSlot,2);
+const selfCornerAction=S.chooseAction(s,selfCorner.colour,standard,"random");
+S.applyAction(s,selfCornerAction,standard);
+assert.equal(s.currentPlayer,1,"responder must take the next normal Final Four turn after normal-first boundary response");
+assert.equal(s.forcedPlacements,0);
+assert.equal(s.finalPieces.length,3);
+
+// Random seed 1 chooses the corner-first branch. The responder chooses/places
+// that corner, then the mover is forced to place the last normal reserve.
+s=S.freshState(1,"opposite","sequential","responder-choice");
+s.openingRemaining=0;s.cornerRemaining={black:0,white:0};s.normalRemaining={black:1,white:0};
+s.board[0]={id:1,colour:"black"};s.nextPieceId=2;
+S.applyAction(s,{type:"move",from:0,to:1,colour:"black"},standard);
+boundaryChoice=S.commitMoveResponse(s,standard,"random");
+assert.equal(boundaryChoice.boundaryFirstSource,"corner");
+assert.equal(s.forcedQueue.length,2);
+assert.equal(s.forcedQueue[0].source,"final");
+assert.equal(s.forcedQueue[1].source,"normal");
+assert.equal(s.forcedQueue[1].colour,"black");
+boundaryFirst=S.chooseAction(s,s.forcedQueue[0].colour,standard,"random");
+S.applyAction(s,boundaryFirst,standard);
+assert.equal(s.finalPieces.length,3);
+assert.equal(s.normalRemaining.black,1);
+assert.equal(s.currentPlayer,0,"mover must place the last reserve second");
+const lastNormal=S.chooseAction(s,"black",standard,"random");
+assert.equal(lastNormal.type,"place");
+S.applyAction(s,lastNormal,standard);
+assert.equal(s.normalRemaining.black,0);
+assert.equal(s.finalFour,true);
+assert.equal(s.currentPlayer,1,"responder must take the next normal Final Four turn after corner-first boundary response");
+assert.equal(s.forcedPlacements,0);
+
+// The new boundary policy is deterministic in tactical batches and does not
+// alter the 2+-reserve sequential response mechanism.
+const boundaryNew1=S.runBatch({rules:standard,games:8,seed:760,strength:"tactical",jumpPolicy:"opposite",responsePolicy:"sequential",boundaryPolicy:"responder-choice"});
+const boundaryNew2=S.runBatch({rules:standard,games:8,seed:760,strength:"tactical",jumpPolicy:"opposite",responsePolicy:"sequential",boundaryPolicy:"responder-choice"});
+assert.deepEqual(boundaryNew1,boundaryNew2);
+assert.equal(boundaryNew1.boundaryPolicy,"responder-choice");
+assert.equal(boundaryNew1.boundaryFirstSources.normal+boundaryNew1.boundaryFirstSources.corner,boundaryNew1.boundaryResponses);
+
 assert.throws(()=>S.freshState(705,"invalid"),/jumpPolicy/);
 assert.throws(()=>S.freshState(705,"opposite","invalid"),/responsePolicy/);
+assert.throws(()=>S.freshState(705,"opposite","sequential","invalid"),/boundaryPolicy/);
 
-console.log("Lipfty 7 response-choice and Jump-colour experiment tests passed.");
+console.log("Lipfty 7 boundary-choice, response-choice and Jump-colour experiment tests passed.");
