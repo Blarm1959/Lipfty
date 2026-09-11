@@ -23,6 +23,10 @@
 //                   the consequence ends. No reserve piece is consumed; normal
 //                   play resumes with the jumper, with ordinary Move disabled by
 //                   the comparison configuration.
+//   redeploy-pass - the responder immediately places the exact jumped piece and
+//                   then also receives the next normal turn. No reserve piece is
+//                   consumed by the Jump; the jumper chooses the normal reserve
+//                   colour handed to the responder in the usual way.
 global.window = global;
 if (!global.LipftyRules) require("../js/rules.js");
 const R = global.LipftyRules;
@@ -34,7 +38,7 @@ const RESPONSE_SEARCH_LIMIT = 6;
 const JUMP_POLICIES = ["opposite","any"];
 const RESPONSE_POLICIES = ["committed","sequential"];
 const BOUNDARY_POLICIES = ["current","responder-choice"];
-const JUMP_CONSEQUENCE_POLICIES = ["current","redeploy","redeploy-only"];
+const JUMP_CONSEQUENCE_POLICIES = ["current","redeploy","redeploy-only","redeploy-pass"];
 const patternCache = new Map();
 
 function normaliseJumpPolicy(value="opposite") {
@@ -240,7 +244,7 @@ function applyAction(s,a,rules) {
     if(normalReserveCount(s)>0){
       if(a.type==="jump"&&s.jumpConsequence!=="current"){
         s.awaitingJumpRedeploy=true;
-        s.forcedPlacements=s.jumpConsequence==="redeploy-only"?1:2;
+        s.forcedPlacements=s.jumpConsequence==="redeploy"?2:1;
       }else{s.awaitingMoveResponse=true;s.forcedPlacements=2;}
     }
   } else if(s.forcedPlacements>0) {
@@ -631,6 +635,41 @@ function chooseRedeployOnlyPlan(s,piece,rules,strength="tactical") {
   candidates=candidates.filter(x=>Math.abs(x.firstStatic-bestStatic)<1e-9);
   return candidates[Math.floor(s.rng()*candidates.length)];
 }
+function evaluateRedeployPassPlans(s,piece,rules,limit=RESPONSE_SEARCH_LIMIT) {
+  const plans=[];
+  for(const to of topRedeployCandidates(s,piece,rules,limit)){
+    if(redeployPlacementWins(s,piece,to,rules)){
+      plans.push({to,moverOutcome:-WIN_SCORE,giveColours:[],firstStatic:WIN_SCORE});
+      continue;
+    }
+    const t=cloneState(s);
+    const first=applyRedeployPlacement(t,piece,to,rules);
+    if(first.ended)throw new Error("Unexpected redeploy-pass evaluation win state.");
+    t.forcedPlacements=0;t.forcedQueue=[];
+    // applyRedeployPlacement hands control back to the jumper. In redeploy-pass
+    // the responder receives the next normal turn instead, with the jumper
+    // choosing the reserve colour in the normal Lipfty handover.
+    t.currentPlayer=OTHER(t.currentPlayer);
+    const responderTurnScore=normalTurnRecipientScore(t,rules);
+    plans.push({
+      to,moverOutcome:-responderTurnScore,giveColours:[],
+      firstStatic:redeployStaticScore(s,piece,to,rules)
+    });
+  }
+  return plans;
+}
+function chooseRedeployPassPlan(s,piece,rules,strength="tactical") {
+  if(strength==="random"){
+    const empties=emptySquares(s),to=empties[Math.floor(s.rng()*empties.length)];
+    return{to,giveColour:null,moverOutcome:null,firstStatic:null};
+  }
+  const plans=evaluateRedeployPassPlans(s,piece,rules,RESPONSE_SEARCH_LIMIT);
+  const min=Math.min(...plans.map(x=>x.moverOutcome));
+  let candidates=plans.filter(x=>Math.abs(x.moverOutcome-min)<1e-9);
+  const bestStatic=Math.max(...candidates.map(x=>x.firstStatic));
+  candidates=candidates.filter(x=>Math.abs(x.firstStatic-bestStatic)<1e-9);
+  return candidates[Math.floor(s.rng()*candidates.length)];
+}
 function evaluateRedeployPlans(s,piece,rules,limit=RESPONSE_SEARCH_LIMIT) {
   const plans=[];
   for(const to of topRedeployCandidates(s,piece,rules,limit)){
@@ -686,6 +725,20 @@ function redeployJumpResponseScore(s,a,rules) {
   let score=(2.5-Math.abs(rr-2.5))+(2.5-Math.abs(cc-2.5))+0.25;
   score+=neutralPatternPotential(t.board,rules);
   if(s.jumpConsequence==="redeploy-only")return score-250;
+  if(s.jumpConsequence==="redeploy-pass"){
+    // Passing the next normal turn is a real tactical cost. Also reject a Jump
+    // when the responder can redeploy so that every reserve colour the jumper
+    // could hand over leaves the responder an immediate winning action.
+    for(const to of topRedeployCandidates(t,piece,rules,RESPONSE_SEARCH_LIMIT)){
+      if(redeployPlacementWins(t,piece,to,rules))return-WIN_SCORE;
+      const u=cloneState(t);
+      u.board[to]=piece;u.forcedPlacements=0;u.forcedQueue=[];
+      // t.currentPlayer is already the responder, who receives the next turn.
+      const colours=availableColours(u);
+      if(colours.length&&colours.every(c=>hasImmediateWinningAction(u,c,rules)))return-WIN_SCORE;
+    }
+    return score-250;
+  }
   const colours=COLOURS.filter(c=>t.normalRemaining[c]>0).length;
   score-=850+100*Math.max(0,colours-1);
   return score;
@@ -697,11 +750,14 @@ function resolveJumpRedeploy(s,jumpAction,rules,strength="tactical") {
   s.board[jumpAction.over]=null;
   s.awaitingJumpRedeploy=false;s.awaitingMoveResponse=false;
   s.boundaryCornerOwed=false;s.boundarySelfCornerOwed=false;s.sequentialSecondOwed=false;s.sequentialFirstColour=null;
-  const plan=s.jumpConsequence==="redeploy-only"?chooseRedeployOnlyPlan(s,piece,rules,strength):chooseRedeployPlan(s,piece,rules,strength);
+  const responder=s.currentPlayer;
+  const plan=s.jumpConsequence==="redeploy-only"?chooseRedeployOnlyPlan(s,piece,rules,strength):
+    s.jumpConsequence==="redeploy-pass"?chooseRedeployPassPlan(s,piece,rules,strength):chooseRedeployPlan(s,piece,rules,strength);
   const first=applyRedeployPlacement(s,piece,plan.to,rules);
   if(first.ended)return{ended:true,stage:"redeploy",plan,firstResult:first,secondAction:null,secondResult:null,piece};
-  if(s.jumpConsequence==="redeploy-only"){
+  if(s.jumpConsequence==="redeploy-only"||s.jumpConsequence==="redeploy-pass"){
     s.forcedPlacements=0;s.forcedQueue=[];
+    if(s.jumpConsequence==="redeploy-pass")s.currentPlayer=responder;
     return{ended:false,stage:"complete",plan,firstResult:first,secondAction:null,secondResult:null,piece};
   }
   const giveColour=plan.giveColour||COLOURS.find(c=>s.normalRemaining[c]>0);
@@ -876,7 +932,7 @@ function playGame({rules={},seed=1,strength="tactical",maxTurns=500,jumpPolicy="
     const wasForced=s.forcedQueue.length>0,responseSlot=wasForced?s.forcedQueue[0].responseSlot:null;
     const colour=chooseColour(s,rules,strength),action=chooseAction(s,colour,rules,strength);
     if(!action){s.winner="draw";break;}
-    if(!(action.type==="jump"&&s.jumpConsequence==="redeploy-only"))consecutiveRedeployOnlyJumps=0;
+    if(!(action.type==="jump"&&(s.jumpConsequence==="redeploy-only"||s.jumpConsequence==="redeploy-pass")))consecutiveRedeployOnlyJumps=0;
     if(action.type.includes("place"))stats.placements++;else if(action.type==="move")stats.moves++;else stats.jumps++;
     if(wasForced)stats.forcedPlacements++;
     const result=applyAction(s,action,rules);
@@ -900,7 +956,7 @@ function playGame({rules={},seed=1,strength="tactical",maxTurns=500,jumpPolicy="
           forcedNormalColourWin:!!forcedColourInfo,forcedNormalColour:forcedColourInfo?.colour||null,exhaustedNormalColour:forcedColourInfo?.exhaustedColour||null
         };
       }
-      if(s.jumpConsequence==="redeploy-only"){
+      if(s.jumpConsequence==="redeploy-only"||s.jumpConsequence==="redeploy-pass"){
         consecutiveRedeployOnlyJumps++;
         stats.maxConsecutiveRedeployOnlyJumps=Math.max(stats.maxConsecutiveRedeployOnlyJumps,consecutiveRedeployOnlyJumps);
       }else{
@@ -1003,5 +1059,5 @@ module.exports={
   immediateWinningActions,fastCheckWin,neutralPatternPotential,handoverColourDanger,responseAllocations,bestTwoPieceResponsePlan,
   chooseTwoPieceResponse,evaluateSequentialFirstPlan,evaluateSequentialSecondChoices,chooseSequentialFirstPlan,chooseSequentialSecondColour,
   evaluateBoundaryFirstPlan,chooseBoundaryCornerColour,evaluateBoundaryResponderChoicePlan,chooseBoundaryResponderChoicePlan,evaluateMoverSelfCornerChoices,chooseBoundarySelfCornerPlan,
-  evaluateRedeployPlans,chooseRedeployPlan,evaluateRedeployOnlyPlans,chooseRedeployOnlyPlan,resolveJumpRedeploy,redeployJumpResponseScore,applyRedeployPlacement,actionPositionalScore,baseActionPositionalScore
+  evaluateRedeployPlans,chooseRedeployPlan,evaluateRedeployOnlyPlans,chooseRedeployOnlyPlan,evaluateRedeployPassPlans,chooseRedeployPassPlan,resolveJumpRedeploy,redeployJumpResponseScore,applyRedeployPlacement,actionPositionalScore,baseActionPositionalScore
 };
