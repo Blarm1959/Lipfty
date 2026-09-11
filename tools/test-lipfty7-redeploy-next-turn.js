@@ -70,6 +70,19 @@ const winning=S.resolveJumpRedeploy(s,jump,noMove,"tactical");
 assert.equal(winning.stage,"redeploy");
 assert.equal(s.winner,1);
 
+
+// v7.0.8 tactical-evaluation regression: the jumper controls the reserve
+// colour handed to the responder. One dangerous colour plus one safe colour
+// must therefore score much better than a position where both colours give the
+// responder an immediate win.
+let hand=S.freshState(1201,"opposite","sequential","responder-choice","redeploy-pass");
+hand.openingRemaining=0;hand.cornerRemaining={black:0,white:0};hand.normalRemaining={black:2,white:2};
+hand.board[0]={id:1,colour:"black"};hand.board[1]={id:2,colour:"black"};hand.board[2]={id:3,colour:"black"};hand.nextPieceId=4;
+const oneDanger=S.redeployPassHandoverScore(hand,noMove);
+hand.board[6]={id:4,colour:"white"};hand.board[7]={id:5,colour:"white"};hand.board[8]={id:6,colour:"white"};hand.nextPieceId=7;
+const bothDanger=S.redeployPassHandoverScore(hand,noMove);
+assert.ok(oneDanger>bothDanger,"jumper's safe-colour handover choice must materially improve the E forecast");
+
 // Batch diagnostics: no ordinary Move and no post-Jump forced reserve action.
 const tactical=S.runBatch({rules:noMove,games:30,seed:1,strength:"tactical",...fixed,jumpConsequence:"redeploy-pass"});
 assert.equal(tactical.moves,0);
