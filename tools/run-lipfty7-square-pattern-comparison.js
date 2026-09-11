@@ -28,7 +28,8 @@ function comparisonRules(){
   return [
     {key:"E1-current-squares",label:"E1 — CURRENT SQUARES",rules:S.normaliseRules({...standard,allowMove:false,allowSquare:true,allowSpacedSquare:true})},
     {key:"E2-tight-square-only",label:"E2 — TIGHT SQUARE ONLY",rules:S.normaliseRules({...standard,allowMove:false,allowSquare:true,allowSpacedSquare:false})},
-    {key:"E3-no-squares",label:"E3 — NO SQUARES",rules:S.normaliseRules({...standard,allowMove:false,allowSquare:false,allowSpacedSquare:false})}
+    {key:"E3-no-squares",label:"E3 — NO SQUARES",rules:S.normaliseRules({...standard,allowMove:false,allowSquare:false,allowSpacedSquare:false})},
+    {key:"E4-spaced-square-only",label:"E4 — SPACED SQUARE ONLY",rules:S.normaliseRules({...standard,allowMove:false,allowSquare:false,allowSpacedSquare:false,spacedSquareOnly:true})}
   ];
 }
 function duration(ms){const s=ms/1000;if(s<60)return`${s.toFixed(1)}s`;const m=Math.floor(s/60),r=s-m*60;if(m<60)return`${m}m${r.toFixed(1).padStart(4,"0")}s`;return`${Math.floor(m/60)}h${String(m%60).padStart(2,"0")}m${r.toFixed(1).padStart(4,"0")}s`;}
@@ -39,7 +40,7 @@ function distribution(o){return Object.entries(o||{}).sort((a,b)=>Number(a[0])-N
 function flat(config,r,elapsedMs){
   const rules=config.rules;
   return{
-    configuration:config.key,allow_move:rules.allowMove,allow_square:rules.allowSquare,allow_spaced_square:rules.allowSpacedSquare,
+    configuration:config.key,allow_move:rules.allowMove,allow_square:rules.allowSquare,allow_spaced_square:rules.allowSpacedSquare,spaced_square_only:rules.spacedSquareOnly,
     jump_consequence:r.jumpConsequence,boundary_rule:r.boundaryPolicy,response_rule:r.responsePolicy,jump_colour:r.jumpPolicy,
     games:r.games,p1_wins:r.wins[0],p2_wins:r.wins[1],draws:r.draws,p1_win_pct:r.firstPlayerWinPct,p2_win_pct:r.secondPlayerWinPct,draw_pct:r.drawPct,p1_score_pct:r.firstPlayerScorePct,
     average_turns:r.averageTurns,min_turns:r.minTurns,max_turns:r.maxTurns,final_four_pct:r.finalFourPct,max_turn_draws:r.maxTurnDraws,
@@ -56,7 +57,7 @@ function csvEscape(v){const s=String(v??"");return/[",\r\n]/.test(s)?`"${s.repla
 function writeCsv(file,rows){const headers=Object.keys(rows[0]);const lines=[headers.join(","),...rows.map(row=>headers.map(h=>csvEscape(typeof row[h]==="number"&&!Number.isInteger(row[h])?row[h].toFixed(6):row[h])).join(","))];fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,lines.join("\n")+"\n","utf8");}
 function progressStep(o){return o.progressEvery||Math.max(1,Math.floor(o.games/20));}
 function progressReporter(label,start,games){return({completed})=>{const elapsed=Number(process.hrtime.bigint()-start)/1e6;console.log(`  ${label}: ${completed} / ${games} (${(100*completed/games).toFixed(1)}%) | elapsed ${duration(elapsed)}`);};}
-function squareLabel(rules){if(!rules.allowSquare)return"OFF";return rules.allowSpacedSquare?"tight + spaced":"tight only";}
+function squareLabel(rules){if(rules.spacedSquareOnly)return"spaced only";if(!rules.allowSquare)return"OFF";return rules.allowSpacedSquare?"tight + spaced":"tight only";}
 function printResult(config,r,elapsedMs){
   const rules=config.rules;
   console.log(`\n${config.label}`);
@@ -86,7 +87,7 @@ function help(){
   console.log("Usage: node .\\tools\\run-lipfty7-square-pattern-comparison.js [--games N] [--seed N] [--strength tactical|random] [--progress-every N] [--csv FILE|--no-csv]");
   console.log("Defaults: 5,000 games per configuration, tactical strength, seed 1, progress every 5%.");
   console.log("All configurations use E: Move OFF, opposite-colour Jump, opponent redeploys the jumped piece, responder gets the next normal turn, and jumper chooses that reserve colour.");
-  console.log("E1 = tight + spaced Square; E2 = tight Square only; E3 = no Square win at all. H/V/Diagonal stay enabled in all three.");
+  console.log("E1 = tight + spaced Square; E2 = tight Square only; E3 = no Square win; E4 = spaced Square only. H/V/Diagonal stay enabled in all four.");
 }
 function runOne(config,o){
   console.log(`\nStarting ${config.label}...`);
@@ -102,15 +103,17 @@ function main(argv=process.argv.slice(2)){
   const csvPath=o.csv===false?null:(o.csv||defaultCsv(o));
   console.log("Lipfty 7 E-rule Square-pattern experiment");
   console.log(`${o.games} games each; strength ${o.strength}; base seed ${o.seed}.`);
-  console.log("Fixed in all three: Move OFF, opposite-colour Jump, redeploy-pass consequence, 7.1 CURRENT responder-choice boundary, H/V/Diagonal wins.");
+  console.log("Fixed in all four: Move OFF, opposite-colour Jump, redeploy-pass consequence, 7.1 CURRENT responder-choice boundary, H/V/Diagonal wins.");
   console.log("E1 CURRENT SQUARES: tight Square + Spaced Square ON.");
   console.log("E2 TIGHT SQUARE ONLY: Spaced Square OFF.");
   console.log("E3 NO SQUARES: both tight and Spaced Square OFF.");
+  console.log("E4 SPACED SQUARE ONLY: tight Square OFF; Spaced Square ON.");
 
   const results=configs.map(c=>runOne(c,o));
   const base=results[0];
   printDelta(base.config,base.r,results[1].config,results[1].r);
   printDelta(base.config,base.r,results[2].config,results[2].r);
+  printDelta(base.config,base.r,results[3].config,results[3].r);
 
   if(csvPath){
     writeCsv(csvPath,results.map(x=>flat(x.config,x.r,x.ms)));

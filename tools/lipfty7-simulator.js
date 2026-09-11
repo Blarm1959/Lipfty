@@ -60,15 +60,16 @@ function normaliseJumpConsequencePolicy(value="current") {
 
 function patternKey(rules) {
   const r=normaliseRules(rules);
-  return [r.allowDiagonal,r.allowSquare,r.allowSpacedSquare,r.allowDiamond,r.allowSpacedDiamond].map(Number).join("");
+  return [r.allowDiagonal,r.allowSquare,r.allowSpacedSquare,r.spacedSquareOnly,r.allowDiamond,r.allowSpacedDiamond].map(Number).join("");
 }
 function patternGroups() {
   const straight=R.WINNING_LINES;
   const orth=straight.filter(p=>{const rs=p.map(i=>Math.floor(i/6)),cs=p.map(i=>i%6);return new Set(rs).size===1||new Set(cs).size===1;});
   const diag=straight.filter(p=>!orth.includes(p));
   const tightSquare=R.WINNING_SQUARES.filter(p=>Math.abs((p[1]%6)-(p[0]%6))===1);
+  const spacedSquare=R.WINNING_SQUARES.filter(p=>Math.abs((p[1]%6)-(p[0]%6))>1);
   const tightDiamond=R.WINNING_DIAMONDS.filter(p=>Math.abs(Math.floor(p[1]/6)-Math.floor(p[0]/6))===1);
-  return {orth,diag,tightSquare,tightDiamond};
+  return {orth,diag,tightSquare,spacedSquare,tightDiamond};
 }
 const PATTERN_GROUPS=patternGroups();
 function compiledPatterns(rules) {
@@ -76,8 +77,11 @@ function compiledPatterns(rules) {
   if(patternCache.has(key)) return patternCache.get(key);
   const r=normaliseRules(rules),patterns=[...PATTERN_GROUPS.orth];
   if(r.allowDiagonal) patterns.push(...PATTERN_GROUPS.diag);
-  if(r.allowSquare) patterns.push(...PATTERN_GROUPS.tightSquare);
-  if(r.allowSquare&&r.allowSpacedSquare) patterns.push(...R.WINNING_SQUARES);
+  if(r.spacedSquareOnly) patterns.push(...PATTERN_GROUPS.spacedSquare);
+  else {
+    if(r.allowSquare) patterns.push(...PATTERN_GROUPS.tightSquare);
+    if(r.allowSquare&&r.allowSpacedSquare) patterns.push(...R.WINNING_SQUARES);
+  }
   if(r.allowDiamond) patterns.push(...PATTERN_GROUPS.tightDiamond);
   if(r.allowDiamond&&r.allowSpacedDiamond) patterns.push(...R.WINNING_DIAMONDS);
   const byCell=Array.from({length:36},()=>[]);
@@ -104,7 +108,7 @@ function shuffle(values,rng) {
 function normaliseRules(r={}) {
   return {
     allowJump:!!r.allowJump,allowMove:!!r.allowMove,allowDiagonal:!!r.allowDiagonal,
-    allowSquare:!!r.allowSquare,allowSpacedSquare:!!r.allowSquare&&!!r.allowSpacedSquare,
+    allowSquare:!!r.allowSquare,allowSpacedSquare:!!r.allowSquare&&!!r.allowSpacedSquare,spacedSquareOnly:!!r.spacedSquareOnly,
     allowDiamond:!!r.allowDiamond,allowSpacedDiamond:!!r.allowDiamond&&!!r.allowSpacedDiamond
   };
 }
