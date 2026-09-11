@@ -17,8 +17,8 @@ for(const [name,rules] of [["Learning",learning],["Core",core]]){
   }
 }
 
-// A normal Move creates an awaiting response, then commits both reserve pieces
-// before either compulsory placement is made.
+// CURRENT control: a normal Move creates an awaiting response, then commits both
+// reserve pieces before either compulsory placement is made.
 let s=S.freshState(701);
 s.openingRemaining=0;s.cornerRemaining={black:0,white:0};s.normalRemaining={black:1,white:1};
 s.board[0]={id:1,colour:"black"};s.nextPieceId=2;
@@ -41,6 +41,36 @@ assert.equal(s.forcedQueue[0].colour,committedSecond,"second piece was reconside
 assert.equal(S.availableColours(s).length,1);
 assert.equal(S.availableColours(s)[0],committedSecond);
 
+// CLEANER experiment: responder chooses/places the first reserve piece, then
+// chooses the mover's piece only after that first placement has been made.
+s=S.freshState(706,"opposite","sequential");
+s.openingRemaining=0;s.cornerRemaining={black:0,white:0};s.normalRemaining={black:2,white:2};
+s.board[0]={id:1,colour:"black"};s.nextPieceId=2;
+S.applyAction(s,{type:"move",from:0,to:1,colour:"black"},standard);
+const sequentialFirst=S.commitMoveResponse(s,standard,"tactical");
+assert.equal(sequentialFirst.pair,"sequential-pending");
+assert.equal(sequentialFirst.give,null);
+assert.equal(s.sequentialSecondOwed,true);
+assert.equal(s.forcedQueue.length,1,"second reserve piece must not be committed in advance");
+const firstSequentialAction=S.chooseAction(s,s.forcedQueue[0].colour,standard,"tactical");
+S.applyAction(s,firstSequentialAction,standard);
+assert.equal(s.forcedQueue.length,0);
+assert.equal(s.sequentialSecondOwed,true);
+assert.equal(s.forcedPlacements,1);
+assert.equal(S.enumerateActions(s,"black",standard).length,0,"mover cannot act until responder chooses the second piece");
+assert.equal(S.enumerateActions(s,"white",standard).length,0,"mover cannot act until responder chooses the second piece");
+const remainingBeforeSecond={...s.normalRemaining};
+const sequentialSecond=S.commitSequentialSecond(s,standard,"tactical");
+assert.ok(["black","white"].includes(sequentialSecond.give));
+assert.equal(remainingBeforeSecond[sequentialSecond.give]>0,true,"second choice must come from the reserve remaining after the first placement");
+assert.equal(s.sequentialSecondOwed,false);
+assert.equal(s.forcedQueue.length,1);
+assert.equal(s.forcedQueue[0].colour,sequentialSecond.give);
+const secondSequentialAction=S.chooseAction(s,sequentialSecond.give,standard,"tactical");
+S.applyAction(s,secondSequentialAction,standard);
+assert.equal(s.forcedPlacements,0);
+assert.equal(s.currentPlayer,1,"responder must take the next normal turn after both compulsory placements");
+
 // Same-colour pair selection is available whenever reserve counts permit it.
 s=S.freshState(702);s.openingRemaining=0;s.cornerRemaining={black:0,white:0};s.normalRemaining={black:3,white:1};
 assert.ok(S.responseAllocations(s).some(x=>x.keep==="black"&&x.give==="black"));
@@ -49,11 +79,12 @@ assert.ok(S.responseAllocations(s).some(x=>x.keep==="white"&&x.give==="black"));
 
 // Boundary case: with one normal reserve piece left, responder must place that
 // piece first; only then is a Final Four corner selected for the mover.
-s=S.freshState(703);s.openingRemaining=0;s.cornerRemaining={black:0,white:0};s.normalRemaining={black:1,white:0};
+s=S.freshState(703,"opposite","sequential");s.openingRemaining=0;s.cornerRemaining={black:0,white:0};s.normalRemaining={black:1,white:0};
 s.board[0]={id:1,colour:"black"};s.nextPieceId=2;
 S.applyAction(s,{type:"move",from:0,to:1,colour:"black"},standard);
 const boundaryPlan=S.commitMoveResponse(s,standard,"tactical");
 assert.equal(boundaryPlan.pair,"boundary-one");
+assert.equal(s.sequentialSecondOwed,false,"one-reserve boundary must not use the sequential normal-response path");
 assert.equal(s.boundaryCornerOwed,true);
 assert.equal(s.forcedQueue.length,1);
 assert.equal(s.forcedQueue[0].source,"normal");
@@ -95,6 +126,20 @@ assert.ok(b1.maxResponsesPerGame>=0);
 // default so the new experiment does not alter the current Standard baseline.
 const explicitOpposite=S.runBatch({rules:standard,games:12,seed:704,strength:"tactical",jumpPolicy:"opposite"});
 assert.deepEqual(explicitOpposite,b1);
+assert.equal(b1.responsePolicy,"committed");
+const explicitCommitted=S.runBatch({rules:standard,games:12,seed:704,strength:"tactical",jumpPolicy:"opposite",responsePolicy:"committed"});
+assert.deepEqual(explicitCommitted,b1);
+
+// Sequential mode is deterministic, keeps the one-reserve boundary rule, and
+// chooses the second normal reserve piece only after the first placement.
+const seq1=S.runBatch({rules:standard,games:12,seed:704,strength:"tactical",jumpPolicy:"opposite",responsePolicy:"sequential"});
+const seq2=S.runBatch({rules:standard,games:12,seed:704,strength:"tactical",jumpPolicy:"opposite",responsePolicy:"sequential"});
+assert.deepEqual(seq1,seq2);
+assert.equal(seq1.responsePolicy,"sequential");
+assert.equal(seq1.wins[0]+seq1.wins[1]+seq1.draws,12);
+assert.ok(seq1.sequentialSecondChoices<=seq1.twoPieceResponses);
+assert.equal(Object.values(seq1.responsePairs).reduce((a,b)=>a+b,0),seq1.sequentialSecondChoices);
+assert.equal(Object.values(seq1.responseAllocations).reduce((a,b)=>a+b,0),seq1.sequentialSecondChoices);
 
 // Progress is opt-in and reports completed game counts without affecting results.
 const progressMarks=[];
@@ -126,5 +171,6 @@ s.board[0]={id:1,colour:"black"};s.board[1]={id:2,colour:"black"};s.nextPieceId=
 jumps=S.enumerateActions(s,"black",{allowJump:true}).filter(x=>x.type==="jump");
 assert.equal(jumps.some(x=>x.from===0&&x.to===2&&x.over===1),true);
 assert.throws(()=>S.freshState(705,"invalid"),/jumpPolicy/);
+assert.throws(()=>S.freshState(705,"opposite","invalid"),/responsePolicy/);
 
-console.log("Lipfty 7 two-piece response and Jump-colour experiment tests passed.");
+console.log("Lipfty 7 response-choice and Jump-colour experiment tests passed.");
