@@ -1,10 +1,10 @@
-const VERSION = "7.0.15";
+const VERSION = "7.0.16";
 const STATIC_CACHE = `lipfty-static-v${VERSION}`;
 const RUNTIME_CACHE = `lipfty-runtime-v${VERSION}`;
 const APP_SHELL = [
   "./", "./index.html", "./offline.html", "./css/style.css",
   "./js/app.js", "./js/rules.js", "./manifest.json", "./package.json",
-  "./release.json", "./build-info.json",
+  "./release.json", "./build-info.json", "./Lipfty-Rules.pdf",
   "./icons/lipfty-96.png", "./icons/lipfty-128.png", "./icons/lipfty-144.png", "./icons/lipfty-152.png",
   "./icons/lipfty-180.png", "./icons/lipfty-192.png", "./icons/lipfty-384.png", "./icons/lipfty-512.png",
   "./icons/lipfty-maskable-192.png", "./icons/lipfty-maskable-512.png"
@@ -71,7 +71,7 @@ self.addEventListener("fetch", event => {
     return;
   }
 
-  // Images and other static assets remain cache-first with background refresh.
+  // Images, the printable rules and other static assets remain cache-first with background refresh.
   event.respondWith(
     caches.match(request).then(cached => {
       const update = fetch(request)

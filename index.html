@@ -7,10 +7,10 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Lipfty 5">
-  <meta name="application-name" content="Lipfty 5">
-  <meta name="description" content="Lipfty 5 is a shared-piece 6×6 strategy game with placement, movement, non-capturing jumps and compulsory placements.">
-  <title>Lipfty 5</title>
+  <meta name="apple-mobile-web-app-title" content="Lipfty 7">
+  <meta name="application-name" content="Lipfty 7">
+  <meta name="description" content="Lipfty 7 is a shared-piece 6×6 strategy game with placement, movement, single redeploying jumps and square wins.">
+  <title>Lipfty 7</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/lipfty-192.png" type="image/png">
   <link rel="apple-touch-icon" href="icons/lipfty-180.png">
@@ -21,10 +21,13 @@
     <header class="app-header">
       <div>
         <p class="eyebrow">Shared-piece strategy</p>
-        <h1>Lipfty 5</h1>
+        <h1>Lipfty 7</h1>
       </div>
       <span class="mobile-version" id="mobile-version" aria-hidden="true"></span>
-      <div class="header-actions"><button class="icon-button" id="help-button" type="button" aria-label="How to play">?</button><button class="icon-button" id="settings-button" type="button" aria-label="Settings">⚙</button></div>
+      <div class="header-actions">
+        <button class="icon-button" id="help-button" type="button" aria-label="How to play">?</button>
+        <button class="icon-button" id="settings-button" type="button" aria-label="Settings">⚙</button>
+      </div>
     </header>
 
     <main class="game-layout">
@@ -37,7 +40,7 @@
           <span class="turn-label">Move timer</span>
           <strong id="move-timer">00:30</strong>
         </div>
-        <div class="turn-message-card"><p id="status">Place a piece, or move any piece already on the board.</p></div>
+        <div class="turn-message-card"><p id="status">Choose an Opening Four piece.</p></div>
       </section>
 
       <section class="game-stage">
@@ -54,6 +57,7 @@
             </button>
           </div>
         </aside>
+
         <aside class="stage-info-card" id="stage-info-card">
           <p class="panel-help" id="phase-help">Opening · place the four top-corner pieces first.</p>
           <p class="placement-alert" id="placement-alert" hidden></p>
@@ -62,7 +66,7 @@
         <section class="board-section">
           <div class="board-frame">
             <div class="board" id="board" role="grid" aria-label="Lipfty eight by eight board with inner six by six playing area"></div>
-            <p class="board-note">Inner 6×6 = playing area · outer ring = 14 playable Red + 14 playable Blue reserve pieces. Each corner starts as a same-colour stack of two. Play the four top corner pieces first; the four underneath pieces then act as corner markers.</p>
+            <p class="board-note">Inner 6×6 = playing area · outer ring = shared reserve. The full 32-piece set is divided into 4 Opening Four pieces, 24 normal reserve pieces and 4 Final Four corner pieces.</p>
           </div>
           <div class="jump-controls" id="jump-controls" hidden>
             <button class="button button--primary" id="finish-jump" type="button">Finish turn</button>
@@ -70,78 +74,154 @@
         </section>
 
         <aside class="rules-panel">
-          <h2>Turn choices</h2>
-          <p><strong>First four turns:</strong> alternate normally. On your turn click any remaining top-corner piece to pick it up, then place it. No colour is given; moving and jumping are not allowed.</p>
-          <p><strong>Then:</strong> your opponent clicks an actual reserve-ring piece and hands it to you in the Colour to use box. Its colour is the colour you must use. You place it, or if enabled you may jump or move a board piece of the same colour. A jump goes over one adjacent opposite-colour piece into the empty square beyond it; the jumped piece stays on the board.</p>
-          <p>If you <strong>move or jump</strong>, take any two corner markers off the board. Each of the next two compulsory reserve placements returns one marker.</p>
-          <p><strong>Final four:</strong> when all 28 normal playable pieces are on the board, moving and jumping end. Players alternately choose and place the four corner-marker pieces. A win ends the game immediately; if all four are placed without a win, the game is a draw.</p>
-          <p class="panel-help">Once a reserve, corner or board piece is picked, that choice is committed for the turn. You cannot move the piece your opponent moved on their previous turn.</p>
+          <h2>Lipfty 7 Standard</h2>
+          <p><strong>Opening Four:</strong> each player chooses and places one of the four top-corner pieces on their turn. Opening turns are placement-only.</p>
+          <p><strong>Main play:</strong> your opponent hands you an actual normal reserve piece. Use its colour to <strong>Place</strong> it, <strong>Move</strong> a matching board piece one adjacent square, or make one <strong>Jump</strong> over an adjacent opposite-colour piece.</p>
+          <p><strong>After a Move:</strong> the responder chooses and makes one compulsory reserve placement, then chooses a second reserve piece for the original mover to place. The responder then takes the next normal turn.</p>
+          <p><strong>After a Jump:</strong> if the Jump itself does not win, lift the jumped piece. The opponent redeploys that exact piece anywhere empty and then takes the next normal turn; the original jumper chooses the reserve colour for that turn.</p>
+          <p><strong>One-colour finish:</strong> as soon as either normal reserve colour is exhausted, Move and Jump stop. Every remaining normal reserve piece must then be placed.</p>
+          <p><strong>Final Four:</strong> after the normal reserve is empty, players choose and place the four corner pieces. Final Four is placement-only.</p>
+          <p class="panel-help">Wins: four horizontal, vertical or diagonal; a tight 2×2 square; or a spaced board-aligned square. A win ends the game immediately.</p>
         </aside>
       </section>
 
       <section class="action-bar">
-        <div class="action-bar-left"><button class="button button--primary" id="new-game" type="button">New game</button><button class="button button--secondary" id="end-test" type="button">End</button></div>
+        <div class="action-bar-left">
+          <button class="button button--primary" id="new-game" type="button">New game</button>
+          <button class="button button--secondary" id="end-test" type="button">End</button>
+        </div>
         <div class="action-bar-centre"><button class="button button--secondary" id="undo" type="button">Undo</button></div>
-        <div class="build-info"><span id="app-version">Version 0.1.0</span><span id="build-reference"></span></div>
+        <div class="build-info"><span id="app-version">Version 7.0.16</span><span id="build-reference"></span></div>
       </section>
     </main>
   </div>
 
   <dialog class="setup-wizard-dialog" id="settings-dialog">
     <form id="settings-form">
-      <div class="dialog-heading setup-wizard-heading"><div><p class="dialog-eyebrow">Game setup</p><h2>New game</h2></div><button class="dialog-close" id="close-settings" type="button" aria-label="Close">×</button></div>
-      <div class="wizard-progress"><span class="wizard-progress-step wizard-progress-step--active" data-step-indicator="0">1 <small>Game</small></span><span class="wizard-progress-line"></span><span class="wizard-progress-step" data-step-indicator="1">2 <small>Colours</small></span><span class="wizard-progress-line"></span><span class="wizard-progress-step" data-step-indicator="2">3 <small>Rules</small></span><span class="wizard-progress-line"></span><span class="wizard-progress-step" data-step-indicator="3">4 <small>Players</small></span><span class="wizard-progress-line"></span><span class="wizard-progress-step" data-step-indicator="4">5 <small>Options</small></span></div>
-      <section class="wizard-step" data-wizard-step="0"><h3>How would you like to play?</h3>
-        <fieldset class="setup-fieldset"><legend>Game mode</legend><div class="mode-choice-grid"><label class="mode-choice"><input checked name="gameMode" type="radio" value="computer"><span><strong>One player</strong><small>Play against the computer</small></span></label><label class="mode-choice"><input name="gameMode" type="radio" value="two"><span><strong>Two players</strong><small>Share this device</small></span></label></div></fieldset>
-        <div class="difficulty-field" id="difficulty-field"><div><strong>Computer difficulty</strong><span id="difficulty-name">2 · Standard</span></div><input id="difficulty-input" max="3" min="1" step="1" type="range" value="2"><div class="difficulty-scale"><span>1 Beginner</span><span>2 Standard</span><span>3 Expert</span></div><p class="setup-help" id="difficulty-description">A reliable tactical player that sees immediate wins and useful moves.</p></div>
-        <fieldset class="setup-fieldset"><legend>Allow last move Undo?</legend><div class="choice-grid"><label><input checked name="allowUndo" type="radio" value="no"><span>No</span></label><label><input name="allowUndo" type="radio" value="yes"><span>Yes</span></label></div></fieldset>
+      <div class="dialog-heading setup-wizard-heading">
+        <div><p class="dialog-eyebrow">Game setup</p><h2>New game</h2></div>
+        <button class="dialog-close" id="close-settings" type="button" aria-label="Close">×</button>
+      </div>
+      <div class="wizard-progress">
+        <span class="wizard-progress-step wizard-progress-step--active" data-step-indicator="0">1 <small>Game</small></span><span class="wizard-progress-line"></span>
+        <span class="wizard-progress-step" data-step-indicator="1">2 <small>Colours</small></span><span class="wizard-progress-line"></span>
+        <span class="wizard-progress-step" data-step-indicator="2">3 <small>Rules</small></span><span class="wizard-progress-line"></span>
+        <span class="wizard-progress-step" data-step-indicator="3">4 <small>Players</small></span><span class="wizard-progress-line"></span>
+        <span class="wizard-progress-step" data-step-indicator="4">5 <small>Options</small></span>
+      </div>
+
+      <section class="wizard-step" data-wizard-step="0">
+        <h3>How would you like to play?</h3>
+        <fieldset class="setup-fieldset"><legend>Game mode</legend><div class="mode-choice-grid">
+          <label class="mode-choice"><input checked name="gameMode" type="radio" value="computer"><span><strong>One player</strong><small>Play against the computer</small></span></label>
+          <label class="mode-choice"><input name="gameMode" type="radio" value="two"><span><strong>Two players</strong><small>Share this device</small></span></label>
+        </div></fieldset>
+        <div class="difficulty-field" id="difficulty-field">
+          <div><strong>Computer difficulty</strong><span id="difficulty-name">2 · Standard</span></div>
+          <input id="difficulty-input" max="3" min="1" step="1" type="range" value="2">
+          <div class="difficulty-scale"><span>1 Beginner</span><span>2 Standard</span><span>3 Expert</span></div>
+          <p class="setup-help">Standard sees immediate wins and useful tactical moves.</p>
+        </div>
+        <fieldset class="setup-fieldset"><legend>Allow last move Undo?</legend><div class="choice-grid">
+          <label><input name="allowUndo" type="radio" value="no"><span>No</span></label>
+          <label><input checked name="allowUndo" type="radio" value="yes"><span>Yes</span></label>
+        </div></fieldset>
       </section>
-      <section class="wizard-step" data-wizard-step="1" hidden><h3>Choose colours and rules</h3><p class="setup-help">Choose two different colours for the solid Lipfty pieces.</p>
-        <div class="colour-set-grid"><fieldset class="setup-fieldset"><legend>Colour 1</legend><div class="colour-choice-grid" id="colour1-choices"></div></fieldset><fieldset class="setup-fieldset"><legend>Colour 2</legend><div class="colour-choice-grid" id="colour2-choices"></div></fieldset></div>
-        
+
+      <section class="wizard-step" data-wizard-step="1" hidden>
+        <h3>Choose colours</h3>
+        <p class="setup-help">Choose two different colours for the shared Lipfty pieces.</p>
+        <div class="colour-set-grid">
+          <fieldset class="setup-fieldset"><legend>Colour 1</legend><div class="colour-choice-grid" id="colour1-choices"></div></fieldset>
+          <fieldset class="setup-fieldset"><legend>Colour 2</legend><div class="colour-choice-grid" id="colour2-choices"></div></fieldset>
+        </div>
       </section>
-      <section class="wizard-step" data-wizard-step="2" hidden><h3>Optional Rules</h3><p class="setup-help"><strong>Basic Lipfty</strong> is placement only with horizontal and vertical wins. Switch on any extra rules you want to mix into the game.</p>
-        <fieldset class="setup-fieldset"><legend>Optional rules</legend><p class="setup-help"><strong>Basic Lipfty</strong> is placement only with horizontal and vertical wins. Switch on any extra rules you want to mix into the game.</p><div class="toggle-list"><label class="toggle-row"><span><strong>Allow Jump</strong></span><input data-rule-option data-rule-label="Jump" id="setting-allow-jump" type="checkbox"></label><label class="toggle-row"><span><strong>Allow Move</strong></span><input data-rule-option data-rule-label="Move" id="setting-allow-move" type="checkbox"></label><label class="toggle-row"><span><strong>Allow Diagonal</strong></span><input data-rule-option data-rule-label="Diagonal" id="setting-allow-diagonal" type="checkbox"></label><label class="toggle-row"><span><strong>Allow Square</strong></span><input data-rule-option data-rule-label="Square" id="setting-allow-square" type="checkbox"></label><label class="toggle-row"><span>Allow Spaced Square</span><input data-rule-option data-rule-label="Spaced Square" id="setting-allow-spaced-square" type="checkbox"></label><label class="toggle-row"><span><strong>Allow Diamond</strong></span><input data-rule-option data-rule-label="Diamond" id="setting-allow-diamond" type="checkbox"></label><label class="toggle-row"><span>Allow Spaced Diamond</span><input data-rule-option data-rule-label="Spaced Diamond" id="setting-allow-spaced-diamond" type="checkbox"></label></div></fieldset>
+
+      <section class="wizard-step" data-wizard-step="2" hidden>
+        <h3>Rules</h3>
+        <p class="setup-help"><strong>Lipfty 7 Standard</strong> uses Jump, Move, Diagonal, Tight Square and Spaced Square. These switches remain available for experiments and simpler variants.</p>
+        <fieldset class="setup-fieldset"><legend>Rule switches</legend><div class="toggle-list">
+          <label class="toggle-row"><span><strong>Allow Jump</strong><small>Single opposite-colour Jump with redeployment</small></span><input data-rule-option data-rule-label="Jump" id="setting-allow-jump" type="checkbox"></label>
+          <label class="toggle-row"><span><strong>Allow Move</strong><small>One square in any of eight directions</small></span><input data-rule-option data-rule-label="Move" id="setting-allow-move" type="checkbox"></label>
+          <label class="toggle-row"><span><strong>Allow Diagonal</strong><small>Diagonal four-in-line wins</small></span><input data-rule-option data-rule-label="Diagonal" id="setting-allow-diagonal" type="checkbox"></label>
+          <label class="toggle-row"><span><strong>Allow Square</strong><small>Tight 2×2 square wins</small></span><input data-rule-option data-rule-label="Square" id="setting-allow-square" type="checkbox"></label>
+          <label class="toggle-row"><span><strong>Allow Spaced Square</strong><small>Larger board-aligned square wins</small></span><input data-rule-option data-rule-label="Spaced Square" id="setting-allow-spaced-square" type="checkbox"></label>
+          <label class="toggle-row"><span><strong>Allow Diamond</strong><small>Experimental; not part of Standard</small></span><input data-rule-option data-rule-label="Diamond" id="setting-allow-diamond" type="checkbox"></label>
+          <label class="toggle-row"><span><strong>Allow Spaced Diamond</strong><small>Experimental; not part of Standard</small></span><input data-rule-option data-rule-label="Spaced Diamond" id="setting-allow-spaced-diamond" type="checkbox"></label>
+        </div></fieldset>
       </section>
-      <section class="wizard-step" data-wizard-step="3" hidden><h3>Who is playing?</h3><div class="setup-grid setup-grid--players"><label class="field-label"><span id="player1-label-text">Player name</span><input class="text-input" id="setting-player1" maxlength="24"></label><label class="field-label" id="player2-label"><span>Player 2 name</span><input class="text-input" id="setting-player2" maxlength="24"></label></div>
-        <fieldset class="setup-fieldset"><legend>Who starts?</legend><div class="choice-grid"><label><input checked name="starter" type="radio" value="random"><span>Random</span></label><label><input name="starter" type="radio" value="alternate"><span>Alternate each game</span></label><label><input name="starter" type="radio" value="player"><span id="starter-player-label">Player</span></label><label><input name="starter" type="radio" value="computer"><span id="starter-other-label">Computer</span></label></div></fieldset>
+
+      <section class="wizard-step" data-wizard-step="3" hidden>
+        <h3>Who is playing?</h3>
+        <div class="setup-grid setup-grid--players">
+          <label class="field-label"><span id="player1-label-text">Player name</span><input class="text-input" id="setting-player1" maxlength="24"></label>
+          <label class="field-label" id="player2-label"><span>Player 2 name</span><input class="text-input" id="setting-player2" maxlength="24"></label>
+        </div>
+        <fieldset class="setup-fieldset"><legend>Who starts?</legend><div class="choice-grid">
+          <label><input checked name="starter" type="radio" value="random"><span>Random</span></label>
+          <label><input name="starter" type="radio" value="alternate"><span>Alternate each game</span></label>
+          <label><input name="starter" type="radio" value="player"><span id="starter-player-label">Player</span></label>
+          <label><input name="starter" type="radio" value="computer"><span id="starter-other-label">Computer</span></label>
+        </div></fieldset>
       </section>
-      <section class="wizard-step" data-wizard-step="4" hidden><h3>Final options</h3>
-        <fieldset class="setup-fieldset"><legend>Move timer</legend><div class="choice-grid"><label><input checked name="timer" type="radio" value="30"><span>30 seconds</span></label><label><input name="timer" type="radio" value="45"><span>45 seconds</span></label><label><input name="timer" type="radio" value="60"><span>60 seconds</span></label><label><input name="timer" type="radio" value="0"><span>Unlimited</span></label></div></fieldset> 
-        <fieldset class="setup-fieldset"><legend>Game feel</legend><div class="toggle-list"><label class="toggle-row"><span><strong>Sound effects</strong><small>Subtle sounds for selecting, placing and winning</small></span><input checked id="setting-sound" type="checkbox"></label><label class="toggle-row"><span><strong>Animations</strong><small>Piece movement and winning highlights</small></span><input checked id="setting-animations" type="checkbox"></label></div></fieldset>
-        <fieldset class="setup-fieldset"><legend>Language</legend><select class="text-input" id="setting-language"><option value="en-GB">British English</option></select></fieldset><button class="button button--secondary settings-statistics-button" id="view-statistics-button" type="button">View statistics</button><div class="setup-summary" id="setup-summary"></div>
+
+      <section class="wizard-step" data-wizard-step="4" hidden>
+        <h3>Final options</h3>
+        <fieldset class="setup-fieldset"><legend>Move timer</legend><div class="choice-grid">
+          <label><input checked name="timer" type="radio" value="30"><span>30 seconds</span></label>
+          <label><input name="timer" type="radio" value="45"><span>45 seconds</span></label>
+          <label><input name="timer" type="radio" value="60"><span>60 seconds</span></label>
+          <label><input name="timer" type="radio" value="0"><span>Unlimited</span></label>
+        </div></fieldset>
+        <fieldset class="setup-fieldset"><legend>Game feel</legend><div class="toggle-list">
+          <label class="toggle-row"><span><strong>Sound effects</strong></span><input checked id="setting-sound" type="checkbox"></label>
+          <label class="toggle-row"><span><strong>Animations</strong></span><input checked id="setting-animations" type="checkbox"></label>
+        </div></fieldset>
+        <fieldset class="setup-fieldset"><legend>Language</legend><select class="text-input" id="setting-language"><option value="en-GB">British English</option></select></fieldset>
+        <button class="button button--secondary settings-statistics-button" id="view-statistics-button" type="button">View statistics</button>
+        <div class="setup-summary" id="setup-summary"></div>
       </section>
-      <div class="wizard-actions"><button class="button button--secondary" id="cancel-settings" type="button">Cancel</button><button class="button button--secondary" id="wizard-back" type="button" hidden>Back</button><button class="button button--primary" id="wizard-next" type="button">Next</button><button class="button button--primary" id="wizard-start" type="submit" hidden>Start game</button></div>
+
+      <div class="wizard-actions">
+        <button class="button button--secondary" id="cancel-settings" type="button">Cancel</button>
+        <button class="button button--secondary" id="wizard-back" type="button" hidden>Back</button>
+        <button class="button button--primary" id="wizard-next" type="button">Next</button>
+        <button class="button button--primary" id="wizard-start" type="submit" hidden>Start game</button>
+      </div>
     </form>
   </dialog>
-  <dialog id="statistics-dialog"><div class="dialog-heading"><div><p class="dialog-eyebrow">Lipfty</p><h2>Statistics</h2></div><button class="dialog-close" id="close-statistics" type="button">×</button></div><div class="statistics-summary"><span><strong id="stat-played">0</strong><small>Played</small></span><span><strong id="stat-wins">0</strong><small>Won</small></span><span><strong id="stat-losses">0</strong><small>Lost</small></span><span><strong id="stat-win-rate">0%</strong><small>Win rate</small></span></div></dialog>
+
+  <dialog id="statistics-dialog">
+    <div class="dialog-heading"><div><p class="dialog-eyebrow">Lipfty</p><h2>Statistics</h2></div><button class="dialog-close" id="close-statistics" type="button">×</button></div>
+    <p>Statistics are retained for future game-history reporting.</p>
+  </dialog>
+
   <dialog id="help-dialog">
     <div class="dialog-heading">
-      <div><p class="dialog-eyebrow">How to play</p><h2>Lipfty 5</h2></div>
+      <div><p class="dialog-eyebrow">How to play</p><h2>Lipfty 7</h2></div>
       <button class="dialog-close" id="close-help" type="button" aria-label="Close">×</button>
     </div>
     <div class="rules-copy">
-      <p><strong>Objective.</strong> Lipfty is played on the inner 6×6 area of a standard 8×8 board using a full 32-piece draughts/checkers set. Fourteen pieces of each colour are playable; one extra piece of each colour starts underneath each of that colour's two corner reserve pieces. The playable pieces are shared by both players. Online they are shown as Red and Blue. The four underneath corner pieces act as physical markers during normal play and become the final four playable pieces if the game reaches that point. Basic Lipfty is placement-only and a win is four consecutive matching-colour pieces horizontally or vertically. Jumping, moving, diagonal lines, squares, spaced squares, diamonds and spaced diamonds can each be enabled as optional rules.</p>
-      <p><strong>Opening play.</strong> Choose the first player, then alternate normally. For the first four turns, the player whose turn it is chooses one of the four playable top-corner pieces and places it on any empty square in the inner 6×6 area. These four turns are placement-only: the opponent does not choose the colour and no piece may be moved or jumped. Once all four top-corner pieces have been placed, normal play begins: the player who has just completed a turn picks up an actual reserve-ring piece and hands it to the opponent. The handed piece appears in the Colour to use box and its colour is the colour the opponent must use. The receiving player places that handed piece, or if the relevant optional rule is enabled may instead jump or move a board piece of the same colour. If they jump or move, the handed reserve piece returns to the outer ring when the turn is complete.</p>
-      <p><strong>Normal play.</strong> Your opponent hands you an actual reserve piece; its colour is the colour you must use. Basic play is placement-only. If Allow Jump is enabled, a single jump may be made with a board piece of that colour. If Allow Move is enabled, an existing board piece of that colour may instead move one adjacent square. Moves and jumps may be horizontal, vertical or diagonal.</p>
-      <p><strong>Moving and jumping.</strong> A jump goes over one adjacent piece of the <strong>opposite colour</strong> into the empty square immediately beyond it. The jumped-over piece stays on the board. Only one jump is allowed in a turn; there are no multi-jumps.</p>
-      <p><strong>Compulsory placements.</strong> An ordinary move or a jump has the same consequence: temporarily remove any two of the four bottom corner-marker pieces; their colours do not matter. The next two turns must be reserve placements, first by the opponent and then by the player who moved or jumped. In the app the two removed markers are shown in the compulsory-placement box. After each placement return one marker to an empty outer corner. No moving or jumping is allowed during these compulsory placement turns. If no normal reserve piece is available, any remaining placement obligation ends.</p>
-      <p>You may not move the exact piece your opponent moved on their immediately preceding turn. A newly placed piece is not protected by this rule.</p>
-      <p><strong>Final four and draw.</strong> When all 28 normal playable pieces are simultaneously on the 6×6 board, normal play ends permanently. The four corner-marker pieces now become playable. Players alternate; on each turn the player chooses any remaining corner-marker piece and places it on an empty square. There is no moving or jumping. A win takes effect immediately. If all four final pieces are placed without a win, the game is a draw. A genuine earlier stalemate is also a draw.</p>
-      <p><strong>Optional rules.</strong> Basic Lipfty is placement-only with horizontal/vertical wins. Jump, Move, Diagonal, Square and Diamond can be switched on independently. Spaced Square is available with Square; Spaced Diamond is available with Diamond. A win takes effect immediately, including after a jump, move or compulsory placement.</p>
-      <p><strong>Undo and timer.</strong> If last-move Undo is enabled, the previous play can be undone even after a win, including a computer win. The move timer may be set to 30, 45 or 60 seconds, or Unlimited. Reaching zero does not force the turn to end. The timer stops when the game is won or drawn and resumes appropriately if a winning play is undone.</p>
+      <p><strong>Objective.</strong> Lipfty uses a standard 8×8 draughts/checkers board and full 32-piece set. Play takes place on the inner 6×6 area. The pieces are shared by both players rather than owned by one player. Win by making four matching-colour pieces horizontally, vertically or diagonally, or by making the four corners of a tight 2×2 square or a larger board-aligned spaced square.</p>
+      <p><strong>Piece groups.</strong> The outer ring contains four top-corner <strong>Opening Four</strong> pieces, 24 <strong>normal reserve</strong> pieces (12 of each colour), and four pieces underneath the corner tops which become the <strong>Final Four</strong>.</p>
+      <p><strong>Opening Four.</strong> For the first four turns, the player whose turn it is chooses one of the available top-corner pieces and places it anywhere empty in the inner 6×6 area. These turns are placement-only: there is no opponent handover, Move or Jump.</p>
+      <p><strong>Normal handover.</strong> After the Opening Four, the player who has just completed a normal turn chooses an actual normal reserve piece and hands it to the opponent. Its colour is the colour the receiving player must use. While both normal reserve colours remain, the receiver may either place that handed piece, Move a matching board piece, or make one legal Jump with a matching board piece.</p>
+      <p><strong>Move.</strong> Move one board piece of the handed colour exactly one square to any empty adjacent square: horizontal, vertical or diagonal. You may not Move or Jump the exact board piece your opponent moved on their immediately preceding turn.</p>
+      <p><strong>Move consequence.</strong> A non-winning Move does not consume the handed reserve piece. Instead, the opponent chooses a normal reserve piece and immediately places it. If that does not win, the same opponent chooses another remaining normal reserve piece for the original mover, who places it. If neither placement wins, the opponent takes the next normal turn.</p>
+      <p><strong>Jump.</strong> Make one non-capturing-style leap with a board piece of the handed colour over one adjacent <strong>opposite-colour</strong> piece into the empty square immediately beyond it. Jumps may be horizontal, vertical or diagonal and there are no multi-jumps. If the Jump itself makes a win, the game ends before anything else happens.</p>
+      <p><strong>Jump consequence.</strong> If the Jump does not win, lift the exact jumped piece. The opponent immediately redeploys that same piece on any empty square. A win made by the redeployment ends the game. Otherwise the opponent gets the next normal turn, and the original jumper chooses the normal reserve piece/colour handed to them. A Jump consumes no normal reserve piece.</p>
+      <p><strong>One-colour finish.</strong> As soon as either normal reserve colour is exhausted, Move and Jump stop completely. The remaining normal reserve pieces must be placed, one per normal turn, until the normal reserve is empty. If a two-placement Move consequence has already started, finish that consequence first.</p>
+      <p><strong>Final Four.</strong> When the normal reserve is empty, the four underneath corner pieces become playable. Final Four is placement-only. On each turn the player chooses one of the remaining Final Four pieces and places it anywhere empty. If all four are placed without a win, the game is a draw.</p>
+      <p><strong>Immediate wins.</strong> A win ends the game immediately whether it is made by a normal placement, Move, Jump, Jump redeployment, compulsory placement or Final Four placement.</p>
+      <p><strong>Standard and variants.</strong> Lipfty 7 Standard has Move, Jump, Diagonal, Tight Square and Spaced Square switched on; Diamonds are off. The setup Rules page keeps switches available for experimental or simpler variants, but the Lipfty 7 Standard baseline is the configuration above.</p>
+      <p><strong>Undo and timer.</strong> If Undo is enabled, the previous decision can be restored even after a win. The timer may be 30, 45 or 60 seconds, or Unlimited; reaching zero does not force a turn to end.</p>
+      <p><a class="button button--secondary" href="Lipfty-Rules.pdf" target="_blank" rel="noopener">Printable Lipfty 7 rules (PDF)</a></p>
     </div>
   </dialog>
 
-
   <dialog aria-labelledby="pwa-update-title" class="pwa-update-dialog" id="pwa-update-dialog">
     <form method="dialog">
-      <div class="dialog-heading">
-        <div>
-          <p class="dialog-eyebrow">Lipfty update</p>
-          <h2 id="pwa-update-title">New version available</h2>
-        </div>
-      </div>
+      <div class="dialog-heading"><div><p class="dialog-eyebrow">Lipfty update</p><h2 id="pwa-update-title">New version available</h2></div></div>
       <p>A new version of Lipfty has been downloaded and is ready to install.</p>
       <p class="dialog-note">Update now to reload the app, or choose Later to continue with the current version.</p>
       <div class="dialog-actions pwa-update-actions">
