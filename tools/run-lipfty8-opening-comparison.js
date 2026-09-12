@@ -124,7 +124,7 @@ function aggregate(openingPolicy, configIndex) {
       const blockTo=blockNumber*10;
       const scorePct=100*(wins[0]+draws/2)/done;
       process.stdout.write(
-        `  ${configIndex+1}/${configs.length} | ${done}/${games} | Sim ${fmtClock(start)}`+
+        `  ${done}/${games} | Sim ${fmtClock(start)}`+
         ` | ${blockFrom}-${blockTo}% ${fmtClock(blockStart)} | ${fmtDuration(now-blockStart)}`+
         ` | P1 ${wins[0]} P2 ${wins[1]} D${draws} | Score ${scorePct.toFixed(1)}%\n`
       );
@@ -175,7 +175,7 @@ console.log("For automatic openings, 'avg turns' counts player turns after setup
 
 const results=[];
 for(const [configIndex,c] of configs.entries()) {
-  console.log(`\nStarting ${c.label} at ${fmtClock()}...`);
+  console.log(`\nStarting ${configIndex+1}/${configs.length} ${c.label} at ${fmtClock()}...`);
   const r=aggregate(c.id,configIndex); results.push({...c,...r});
   printSummary(c,r,results[0]);
 }
