@@ -14,6 +14,7 @@ const seed = Number(arg("seed", "1"));
 const maxTurns = Number(arg("max-turns", "500"));
 const strength = arg("strength", "tactical");
 const outDir = arg("out", "C:\\bxd\\Lipfty-Simulation-Results");
+const configArg = arg("config", null);
 
 if(!Number.isInteger(games) || games < 1) throw new Error("--games must be a positive integer.");
 if(!Number.isInteger(seed)) throw new Error("--seed must be an integer.");
@@ -47,6 +48,38 @@ const configs = [
   {id:"corners-adjacent", label:"2.1 INNER-BOARD CORNERS — COLOURS ADJACENT"},
   {id:"corners-diagonal", label:"2.2 INNER-BOARD CORNERS — COLOURS DIAGONAL"}
 ];
+
+function parseConfigSelection(value) {
+  if(value === null) return null;
+  const raw = String(value).trim();
+  if(!raw) throw new Error("--config must be a comma-separated list of configuration numbers.");
+
+  const parts = raw.split(",").map(v => v.trim());
+  if(parts.some(v => !/^\d+$/.test(v))) {
+    throw new Error(`--config must contain only configuration numbers separated by commas (1-${configs.length}).`);
+  }
+
+  const numbers = parts.map(Number);
+  const invalid = numbers.find(n => n < 1 || n > configs.length);
+  if(invalid !== undefined) {
+    throw new Error(`--config ${invalid} is invalid; valid configuration numbers are 1-${configs.length}.`);
+  }
+
+  const seen = new Set();
+  const duplicate = numbers.find(n => {
+    if(seen.has(n)) return true;
+    seen.add(n);
+    return false;
+  });
+  if(duplicate !== undefined) throw new Error(`--config contains duplicate configuration ${duplicate}.`);
+
+  return numbers;
+}
+
+const requestedConfigNumbers = parseConfigSelection(configArg);
+const selectedConfigNumbers = requestedConfigNumbers
+  ? configs.map((_,i)=>i+1).filter(n => requestedConfigNumbers.includes(n))
+  : configs.map((_,i)=>i+1);
 
 function pct(n) { return (100*n/games).toFixed(2); }
 function pp(n) { return `${n >= 0 ? "+" : ""}${n.toFixed(2)} pp`; }
@@ -168,28 +201,36 @@ function printSummary(c, r, baseline=null) {
 const overallStart=Date.now();
 console.log("Lipfty 8 — automatic Opening Four comparison");
 console.log(`${games} games each; tactical strength ${strength}; base seed ${seed}; max turns ${maxTurns}.`);
+console.log(`Configurations: ${selectedConfigNumbers.join(",")} of ${configs.length}.`);
 console.log(`Run started: ${fmtFinish(overallStart)} | progress output: 10% intervals (10 lines per configuration for normal run sizes).`);
 console.log("Fixed Lipfty 7 Standard rules: Move ON, opposite-colour Jump, redeploy-pass, sequential Move response, responder-choice boundary, one-colour placement-only, player/tactical Final Four choice, H/V/Diagonal + tight/spaced square wins, no diamonds.");
 console.log("Each configuration uses exactly the same seed range.");
 console.log("For automatic openings, 'avg turns' counts player turns after setup; 'comparable board-development avg' adds the four setup placements back so game length can also be compared directly with Lipfty 7.");
 
 const results=[];
-for(const [configIndex,c] of configs.entries()) {
-  console.log(`\nStarting ${configIndex+1}/${configs.length} ${c.label} at ${fmtClock()}...`);
-  const r=aggregate(c.id,configIndex); results.push({...c,...r});
-  printSummary(c,r,results[0]);
+let baseline=null;
+for(const configNumber of selectedConfigNumbers) {
+  const configIndex=configNumber-1;
+  const c=configs[configIndex];
+  console.log(`\nStarting ${configNumber}/${configs.length} ${c.label} at ${fmtClock()}...`);
+  const r=aggregate(c.id,configIndex);
+  const result={configNumber,...c,...r};
+  results.push(result);
+  if(configNumber === 1) baseline=result;
+  printSummary(c,r,baseline);
 }
 
-const baseline=results[0];
 console.log("\nRANKING BY DISTANCE FROM 50% P1 SCORE");
-for(const [i,r] of results.slice(1).sort((a,b)=>Math.abs(a.p1ScorePct-50)-Math.abs(b.p1ScorePct-50)).entries()) {
-  console.log(`  ${i+1}. ${r.label}: P1 score ${r.p1ScorePct.toFixed(2)}%, distance ${Math.abs(r.p1ScorePct-50).toFixed(2)} pp, vs Lipfty 7 ${pp(r.p1ScorePct-baseline.p1ScorePct)}`);
+const ranked = baseline ? results.filter(r=>r.configNumber !== 1) : results;
+for(const [i,r] of ranked.sort((a,b)=>Math.abs(a.p1ScorePct-50)-Math.abs(b.p1ScorePct-50)).entries()) {
+  const vs = baseline ? `, vs Lipfty 7 ${pp(r.p1ScorePct-baseline.p1ScorePct)}` : "";
+  console.log(`  ${i+1}. ${r.label}: P1 score ${r.p1ScorePct.toFixed(2)}%, distance ${Math.abs(r.p1ScorePct-50).toFixed(2)} pp${vs}`);
 }
 
 const rows=results.map(r=>({
-  opening:r.openingPolicy,label:r.label,games:r.games,p1_wins:r.wins[0],p2_wins:r.wins[1],draws:r.draws,
+  config_number:r.configNumber,opening:r.openingPolicy,label:r.label,games:r.games,p1_wins:r.wins[0],p2_wins:r.wins[1],draws:r.draws,
   p1_win_pct:r.p1WinPct.toFixed(4),p2_win_pct:r.p2WinPct.toFixed(4),draw_pct:r.drawPct.toFixed(4),p1_score_pct:r.p1ScorePct.toFixed(4),
-  distance_from_50_pp:Math.abs(r.p1ScorePct-50).toFixed(4),delta_vs_lipfty7_score_pp:(r.p1ScorePct-baseline.p1ScorePct).toFixed(4),
+  distance_from_50_pp:Math.abs(r.p1ScorePct-50).toFixed(4),delta_vs_lipfty7_score_pp:baseline ? (r.p1ScorePct-baseline.p1ScorePct).toFixed(4) : "",
   average_turns:r.averageTurns.toFixed(4),average_comparable_turns:r.averageComparableTurns.toFixed(4),final_four_pct:r.finalFourPct.toFixed(4),
   moves:r.moves,jumps:r.jumps,redeployments:r.redeployments,moves_per_game:r.movesPerGame.toFixed(4),jumps_per_game:r.jumpsPerGame.toFixed(4),redeployments_per_game:r.redeploymentsPerGame.toFixed(4),
   max_turn_draws:r.maxTurnDraws,repetition_games:r.repetitionGames,repetition_events:r.repetitionEvents,
@@ -200,7 +241,8 @@ const rows=results.map(r=>({
 
 try {
   fs.mkdirSync(outDir,{recursive:true});
-  const csvPath=path.join(outDir,`lipfty8-opening-comparison-${strength}-${games}-seed${seed}.csv`);
+  const configTag=requestedConfigNumbers ? `-config${selectedConfigNumbers.join("-")}` : "";
+  const csvPath=path.join(outDir,`lipfty8-opening-comparison-${strength}-${games}-seed${seed}${configTag}.csv`);
   const keys=Object.keys(rows[0]);
   const esc=v=>`"${String(v).replace(/"/g,'""')}"`;
   fs.writeFileSync(csvPath,[keys.join(","),...rows.map(row=>keys.map(k=>esc(row[k])).join(","))].join("\r\n")+"\r\n","utf8");
