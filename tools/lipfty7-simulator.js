@@ -39,6 +39,7 @@ const JUMP_POLICIES = ["opposite","any"];
 const RESPONSE_POLICIES = ["committed","sequential"];
 const BOUNDARY_POLICIES = ["current","responder-choice"];
 const JUMP_CONSEQUENCE_POLICIES = ["current","redeploy","redeploy-only","redeploy-pass"];
+const FINAL_FOUR_COLOUR_POLICIES = ["random","tactical"];
 const patternCache = new Map();
 
 function normaliseJumpPolicy(value="opposite") {
@@ -55,6 +56,10 @@ function normaliseBoundaryPolicy(value="current") {
 }
 function normaliseJumpConsequencePolicy(value="current") {
   if(!JUMP_CONSEQUENCE_POLICIES.includes(value))throw new Error(`jumpConsequence must be one of: ${JUMP_CONSEQUENCE_POLICIES.join(", ")}.`);
+  return value;
+}
+function normaliseFinalFourColourPolicy(value="random") {
+  if(!FINAL_FOUR_COLOUR_POLICIES.includes(value))throw new Error(`finalFourColourPolicy must be one of: ${FINAL_FOUR_COLOUR_POLICIES.join(", ")}.`);
   return value;
 }
 
@@ -820,10 +825,26 @@ function handoverColourDanger(s,colour,rules) {
   const actions=enumerateActions(s,colour,rules);if(!actions.length)return-Infinity;
   let best=-Infinity;for(const a of actions)best=Math.max(best,actionPositionalScore(s,a,rules));return best;
 }
-function chooseColour(s,rules,strength="tactical") {
+function chooseFinalFourColour(s,rules,strength="tactical",finalFourColourPolicy="random") {
+  finalFourColourPolicy=normaliseFinalFourColourPolicy(finalFourColourPolicy);
+  const colours=availableColours(s);if(colours.length===1)return colours[0];
+  if(strength==="random"||finalFourColourPolicy==="random")return colours[Math.floor(s.rng()*colours.length)];
+  const winning=colours.filter(c=>hasImmediateWinningAction(s,c,rules));
+  if(winning.length)return winning[Math.floor(s.rng()*winning.length)];
+  let best=[],bestScore=-Infinity;
+  for(const colour of colours){
+    let colourScore=-Infinity;
+    for(const action of enumerateActions(s,colour,rules))colourScore=Math.max(colourScore,actionPositionalScore(s,action,rules));
+    if(colourScore>bestScore+1e-9){bestScore=colourScore;best=[colour];}
+    else if(Math.abs(colourScore-bestScore)<1e-9)best.push(colour);
+  }
+  return best[Math.floor(s.rng()*best.length)];
+}
+function chooseColour(s,rules,strength="tactical",finalFourColourPolicy="random") {
   if(s.forcedQueue.length)return s.forcedQueue[0].colour;
   const colours=availableColours(s);if(colours.length===1)return colours[0];
-  if(strength==="random"||s.openingRemaining>0||s.finalFour)return colours[Math.floor(s.rng()*colours.length)];
+  if(s.finalFour)return chooseFinalFourColour(s,rules,strength,finalFourColourPolicy);
+  if(strength==="random"||s.openingRemaining>0)return colours[Math.floor(s.rng()*colours.length)];
   const safe=colours.filter(c=>!hasImmediateWinningAction(s,c,rules)),candidates=safe.length?safe:colours;
   let best=[],bestDanger=Infinity;
   for(const c of candidates){const danger=handoverColourDanger(s,c,rules);if(danger<bestDanger-1e-9){bestDanger=danger;best=[c];}else if(Math.abs(danger-bestDanger)<1e-9)best.push(c);}
@@ -914,6 +935,39 @@ function normalForcedColourInfo(s) {
   const colours=COLOURS.filter(c=>s.normalRemaining[c]>0);if(colours.length!==1)return null;
   const colour=colours[0];return{colour,exhaustedColour:COLOURS.find(c=>c!==colour)};
 }
+function normalColourCount(s){return COLOURS.filter(c=>s.normalRemaining[c]>0).length;}
+function transitionCause(action,wasForced,responseSlot){
+  if(!action||action.type!=="place")return"other";
+  if(!wasForced)return"ordinary-placement";
+  return responseSlot===1?"response-placement-1":responseSlot===2?"response-placement-2":"forced-placement";
+}
+function finalFourImmediateWinInfo(s,rules){
+  const colours=availableColours(s),winningColours=[];
+  let winningActions=0;
+  for(const colour of colours){
+    const n=immediateWinningActions(s,colour,rules).length;
+    if(n){winningColours.push(colour);winningActions+=n;}
+  }
+  return{available:winningActions>0,winningColours,winningActions};
+}
+function newPhaseDiagnostics(){
+  return{
+    oneColourEntry:null,finalFourEntry:null,finalFourPlacements:0,
+    finalFourFirstChosenColour:null,finalFourFirstChosenColourImmediateWin:false,
+    finalFourFirstActionImmediateWin:false
+  };
+}
+function recordPhaseTransition(d,s,beforeColours,beforeReserve,action,wasForced,responseSlot,actor,rules){
+  const afterColours=normalColourCount(s),afterReserve=normalReserveCount(s),cause=transitionCause(action,wasForced,responseSlot);
+  if(!d.oneColourEntry&&beforeColours>=2&&afterColours===1&&!s.finalFour){
+    d.oneColourEntry={firstActor:s.currentPlayer,transitionActor:actor,cause,turn:s.turns,remainingColour:COLOURS.find(c=>s.normalRemaining[c]>0)};
+  }
+  if(!d.finalFourEntry&&beforeReserve>0&&afterReserve===0&&s.finalFour){
+    const immediate=finalFourImmediateWinInfo(s,rules);
+    d.finalFourEntry={firstActor:s.currentPlayer,transitionActor:actor,cause,turn:s.turns,immediateWinAvailable:immediate.available,immediateWinningColours:immediate.winningColours,immediateWinningActions:immediate.winningActions};
+  }
+}
+function withPhaseDiagnostics(result,d){return{...result,phaseDiagnostics:d};}
 function emptyResponseStats() {
   return {
     placements:0,moves:0,jumps:0,redeployPlacements:0,forcedPlacements:0,twoPieceResponses:0,boundaryResponses:0,jumpRedeployResponses:0,sequentialSecondChoices:0,
@@ -923,9 +977,9 @@ function emptyResponseStats() {
     boundaryCornerColours:{black:0,white:0},boundarySelfCornerColours:{black:0,white:0},boundaryResponderCornerColours:{black:0,white:0}
   };
 }
-function playGame({rules={},seed=1,strength="tactical",maxTurns=500,jumpPolicy="opposite",responsePolicy="committed",boundaryPolicy="current",jumpConsequence="current"}={}) {
-  rules=normaliseRules(rules);jumpPolicy=normaliseJumpPolicy(jumpPolicy);responsePolicy=normaliseResponsePolicy(responsePolicy);boundaryPolicy=normaliseBoundaryPolicy(boundaryPolicy);jumpConsequence=normaliseJumpConsequencePolicy(jumpConsequence);
-  const s=freshState(seed,jumpPolicy,responsePolicy,boundaryPolicy,jumpConsequence),stats=emptyResponseStats();
+function playGame({rules={},seed=1,strength="tactical",maxTurns=500,jumpPolicy="opposite",responsePolicy="committed",boundaryPolicy="current",jumpConsequence="current",finalFourColourPolicy="random"}={}) {
+  rules=normaliseRules(rules);jumpPolicy=normaliseJumpPolicy(jumpPolicy);responsePolicy=normaliseResponsePolicy(responsePolicy);boundaryPolicy=normaliseBoundaryPolicy(boundaryPolicy);jumpConsequence=normaliseJumpConsequencePolicy(jumpConsequence);finalFourColourPolicy=normaliseFinalFourColourPolicy(finalFourColourPolicy);
+  const s=freshState(seed,jumpPolicy,responsePolicy,boundaryPolicy,jumpConsequence),stats=emptyResponseStats(),phaseDiagnostics=newPhaseDiagnostics();
   let consecutiveRedeployOnlyJumps=0;
   while(!s.winner&&s.turns<maxTurns){
     const sequentialPlan=commitSequentialSecond(s,rules,strength);
@@ -941,31 +995,46 @@ function playGame({rules={},seed=1,strength="tactical",maxTurns=500,jumpPolicy="
     const forcedColourInfo=normalForcedColourInfo(s);
     const resultCategory=s.finalFour?"final-four":s.openingRemaining>0?"opening-four":forcedColourInfo?"normal-one-colour":"normal-both-colours";
     const wasForced=s.forcedQueue.length>0,responseSlot=wasForced?s.forcedQueue[0].responseSlot:null;
-    const colour=chooseColour(s,rules,strength),action=chooseAction(s,colour,rules,strength);
+    if(s.finalFour&&!phaseDiagnostics.finalFourEntry){
+      const immediate=finalFourImmediateWinInfo(s,rules);
+      phaseDiagnostics.finalFourEntry={firstActor:s.currentPlayer,transitionActor:null,cause:"pre-existing",turn:s.turns,immediateWinAvailable:immediate.available,immediateWinningColours:immediate.winningColours,immediateWinningActions:immediate.winningActions};
+    }
+    if(forcedColourInfo&&!phaseDiagnostics.oneColourEntry)phaseDiagnostics.oneColourEntry={firstActor:s.currentPlayer,transitionActor:null,cause:"pre-existing",turn:s.turns,remainingColour:forcedColourInfo.colour};
+    const colour=chooseColour(s,rules,strength,finalFourColourPolicy),action=chooseAction(s,colour,rules,strength);
     if(!action){s.winner="draw";break;}
     if(!(action.type==="jump"&&(s.jumpConsequence==="redeploy-only"||s.jumpConsequence==="redeploy-pass")))consecutiveRedeployOnlyJumps=0;
     if(action.type.includes("place"))stats.placements++;else if(action.type==="move")stats.moves++;else stats.jumps++;
     if(wasForced)stats.forcedPlacements++;
+    const actor=s.currentPlayer,beforeColours=normalColourCount(s),beforeReserve=normalReserveCount(s);
+    if(resultCategory==="final-four"&&action.type==="final-place"){
+      phaseDiagnostics.finalFourPlacements++;
+      if(phaseDiagnostics.finalFourPlacements===1){
+        phaseDiagnostics.finalFourFirstChosenColour=colour;
+        phaseDiagnostics.finalFourFirstChosenColourImmediateWin=actionWins(s,action,rules);
+      }
+    }
     const result=applyAction(s,action,rules);
-    if(result.ended)return{
+    if(resultCategory==="final-four"&&phaseDiagnostics.finalFourPlacements===1&&result.ended)phaseDiagnostics.finalFourFirstActionImmediateWin=true;
+    if(result.ended)return withPhaseDiagnostics({
       ...stats,winner:s.winner,turns:s.turns,reachedFinalFour:s.reachedFinalFour,winType:result.winType||null,
       resultCategory:s.winner==="draw"?"draw":resultCategory,
       winningActionType:s.winner==="draw"?null:(action.type.includes("place")?"placement":action.type),
       winningResponseSlot:s.winner==="draw"?null:responseSlot,
       forcedNormalColourWin:s.winner!=="draw"&&!!forcedColourInfo,forcedNormalColour:forcedColourInfo?.colour||null,
       exhaustedNormalColour:forcedColourInfo?.exhaustedColour||null
-    };
+    },phaseDiagnostics);
+    recordPhaseTransition(phaseDiagnostics,s,beforeColours,beforeReserve,action,wasForced,responseSlot,actor,rules);
     if(action.type==="jump"&&s.jumpConsequence!=="current"){
       stats.jumpRedeployResponses++;
       const response=resolveJumpRedeploy(s,action,rules,strength);
       stats.redeployPlacements++;stats.forcedPlacements++;
       if(response.stage==="redeploy"){
         stats.redeployWins[s.winner]++;
-        return{
+        return withPhaseDiagnostics({
           ...stats,winner:s.winner,turns:s.turns,reachedFinalFour:s.reachedFinalFour,winType:response.firstResult.winType||null,
           resultCategory:resultCategory,winningActionType:"redeploy",winningResponseSlot:1,
           forcedNormalColourWin:!!forcedColourInfo,forcedNormalColour:forcedColourInfo?.colour||null,exhaustedNormalColour:forcedColourInfo?.exhaustedColour||null
-        };
+        },phaseDiagnostics);
       }
       if(s.jumpConsequence==="redeploy-only"||s.jumpConsequence==="redeploy-pass"){
         consecutiveRedeployOnlyJumps++;
@@ -974,11 +1043,11 @@ function playGame({rules={},seed=1,strength="tactical",maxTurns=500,jumpPolicy="
         stats.placements++;stats.forcedPlacements++;
         if(response.stage==="reserve"){
           stats.jumpReserveWins[s.winner]++;
-          return{
+          return withPhaseDiagnostics({
             ...stats,winner:s.winner,turns:s.turns,reachedFinalFour:s.reachedFinalFour,winType:response.secondResult.winType||null,
             resultCategory:resultCategory,winningActionType:"placement",winningResponseSlot:2,
             forcedNormalColourWin:!!forcedColourInfo,forcedNormalColour:forcedColourInfo?.colour||null,exhaustedNormalColour:forcedColourInfo?.exhaustedColour||null
-          };
+          },phaseDiagnostics);
         }
       }
     }else if(action.type==="move"||action.type==="jump"){
@@ -998,15 +1067,15 @@ function playGame({rules={},seed=1,strength="tactical",maxTurns=500,jumpPolicy="
       }
     }
   }
-  return{...stats,winner:s.winner||"draw",turns:s.turns,reachedFinalFour:s.reachedFinalFour,winType:null,resultCategory:"draw",winningActionType:null,winningResponseSlot:null,forcedNormalColourWin:false,forcedNormalColour:null,exhaustedNormalColour:null,maxTurnDraw:!s.winner&&s.turns>=maxTurns};
+  return withPhaseDiagnostics({...stats,winner:s.winner||"draw",turns:s.turns,reachedFinalFour:s.reachedFinalFour,winType:null,resultCategory:"draw",winningActionType:null,winningResponseSlot:null,forcedNormalColourWin:false,forcedNormalColour:null,exhaustedNormalColour:null,maxTurnDraw:!s.winner&&s.turns>=maxTurns},phaseDiagnostics);
 }
-function runBatch({rules={},games=1000,seed=1,strength="tactical",jumpPolicy="opposite",responsePolicy="committed",boundaryPolicy="current",jumpConsequence="current",onProgress=null,progressEvery=null}={}) {
-  jumpPolicy=normaliseJumpPolicy(jumpPolicy);responsePolicy=normaliseResponsePolicy(responsePolicy);boundaryPolicy=normaliseBoundaryPolicy(boundaryPolicy);jumpConsequence=normaliseJumpConsequencePolicy(jumpConsequence);
+function runBatch({rules={},games=1000,seed=1,strength="tactical",jumpPolicy="opposite",responsePolicy="committed",boundaryPolicy="current",jumpConsequence="current",finalFourColourPolicy="random",onProgress=null,progressEvery=null}={}) {
+  jumpPolicy=normaliseJumpPolicy(jumpPolicy);responsePolicy=normaliseResponsePolicy(responsePolicy);boundaryPolicy=normaliseBoundaryPolicy(boundaryPolicy);jumpConsequence=normaliseJumpConsequencePolicy(jumpConsequence);finalFourColourPolicy=normaliseFinalFourColourPolicy(finalFourColourPolicy);
   const progressStep=typeof onProgress==="function"?(progressEvery===null?Math.max(1,Math.floor(games/20)):Math.max(1,Number(progressEvery))):0;
   if(progressStep&&!Number.isInteger(progressStep))throw new Error("progressEvery must be a positive integer.");
   const results=[];
   for(let i=0;i<games;i++){
-    results.push(playGame({rules,seed:seed+i,strength,jumpPolicy,responsePolicy,boundaryPolicy,jumpConsequence}));
+    results.push(playGame({rules,seed:seed+i,strength,jumpPolicy,responsePolicy,boundaryPolicy,jumpConsequence,finalFourColourPolicy}));
     const completed=i+1;
     if(progressStep&&(completed===games||completed%progressStep===0))onProgress({completed,games,jumpPolicy,responsePolicy,boundaryPolicy,jumpConsequence});
   }
@@ -1014,6 +1083,19 @@ function runBatch({rules={},games=1000,seed=1,strength="tactical",jumpPolicy="op
   const forcedNormalExhausted={black:[0,0],white:[0,0]};
   const resultCategories={normalBoth:[0,0],normalOne:[0,0],finalFour:[0,0],openingFour:[0,0]};
   const winningActionTypes={placement:[0,0],move:[0,0],jump:[0,0],redeploy:[0,0]};
+  const phaseWinningActionTypes={
+    normalBoth:{placement:[0,0],move:[0,0],jump:[0,0],redeploy:[0,0]},
+    normalOne:{placement:[0,0],move:[0,0],jump:[0,0],redeploy:[0,0]},
+    finalFour:{placement:[0,0],move:[0,0],jump:[0,0],redeploy:[0,0]},
+    openingFour:{placement:[0,0],move:[0,0],jump:[0,0],redeploy:[0,0]}
+  };
+  const phaseEntryOutcomes={
+    oneColour:[{entries:0,wins:[0,0],draws:0},{entries:0,wins:[0,0],draws:0}],
+    finalFour:[{entries:0,wins:[0,0],draws:0},{entries:0,wins:[0,0],draws:0}]
+  };
+  const phaseTransitionCauses={oneColour:{},finalFour:{}};
+  const phaseTransitionActors={oneColour:[0,0],finalFour:[0,0]};
+  const finalFourPlacementCountDistribution={},finalFourImmediateWinAvailableByActor=[0,0],finalFourFirstActionImmediateWinsByActor=[0,0],finalFourFirstChosenColourImmediateWinsByActor=[0,0];
   const winningResponseSlots={first:[0,0],second:[0,0]};
   const responsePairs={"black+black":0,"black+white":0,"white+white":0};
   const responseAllocations={"black->black":0,"black->white":0,"white->black":0,"white->white":0};
@@ -1026,10 +1108,28 @@ function runBatch({rules={},games=1000,seed=1,strength="tactical",jumpPolicy="op
       wins[g.winner]++;winTurns[g.winner][g.turns]=(winTurns[g.winner][g.turns]||0)+1;
       const key={"normal-both-colours":"normalBoth","normal-one-colour":"normalOne","final-four":"finalFour","opening-four":"openingFour"}[g.resultCategory];
       if(key)resultCategories[key][g.winner]++;
-      if(g.winningActionType)winningActionTypes[g.winningActionType][g.winner]++;
+      if(g.winningActionType){
+        winningActionTypes[g.winningActionType][g.winner]++;
+        if(key&&phaseWinningActionTypes[key]?.[g.winningActionType])phaseWinningActionTypes[key][g.winningActionType][g.winner]++;
+      }
       if(g.winningResponseSlot===1)winningResponseSlots.first[g.winner]++;
       if(g.winningResponseSlot===2)winningResponseSlots.second[g.winner]++;
       if(g.forcedNormalColourWin){forcedNormalColourWins[g.winner]++;forcedNormalExhausted[g.exhaustedNormalColour][g.winner]++;}
+    }
+    const pd=g.phaseDiagnostics||{};
+    for(const [phase,entry] of [["oneColour",pd.oneColourEntry],["finalFour",pd.finalFourEntry]]){
+      if(!entry)continue;
+      const a=entry.firstActor;phaseEntryOutcomes[phase][a].entries++;
+      if(g.winner==="draw")phaseEntryOutcomes[phase][a].draws++;else phaseEntryOutcomes[phase][a].wins[g.winner]++;
+      const cause=entry.cause||"unknown";phaseTransitionCauses[phase][cause]=(phaseTransitionCauses[phase][cause]||0)+1;
+      if(entry.transitionActor===0||entry.transitionActor===1)phaseTransitionActors[phase][entry.transitionActor]++;
+      if(phase==="finalFour"&&entry.immediateWinAvailable)finalFourImmediateWinAvailableByActor[a]++;
+    }
+    if(pd.finalFourEntry){
+      const n=pd.finalFourPlacements||0;finalFourPlacementCountDistribution[n]=(finalFourPlacementCountDistribution[n]||0)+1;
+      const a=pd.finalFourEntry.firstActor;
+      if(pd.finalFourFirstActionImmediateWin)finalFourFirstActionImmediateWinsByActor[a]++;
+      if(pd.finalFourFirstChosenColourImmediateWin)finalFourFirstChosenColourImmediateWinsByActor[a]++;
     }
     total+=g.turns;finals+=g.reachedFinalFour?1:0;min=Math.min(min,g.turns);max=Math.max(max,g.turns);
     placements+=g.placements;moves+=g.moves;jumps+=g.jumps;redeployPlacements+=g.redeployPlacements;forcedPlacements+=g.forcedPlacements;
@@ -1055,7 +1155,8 @@ function runBatch({rules={},games=1000,seed=1,strength="tactical",jumpPolicy="op
   return{
     games,wins,draws,firstPlayerWinPct:100*wins[0]/games,secondPlayerWinPct:100*wins[1]/games,drawPct:100*draws/games,
     firstPlayerScorePct:100*(wins[0]+draws/2)/games,averageTurns:total/games,minTurns:min,maxTurns:max,finalFourPct:100*finals/games,
-    placements,moves,jumps,redeployPlacements,forcedPlacements,formations,winTurns,drawTurns,resultCategories,winningActionTypes,winningResponseSlots,
+    placements,moves,jumps,redeployPlacements,forcedPlacements,formations,winTurns,drawTurns,resultCategories,winningActionTypes,phaseWinningActionTypes,winningResponseSlots,
+    phaseEntryOutcomes,phaseTransitionCauses,phaseTransitionActors,finalFourPlacementCountDistribution,finalFourImmediateWinAvailableByActor,finalFourFirstActionImmediateWinsByActor,finalFourFirstChosenColourImmediateWinsByActor,finalFourColourPolicy,
     forcedNormalColourWins,forcedNormalColourWinTotal,forcedNormalColourWinPct:100*forcedNormalColourWinTotal/games,forcedNormalExhausted,
     jumpPolicy,responsePolicy,boundaryPolicy,jumpConsequence,twoPieceResponses,boundaryResponses,jumpRedeployResponses,sequentialSecondChoices,redeployWins,jumpReserveWins,responsePairs,responseAllocations,boundaryCornerColours,
     boundarySelfCornerColours,boundaryResponderCornerColours,boundaryFirstSources,
@@ -1065,8 +1166,8 @@ function runBatch({rules={},games=1000,seed=1,strength="tactical",jumpPolicy="op
 }
 
 module.exports={
-  normaliseRules,normaliseJumpPolicy,normaliseResponsePolicy,normaliseBoundaryPolicy,normaliseJumpConsequencePolicy,allRuleConfigurations,recommendedRuleConfigurations,freshState,availableColours,enumerateActions,boardAfter,
-  chooseColour,chooseAction,applyAction,commitMoveResponse,commitSequentialSecond,commitBoundarySelfCorner,commitBoundaryCorner,normalForcedColourInfo,playGame,runBatch,classifyWin,
+  normaliseRules,normaliseJumpPolicy,normaliseResponsePolicy,normaliseBoundaryPolicy,normaliseJumpConsequencePolicy,normaliseFinalFourColourPolicy,allRuleConfigurations,recommendedRuleConfigurations,freshState,availableColours,enumerateActions,boardAfter,
+  chooseColour,chooseFinalFourColour,chooseAction,applyAction,commitMoveResponse,commitSequentialSecond,commitBoundarySelfCorner,commitBoundaryCorner,normalForcedColourInfo,playGame,runBatch,classifyWin,
   immediateWinningActions,fastCheckWin,neutralPatternPotential,handoverColourDanger,responseAllocations,bestTwoPieceResponsePlan,
   chooseTwoPieceResponse,evaluateSequentialFirstPlan,evaluateSequentialSecondChoices,chooseSequentialFirstPlan,chooseSequentialSecondColour,
   evaluateBoundaryFirstPlan,chooseBoundaryCornerColour,evaluateBoundaryResponderChoicePlan,chooseBoundaryResponderChoicePlan,evaluateMoverSelfCornerChoices,chooseBoundarySelfCornerPlan,
