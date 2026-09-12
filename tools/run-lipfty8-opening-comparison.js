@@ -73,15 +73,17 @@ function fmtDuration(ms) {
   return `${s}s`;
 }
 
-function aggregate(openingPolicy, configIndex, overallStart) {
+function aggregate(openingPolicy, configIndex) {
   const wins=[0,0], formations={}, resultCategories={"normal-both-colours":[0,0],"normal-one-colour":[0,0],"final-four":[0,0],"opening-four":[0,0]};
   const winningActions={placement:[0,0],move:[0,0],jump:[0,0],redeploy:[0,0]};
   const oneColourFirst=[0,0], finalFourFirst=[0,0], oneColourOutcomes=[{wins:[0,0],draws:0},{wins:[0,0],draws:0}], finalFourOutcomes=[{wins:[0,0],draws:0},{wins:[0,0],draws:0}];
   const turnDist={}, comparableTurnDist={};
   let draws=0,totalTurns=0,totalComparableTurns=0,minTurns=Infinity,maxTurnsSeen=0,finalFour=0,moves=0,jumps=0,redeployments=0,maxTurnDraws=0,repetitionGames=0,repetitionEvents=0;
 
-  const progressMilestones = new Set(Array.from({length:10},(_,i)=>Math.max(1,Math.ceil(games*(i+1)/10))));
+  const progressMilestones = Array.from({length:10},(_,i)=>Math.max(1,Math.ceil(games*(i+1)/10)));
   const start = Date.now();
+  let blockStart = start;
+  let progressIndex = 0;
   for(let i=0;i<games;i++) {
     const g = L8.playGame({rules,seed:seed+i,strength,maxTurns,openingPolicy,...fixed});
     if(g.winner === "draw") draws++; else wins[g.winner]++;
@@ -115,19 +117,19 @@ function aggregate(openingPolicy, configIndex, overallStart) {
     }
 
     const done=i+1;
-    if(progressMilestones.has(done)) {
+    if(progressIndex < progressMilestones.length && done === progressMilestones[progressIndex]) {
       const now=Date.now();
-      const elapsed=now-start;
-      const configRemaining=elapsed*(games-done)/done;
-      const totalDone=configIndex*games+done;
-      const totalGames=configs.length*games;
-      const overallElapsed=now-overallStart;
-      const overallRemaining=overallElapsed*(totalGames-totalDone)/totalDone;
+      const blockNumber=progressIndex+1;
+      const blockFrom=(blockNumber-1)*10;
+      const blockTo=blockNumber*10;
+      const scorePct=100*(wins[0]+draws/2)/done;
       process.stdout.write(
-        `  ${done} / ${games} (${(100*done/games).toFixed(1)}%) | now ${fmtClock(now)} | elapsed ${fmtDuration(elapsed)}`+
-        ` | this left ~${fmtDuration(configRemaining)} (done ~${fmtFinish(now+configRemaining)})`+
-        ` | all left ~${fmtDuration(overallRemaining)} (done ~${fmtFinish(now+overallRemaining)})\n`
+        `  ${configIndex+1}/${configs.length} | ${done}/${games} | Sim ${fmtClock(start)}`+
+        ` | ${blockFrom}-${blockTo}% ${fmtClock(blockStart)} | ${fmtDuration(now-blockStart)}`+
+        ` | P1 ${wins[0]} P2 ${wins[1]} D${draws} | Score ${scorePct.toFixed(1)}%\n`
       );
+      blockStart=now;
+      progressIndex++;
     }
   }
 
@@ -170,12 +172,11 @@ console.log(`Run started: ${fmtFinish(overallStart)} | progress output: 10% inte
 console.log("Fixed Lipfty 7 Standard rules: Move ON, opposite-colour Jump, redeploy-pass, sequential Move response, responder-choice boundary, one-colour placement-only, player/tactical Final Four choice, H/V/Diagonal + tight/spaced square wins, no diamonds.");
 console.log("Each configuration uses exactly the same seed range.");
 console.log("For automatic openings, 'avg turns' counts player turns after setup; 'comparable board-development avg' adds the four setup placements back so game length can also be compared directly with Lipfty 7.");
-console.log("Timing estimates are approximate and update at every 10% progress point.");
 
 const results=[];
 for(const [configIndex,c] of configs.entries()) {
   console.log(`\nStarting ${c.label} at ${fmtClock()}...`);
-  const r=aggregate(c.id,configIndex,overallStart); results.push({...c,...r});
+  const r=aggregate(c.id,configIndex); results.push({...c,...r});
   printSummary(c,r,results[0]);
 }
 
