@@ -59,15 +59,28 @@ function fmtFormation(obj) {
   const names = {horizontal:"H",vertical:"V",diagonal:"D",square:"Square","spaced-square":"Spaced Square",diamond:"Diamond","spaced-diamond":"Spaced Diamond",other:"Other"};
   return order.filter(k => obj[k]).map(k => `${names[k]} ${obj[k]}`).join(", ") || "none";
 }
+function fmtClock(ms=Date.now()) {
+  return new Date(ms).toLocaleTimeString("en-GB", {hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false});
+}
+function fmtFinish(ms) {
+  return new Date(ms).toLocaleString("en-GB", {weekday:"short",day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false});
+}
+function fmtDuration(ms) {
+  const total = Math.max(0,Math.round(ms/1000));
+  const h = Math.floor(total/3600), m = Math.floor((total%3600)/60), s = total%60;
+  if(h) return `${h}h ${m}m ${s}s`;
+  if(m) return `${m}m ${s}s`;
+  return `${s}s`;
+}
 
-function aggregate(openingPolicy) {
+function aggregate(openingPolicy, configIndex, overallStart) {
   const wins=[0,0], formations={}, resultCategories={"normal-both-colours":[0,0],"normal-one-colour":[0,0],"final-four":[0,0],"opening-four":[0,0]};
   const winningActions={placement:[0,0],move:[0,0],jump:[0,0],redeploy:[0,0]};
   const oneColourFirst=[0,0], finalFourFirst=[0,0], oneColourOutcomes=[{wins:[0,0],draws:0},{wins:[0,0],draws:0}], finalFourOutcomes=[{wins:[0,0],draws:0},{wins:[0,0],draws:0}];
   const turnDist={}, comparableTurnDist={};
   let draws=0,totalTurns=0,totalComparableTurns=0,minTurns=Infinity,maxTurnsSeen=0,finalFour=0,moves=0,jumps=0,redeployments=0,maxTurnDraws=0,repetitionGames=0,repetitionEvents=0;
 
-  const progressEvery = Math.max(1, Math.floor(games/20));
+  const progressMilestones = new Set(Array.from({length:10},(_,i)=>Math.max(1,Math.ceil(games*(i+1)/10))));
   const start = Date.now();
   for(let i=0;i<games;i++) {
     const g = L8.playGame({rules,seed:seed+i,strength,maxTurns,openingPolicy,...fixed});
@@ -102,12 +115,23 @@ function aggregate(openingPolicy) {
     }
 
     const done=i+1;
-    if(done===games || done%progressEvery===0) {
-      const elapsed=((Date.now()-start)/1000).toFixed(1);
-      process.stdout.write(`  ${done} / ${games} (${(100*done/games).toFixed(1)}%) | elapsed ${elapsed}s\n`);
+    if(progressMilestones.has(done)) {
+      const now=Date.now();
+      const elapsed=now-start;
+      const configRemaining=elapsed*(games-done)/done;
+      const totalDone=configIndex*games+done;
+      const totalGames=configs.length*games;
+      const overallElapsed=now-overallStart;
+      const overallRemaining=overallElapsed*(totalGames-totalDone)/totalDone;
+      process.stdout.write(
+        `  ${done} / ${games} (${(100*done/games).toFixed(1)}%) | now ${fmtClock(now)} | elapsed ${fmtDuration(elapsed)}`+
+        ` | this left ~${fmtDuration(configRemaining)} (done ~${fmtFinish(now+configRemaining)})`+
+        ` | all left ~${fmtDuration(overallRemaining)} (done ~${fmtFinish(now+overallRemaining)})\n`
+      );
     }
   }
 
+  const finishedAt=Date.now();
   return {
     openingPolicy,games,wins,draws,
     p1WinPct:100*wins[0]/games,p2WinPct:100*wins[1]/games,drawPct:100*draws/games,
@@ -117,7 +141,8 @@ function aggregate(openingPolicy) {
     movesPerGame:moves/games,jumpsPerGame:jumps/games,redeploymentsPerGame:redeployments/games,
     formations,resultCategories,winningActions,
     oneColourFirst,finalFourFirst,oneColourOutcomes,finalFourOutcomes,
-    maxTurnDraws,repetitionGames,repetitionEvents,turnDist,comparableTurnDist
+    maxTurnDraws,repetitionGames,repetitionEvents,turnDist,comparableTurnDist,
+    runtimeMs:finishedAt-start,finishedAt
   };
 }
 
@@ -131,22 +156,26 @@ function printSummary(c, r, baseline=null) {
   console.log(`  Formations: ${fmtFormation(r.formations)}`);
   console.log(`  Phase entry — one-colour first actor P1/P2: ${r.oneColourFirst[0]}/${r.oneColourFirst[1]} | Final Four first actor P1/P2: ${r.finalFourFirst[0]}/${r.finalFourFirst[1]}`);
   console.log(`  Loops/repetition observed: ${r.repetitionGames} games, ${r.repetitionEvents} repeated states | max-turn draws ${r.maxTurnDraws}`);
+  console.log(`  Time: ${fmtDuration(r.runtimeMs)} | finished ${fmtFinish(r.finishedAt)}`);
   if(baseline) {
     console.log(`  Vs Lipfty 7: P1 score ${pp(r.p1ScorePct-baseline.p1ScorePct)} | P1 win ${pp(r.p1WinPct-baseline.p1WinPct)} | P2 win ${pp(r.p2WinPct-baseline.p2WinPct)} | Draw ${pp(r.drawPct-baseline.drawPct)}`);
     console.log(`               avg comparable turns ${(r.averageComparableTurns-baseline.averageComparableTurns)>=0?"+":""}${(r.averageComparableTurns-baseline.averageComparableTurns).toFixed(3)} | Final Four ${pp(r.finalFourPct-baseline.finalFourPct)}`);
   }
 }
 
+const overallStart=Date.now();
 console.log("Lipfty 8 — automatic Opening Four comparison");
 console.log(`${games} games each; tactical strength ${strength}; base seed ${seed}; max turns ${maxTurns}.`);
+console.log(`Run started: ${fmtFinish(overallStart)} | progress output: 10% intervals (10 lines per configuration for normal run sizes).`);
 console.log("Fixed Lipfty 7 Standard rules: Move ON, opposite-colour Jump, redeploy-pass, sequential Move response, responder-choice boundary, one-colour placement-only, player/tactical Final Four choice, H/V/Diagonal + tight/spaced square wins, no diamonds.");
 console.log("Each configuration uses exactly the same seed range.");
 console.log("For automatic openings, 'avg turns' counts player turns after setup; 'comparable board-development avg' adds the four setup placements back so game length can also be compared directly with Lipfty 7.");
+console.log("Timing estimates are approximate and update at every 10% progress point.");
 
 const results=[];
-for(const c of configs) {
-  console.log(`\nStarting ${c.label}...`);
-  const r=aggregate(c.id); results.push({...c,...r});
+for(const [configIndex,c] of configs.entries()) {
+  console.log(`\nStarting ${c.label} at ${fmtClock()}...`);
+  const r=aggregate(c.id,configIndex,overallStart); results.push({...c,...r});
   printSummary(c,r,results[0]);
 }
 
@@ -164,7 +193,8 @@ const rows=results.map(r=>({
   moves:r.moves,jumps:r.jumps,redeployments:r.redeployments,moves_per_game:r.movesPerGame.toFixed(4),jumps_per_game:r.jumpsPerGame.toFixed(4),redeployments_per_game:r.redeploymentsPerGame.toFixed(4),
   max_turn_draws:r.maxTurnDraws,repetition_games:r.repetitionGames,repetition_events:r.repetitionEvents,
   horizontal:r.formations.horizontal||0,vertical:r.formations.vertical||0,diagonal:r.formations.diagonal||0,square:r.formations.square||0,spaced_square:r.formations["spaced-square"]||0,
-  one_colour_first_p1:r.oneColourFirst[0],one_colour_first_p2:r.oneColourFirst[1],final_four_first_p1:r.finalFourFirst[0],final_four_first_p2:r.finalFourFirst[1]
+  one_colour_first_p1:r.oneColourFirst[0],one_colour_first_p2:r.oneColourFirst[1],final_four_first_p1:r.finalFourFirst[0],final_four_first_p2:r.finalFourFirst[1],
+  runtime_seconds:(r.runtimeMs/1000).toFixed(1),finished_at:new Date(r.finishedAt).toISOString()
 }));
 
 try {
@@ -177,3 +207,6 @@ try {
 } catch(err) {
   console.warn(`\nCSV not written: ${err.message}`);
 }
+
+const overallFinished=Date.now();
+console.log(`Total run time: ${fmtDuration(overallFinished-overallStart)} | finished ${fmtFinish(overallFinished)}`);
