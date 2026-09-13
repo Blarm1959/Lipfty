@@ -1,20 +1,9 @@
 "use strict";
 
 // Lipfty 8 strategy probe.
-//
-// Purpose: test whether the very balanced Config 5 result survives when we
-// look beyond the single tactical choice made on the baseline path. At each
-// free normal-turn decision we compare the baseline tactical action with the
-// strongest few alternatives, then roll each option forward with ordinary
-// Lipfty 7 tactical play. We also test the two-colour handover choice from the
-// opponent/chooser's point of view.
-//
-// Rollouts use common random numbers: every option at a given decision gets
-// the same downstream RNG seed for rollout N. This makes option-vs-baseline
-// comparisons paired and reduces noise from later tactical tie-breaks.
-//
-// This is deliberately analysis-only. It does NOT alter Lipfty rules or the
-// released tactical chooser, and it is not an exhaustive proof/game-tree solve.
+// Analysis-only: no Lipfty rules or released tactical chooser are changed.
+// Rollouts use common random numbers so options at the same decision are paired.
+// Long-running work prints a start time plus live heartbeat/progress lines.
 
 const fs = require("fs");
 const path = require("path");
@@ -32,6 +21,7 @@ const topActions = Number(arg("top-actions", "8"));
 const reportGain = Number(arg("report-gain", "0.20"));
 const maxActions = Number(arg("max-turns", "500")); // compatibility with existing simulator option name
 const outDir = arg("out", "C:\\bxd\\Lipfty-Simulation-Results");
+const heartbeatSeconds = Number(arg("heartbeat", "15"));
 
 const seeds = String(seedArg).split(",").map(v=>v.trim()).filter(Boolean).map(Number);
 if(!seeds.length || seeds.some(v=>!Number.isInteger(v))) throw new Error("--seeds must be a comma-separated list of integers.");
@@ -39,6 +29,7 @@ if(!Number.isInteger(rollouts) || rollouts < 1) throw new Error("--rollouts must
 if(!Number.isInteger(topActions) || topActions < 1) throw new Error("--top-actions must be a positive integer.");
 if(!Number.isFinite(reportGain) || reportGain < 0 || reportGain > 1) throw new Error("--report-gain must be between 0 and 1.");
 if(!Number.isInteger(maxActions) || maxActions < 1) throw new Error("--max-turns must be a positive integer.");
+if(!Number.isFinite(heartbeatSeconds) || heartbeatSeconds < 1) throw new Error("--heartbeat must be at least 1 second.");
 
 const rules = S.normaliseRules({
   allowJump:true,
@@ -77,6 +68,29 @@ function actionKey(a) {
 }
 function scoreText(v) { return `${(100*v).toFixed(0)}%`; }
 function formatNum(v) { return Number.isFinite(v) ? v.toFixed(2) : String(v); }
+function fmtClock(ms=Date.now()) {
+  return new Date(ms).toLocaleTimeString("en-GB", {hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false});
+}
+function fmtDateTime(ms=Date.now()) {
+  return new Date(ms).toLocaleString("en-GB", {weekday:"short",day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false});
+}
+function fmtDuration(ms) {
+  const total=Math.max(0,Math.round(ms/1000));
+  const h=Math.floor(total/3600),m=Math.floor((total%3600)/60),s=total%60;
+  if(h)return `${h}h ${m}m ${s}s`;
+  if(m)return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+let runStartedAt=Date.now();
+let seedStartedAt=runStartedAt;
+let lastHeartbeatAt=runStartedAt;
+function progressLine(text, force=false) {
+  const now=Date.now();
+  if(!force && now-lastHeartbeatAt < heartbeatSeconds*1000) return;
+  lastHeartbeatAt=now;
+  console.log(`  ${fmtClock(now)} | ${text} | seed ${fmtDuration(now-seedStartedAt)} | total ${fmtDuration(now-runStartedAt)}`);
+}
 
 function mulberry32(seed) {
   let a=seed>>>0;
@@ -91,8 +105,7 @@ function hash32(text) {
   return h>>>0;
 }
 function rolloutSeed(gameSeed, actionNumber, kind, index) {
-  // Deliberately excludes the option itself. Every option at this decision uses
-  // the same seed for rollout N, giving a paired/common-random-number comparison.
+  // Excludes option identity: every option at a decision uses the same seed for rollout N.
   return (gameSeed ^ hash32(`${actionNumber}|${kind}|paired|${index}`) ^ Math.imul(index+1,0x9E3779B1))>>>0;
 }
 
@@ -159,7 +172,7 @@ function perspectiveScore(winner, player) {
   return winner === player ? 1 : 0;
 }
 
-function evaluateActionOption(s, action, player, gameSeed, actionNumber) {
+function evaluateActionOption(s, action, player, gameSeed, actionNumber, progress) {
   let wins=0,draws=0,losses=0,total=0;
   const outcomes=[];
   for(let r=0;r<rollouts;r++) {
@@ -170,11 +183,12 @@ function evaluateActionOption(s, action, player, gameSeed, actionNumber) {
     outcomes.push(sc);
     total+=sc;
     if(sc===1)wins++;else if(sc===0.5)draws++;else losses++;
+    progressLine(`seed ${gameSeed} | action ${actionNumber} | ${progress} | rollout ${r+1}/${rollouts}`);
   }
   return {score:total/rollouts,wins,draws,losses,outcomes};
 }
 
-function evaluateColourOption(s, colour, chooser, gameSeed, actionNumber) {
+function evaluateColourOption(s, colour, chooser, gameSeed, actionNumber, progress) {
   let wins=0,draws=0,losses=0,total=0;
   const outcomes=[];
   for(let r=0;r<rollouts;r++) {
@@ -186,6 +200,7 @@ function evaluateColourOption(s, colour, chooser, gameSeed, actionNumber) {
     outcomes.push(sc);
     total+=sc;
     if(sc===1)wins++;else if(sc===0.5)draws++;else losses++;
+    progressLine(`seed ${gameSeed} | action ${actionNumber} | ${progress} | rollout ${r+1}/${rollouts}`);
   }
   return {score:total/rollouts,wins,draws,losses,outcomes};
 }
@@ -269,10 +284,15 @@ function recordDecision({gameSeed,baselineWinner,actionNumber,type,maker,recipie
   }
 }
 
-function runBaselineAndProbe(gameSeed) {
+function runBaselineAndProbe(gameSeed, seedIndex) {
+  seedStartedAt=Date.now();
+  lastHeartbeatAt=seedStartedAt;
+  console.log(`\nStarting seed ${seedIndex+1}/${seeds.length} (${gameSeed}) at ${fmtClock(seedStartedAt)}...`);
+
   const s=L8.prepareState(gameSeed,fixed.jumpPolicy,fixed.responsePolicy,fixed.boundaryPolicy,fixed.jumpConsequence,fixed.oneColourPolicy,fixed.openingPolicy);
   let winType=null,winningAction=null;
   const localDecisions=[];
+  let decisionNumber=0;
 
   while(!s.winner && s.turns < maxActions) {
     commitPending(s);
@@ -286,17 +306,36 @@ function runBaselineAndProbe(gameSeed) {
     if(!action) { s.winner="draw"; break; }
 
     if(free && !s.finalFour && available.length>1 && normalColourCount(s)>1) {
+      decisionNumber++;
       const chooser=other(s.currentPlayer);
-      const colourOptions=available.map(c=>({option:c,...evaluateColourOption(beforeColourState,c,chooser,gameSeed,actionNumber)}));
+      const decisionStarted=Date.now();
+      progressLine(`seed ${gameSeed} | decision ${decisionNumber} | action ${actionNumber} handover | starting ${available.length} options x ${rollouts}`,true);
+      const colourOptions=[];
+      for(let oi=0;oi<available.length;oi++) {
+        const c=available[oi];
+        progressLine(`seed ${gameSeed} | decision ${decisionNumber} | handover option ${oi+1}/${available.length} ${c} | starting`,true);
+        colourOptions.push({option:c,...evaluateColourOption(beforeColourState,c,chooser,gameSeed,actionNumber,`decision ${decisionNumber} handover option ${oi+1}/${available.length} ${c}`)});
+      }
       localDecisions.push({kind:"handover",actionNumber,maker:chooser,recipient:s.currentPlayer,baselineOption:colour,options:colourOptions});
+      progressLine(`seed ${gameSeed} | decision ${decisionNumber} handover complete | ${fmtDuration(Date.now()-decisionStarted)}`,true);
     }
 
     if(free) {
       const actor=s.currentPlayer;
       const {allCount,candidates}=topCandidateActions(s,colour,action);
       if(allCount>1) {
-        const actionOptions=candidates.map(({a,score})=>({option:actionLabel(a),heuristic:score,...evaluateActionOption(s,a,actor,gameSeed,actionNumber)}));
+        decisionNumber++;
+        const decisionStarted=Date.now();
+        progressLine(`seed ${gameSeed} | decision ${decisionNumber} | action ${actionNumber} action-choice | ${candidates.length} candidates x ${rollouts}`,true);
+        const actionOptions=[];
+        for(let oi=0;oi<candidates.length;oi++) {
+          const {a,score}=candidates[oi];
+          const label=actionLabel(a);
+          progressLine(`seed ${gameSeed} | decision ${decisionNumber} | action option ${oi+1}/${candidates.length} ${label} | starting`,true);
+          actionOptions.push({option:label,heuristic:score,...evaluateActionOption(s,a,actor,gameSeed,actionNumber,`decision ${decisionNumber} action option ${oi+1}/${candidates.length}`)});
+        }
         localDecisions.push({kind:"action",actionNumber,maker:actor,recipient:null,baselineOption:actionLabel(action),options:actionOptions,allCount,colour});
+        progressLine(`seed ${gameSeed} | decision ${decisionNumber} action-choice complete | ${fmtDuration(Date.now()-decisionStarted)}`,true);
       }
     }
 
@@ -344,7 +383,8 @@ function runBaselineAndProbe(gameSeed) {
     baseline_loser_improvable_decisions:loserImprovements.length,baseline_loser_material_leads:loserMaterial.length
   });
 
-  console.log(`  Seed ${gameSeed}: ${actorName(winner)} in ${s.turns} actions (${winType||check.winType||"n/a"}/${winningAction||check.winningActionType||"n/a"}) | decisions ${seedDecisions.length}, better ${improved.length}, substantial paired leads ${material.length}, loser leads ${loserMaterial.length}`);
+  const finished=Date.now();
+  console.log(`Seed ${gameSeed} finished: ${fmtClock(finished)} | ${fmtDuration(finished-seedStartedAt)} | ${actorName(winner)} in ${s.turns} actions (${winType||check.winType||"n/a"}/${winningAction||check.winningActionType||"n/a"}) | decisions ${seedDecisions.length}, better ${improved.length}, substantial paired leads ${material.length}, loser leads ${loserMaterial.length}`);
 }
 
 function writeCsv(filePath, rows) {
@@ -358,11 +398,15 @@ console.log("Lipfty 8 — Config 5 play-well / winning-strategy probe");
 console.log(`Seeds: ${seeds.join(", ")} | ${rollouts} paired tactical rollout(s) per option | top ${topActions} action candidates + baseline.`);
 console.log(`Substantial-lead reporting threshold: ${(100*reportGain).toFixed(0)} percentage points.`);
 console.log("Common random numbers: ON — every option at the same decision uses the same rollout seed.");
+console.log(`Live progress: ON — heartbeat at least every ${heartbeatSeconds}s during rollout evaluation.`);
 console.log("Opening: 2.2 inner-board corners, colours diagonal. All Lipfty 7 rules remain frozen.");
-console.log("This is a one-deviation rollout probe, not a full mathematical game-tree proof.\n");
+console.log("This is a one-deviation rollout probe, not a full mathematical game-tree proof.");
+runStartedAt=Date.now();
+seedStartedAt=runStartedAt;
+lastHeartbeatAt=runStartedAt;
+console.log(`Run started: ${fmtDateTime(runStartedAt)}`);
 
-const started=Date.now();
-for(const gameSeed of seeds)runBaselineAndProbe(gameSeed);
+for(const [i,gameSeed] of seeds.entries()) runBaselineAndProbe(gameSeed,i);
 
 const improved=decisionRows.filter(r=>Number(r.gain)>1e-9);
 const actionImproved=improved.filter(r=>r.decision_type==="action");
@@ -404,4 +448,5 @@ try {
   console.warn(`\nCSV not written: ${err.message}`);
 }
 
-console.log(`Total probe time: ${Math.round((Date.now()-started)/1000)}s`);
+const overallFinished=Date.now();
+console.log(`Total probe time: ${fmtDuration(overallFinished-runStartedAt)} | finished ${fmtDateTime(overallFinished)}`);
