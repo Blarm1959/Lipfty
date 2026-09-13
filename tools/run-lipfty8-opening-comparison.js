@@ -13,6 +13,7 @@ function flag(name) { return process.argv.includes(`--${name}`); }
 const games = Number(arg("games", "50"));
 const seed = Number(arg("seed", "1"));
 const maxTurns = Number(arg("max-turns", "500"));
+// Historical simulator field name: this limit counts individual actions, including forced placements/redeployments.
 const strength = arg("strength", "tactical");
 const outDir = arg("out", "C:\\bxd\\Lipfty-Simulation-Results");
 const configArg = arg("config", null);
@@ -265,7 +266,7 @@ function aggregate(openingPolicy) {
           branch,
           seed:gameSeed,
           winner:g.winner,
-          turns:g.turns,
+          actions:g.turns,
           winType:g.winType || "",
           winningAction:g.winningActionType || "",
           actionTrace:g.actionTrace
@@ -278,8 +279,8 @@ function aggregate(openingPolicy) {
       traceRows.push({
         seed:gameSeed,
         winner:g.winner === "draw" ? "draw" : actorName(g.winner),
-        turns:g.turns,
-        comparable_turns:g.comparableTurns,
+        actions:g.turns,
+        comparable_actions:g.comparableTurns,
         win_type:g.winType || "",
         winning_action:g.winningActionType || "",
         p1_moves:movesByPlayer[0]||0,
@@ -287,14 +288,14 @@ function aggregate(openingPolicy) {
         p1_jumps:jumpsByPlayer[0]||0,
         p2_jumps:jumpsByPlayer[1]||0,
         jump_count:jumpEvents.length,
-        jump_turns:jumpEvents.map(e=>e.turn).join(";"),
+        jump_actions:jumpEvents.map(e=>e.turn).join(";"),
         jump_actors:jumpEvents.map(e=>actorName(e.actor)).join(";"),
         jump_colours:jumpEvents.map(e=>e.colour).join(";"),
         jump_from:jumpEvents.map(e=>e.from).join(";"),
         jump_over:jumpEvents.map(e=>e.over).join(";"),
         jump_to:jumpEvents.map(e=>e.to).join(";"),
         actions_after_last_jump:lastJump ? g.turns-lastJump.turn : "",
-        one_colour_turn:one?.turn ?? "",
+        one_colour_action:one?.turn ?? "",
         one_colour_first_actor:one ? actorName(one.firstActor) : "",
         one_colour_transition_actor:one ? actorName(one.transitionActor) : "",
         one_colour_cause:one?.cause || "",
@@ -336,7 +337,7 @@ function aggregate(openingPolicy) {
 function printSummary(c, r, baseline=null) {
   console.log(`\n${c.label}`);
   console.log(`  Result: P1 ${r.wins[0]} (${r.p1WinPct.toFixed(2)}%), P2 ${r.wins[1]} (${r.p2WinPct.toFixed(2)}%), Draw ${r.draws} (${r.drawPct.toFixed(2)}%) | P1 score ${r.p1ScorePct.toFixed(2)}%`);
-  console.log(`  Turns: avg ${r.averageTurns.toFixed(3)}, min ${r.minTurns}, max ${r.maxTurns} | comparable board-development avg ${r.averageComparableTurns.toFixed(3)}`);
+  console.log(`  Actions: avg ${r.averageTurns.toFixed(3)}, min ${r.minTurns}, max ${r.maxTurns} | comparable board-development avg ${r.averageComparableTurns.toFixed(3)}`);
   console.log(`  Actions: Move ${r.moves} (${r.movesPerGame.toFixed(3)}/game), Jump ${r.jumps} (${r.jumpsPerGame.toFixed(3)}/game), redeployments ${r.redeployments} (${r.redeploymentsPerGame.toFixed(3)}/game)`);
   console.log(`  Final Four reached: ${r.finalFourPct.toFixed(2)}%`);
   console.log(`  Winning actions: placement ${r.winningActions.placement[0]}/${r.winningActions.placement[1]}, move ${r.winningActions.move[0]}/${r.winningActions.move[1]}, jump ${r.winningActions.jump[0]}/${r.winningActions.jump[1]}, redeploy ${r.winningActions.redeploy[0]}/${r.winningActions.redeploy[1]}`);
@@ -348,7 +349,7 @@ function printSummary(c, r, baseline=null) {
   console.log(`  Player action detail — moves P1/P2 ${r.detail.movesByPlayer[0]}/${r.detail.movesByPlayer[1]}, jumps P1/P2 ${r.detail.jumpsByPlayer[0]}/${r.detail.jumpsByPlayer[1]}`);
   console.log(`  P2 move detail — P2 moved in ${r.detail.p2MoveGames} games: P1 won ${r.detail.p2MoveGamesWonByP1}, P2 won ${r.detail.p2MoveGamesWonByP2}, draws ${r.detail.p2MoveGamesDrawn}; P2 move actions in P1/P2 wins ${r.detail.p2MovesInP1Wins}/${r.detail.p2MovesInP2Wins}`);
   if(r.detail.jumpEvents) {
-    console.log(`  Jump timing — ${r.detail.jumpEvents} jumps; turn avg ${avg(r.detail.jumpTurnTotal,r.detail.jumpEvents)}, range ${r.detail.jumpTurnMin}-${r.detail.jumpTurnMax}; actor P1/P2 ${r.detail.jumpActor[0]}/${r.detail.jumpActor[1]}`);
+    console.log(`  Jump timing — ${r.detail.jumpEvents} jumps; action avg ${avg(r.detail.jumpTurnTotal,r.detail.jumpEvents)}, range ${r.detail.jumpTurnMin}-${r.detail.jumpTurnMax}; actor P1/P2 ${r.detail.jumpActor[0]}/${r.detail.jumpActor[1]}`);
   } else {
     console.log(`  Jump timing — no jumps`);
   }
@@ -356,7 +357,7 @@ function printSummary(c, r, baseline=null) {
     console.log(`  After-jump diagonal wins — ${r.detail.jumpDiagonalGames}; winning action ${fmtCounts(r.detail.jumpDiagonalWinningActions)}; winner P1/P2 ${r.detail.jumpDiagonalWinners[0]}/${r.detail.jumpDiagonalWinners[1]}; actions after last jump avg ${avg(r.detail.jumpToWinGapTotal,r.detail.jumpDiagonalGames)}, range ${r.detail.jumpToWinGapMin}-${r.detail.jumpToWinGapMax}`);
   }
   if(r.detail.oneColourEntries) {
-    console.log(`  One-colour timing — ${r.detail.oneColourEntries} entries; turn avg ${avg(r.detail.oneColourTurnTotal,r.detail.oneColourEntries)}, range ${r.detail.oneColourTurnMin}-${r.detail.oneColourTurnMax}; transition actor P1/P2 ${r.detail.oneColourTransitionActors[0]}/${r.detail.oneColourTransitionActors[1]}; causes ${fmtCounts(r.detail.oneColourCauses)}`);
+    console.log(`  One-colour timing — ${r.detail.oneColourEntries} entries; action avg ${avg(r.detail.oneColourTurnTotal,r.detail.oneColourEntries)}, range ${r.detail.oneColourTurnMin}-${r.detail.oneColourTurnMax}; transition actor P1/P2 ${r.detail.oneColourTransitionActors[0]}/${r.detail.oneColourTransitionActors[1]}; causes ${fmtCounts(r.detail.oneColourCauses)}`);
   }
   if(sequence) {
     const byBranch=new Map(r.sequenceRepresentatives.map(x=>[x.branch,x]));
@@ -366,11 +367,11 @@ function printSummary(c, r, baseline=null) {
     const missing=SEQUENCE_BRANCH_ORDER.filter(branch=>!byBranch.has(branch));
     if(missing.length) console.log(`  Representative branches still missing — ${missing.join("; ")}`);
   }
-  console.log(`  Loops/repetition observed: ${r.repetitionGames} games, ${r.repetitionEvents} repeated states | max-turn draws ${r.maxTurnDraws}`);
+  console.log(`  Loops/repetition observed: ${r.repetitionGames} games, ${r.repetitionEvents} repeated states | max-action draws ${r.maxTurnDraws}`);
   console.log(`  Time: ${fmtDuration(r.runtimeMs)} | finished ${fmtFinish(r.finishedAt)}`);
   if(baseline) {
     console.log(`  Vs Lipfty 7: P1 score ${pp(r.p1ScorePct-baseline.p1ScorePct)} | P1 win ${pp(r.p1WinPct-baseline.p1WinPct)} | P2 win ${pp(r.p2WinPct-baseline.p2WinPct)} | Draw ${pp(r.drawPct-baseline.drawPct)}`);
-    console.log(`               avg comparable turns ${(r.averageComparableTurns-baseline.averageComparableTurns)>=0?"+":""}${(r.averageComparableTurns-baseline.averageComparableTurns).toFixed(3)} | Final Four ${pp(r.finalFourPct-baseline.finalFourPct)}`);
+    console.log(`               avg comparable actions ${(r.averageComparableTurns-baseline.averageComparableTurns)>=0?"+":""}${(r.averageComparableTurns-baseline.averageComparableTurns).toFixed(3)} | Final Four ${pp(r.finalFourPct-baseline.finalFourPct)}`);
   }
 }
 
@@ -383,14 +384,14 @@ function writeCsv(filePath, rows) {
 
 const overallStart=Date.now();
 console.log("Lipfty 8 — automatic Opening Four comparison");
-console.log(`${games} games each; tactical strength ${strength}; base seed ${seed}; max turns ${maxTurns}.`);
+console.log(`${games} games each; tactical strength ${strength}; base seed ${seed}; max actions ${maxTurns}.`);
 console.log(`Configurations: ${selectedConfigNumbers.join(",")} of ${configs.length}.`);
 console.log(`Run started: ${fmtFinish(overallStart)} | progress output: 10% intervals (10 lines per configuration for normal run sizes).`);
 if(trace) console.log("Per-game structural trace: ON (--trace).");
 if(sequence) console.log("Representative action-sequence capture: ON (--sequence).");
 console.log("Fixed Lipfty 7 Standard rules: Move ON, opposite-colour Jump, redeploy-pass, sequential Move response, responder-choice boundary, one-colour placement-only, player/tactical Final Four choice, H/V/Diagonal + tight/spaced square wins, no diamonds.");
 console.log("Each configuration uses exactly the same seed range.");
-console.log("For automatic openings, 'avg turns' counts player turns after setup; 'comparable board-development avg' adds the four setup placements back so game length can also be compared directly with Lipfty 7.");
+console.log("For automatic openings, 'avg actions' counts simulator actions after setup; 'comparable board-development avg' adds the four automatic setup placements back for direct comparison with Lipfty 7.");
 
 const results=[];
 let baseline=null;
@@ -416,15 +417,15 @@ const rows=results.map(r=>({
   config_number:r.configNumber,opening:r.openingPolicy,label:r.label,games:r.games,p1_wins:r.wins[0],p2_wins:r.wins[1],draws:r.draws,
   p1_win_pct:r.p1WinPct.toFixed(4),p2_win_pct:r.p2WinPct.toFixed(4),draw_pct:r.drawPct.toFixed(4),p1_score_pct:r.p1ScorePct.toFixed(4),
   distance_from_50_pp:Math.abs(r.p1ScorePct-50).toFixed(4),delta_vs_lipfty7_score_pp:baseline ? (r.p1ScorePct-baseline.p1ScorePct).toFixed(4) : "",
-  average_turns:r.averageTurns.toFixed(4),average_comparable_turns:r.averageComparableTurns.toFixed(4),final_four_pct:r.finalFourPct.toFixed(4),
+  average_actions:r.averageTurns.toFixed(4),average_comparable_actions:r.averageComparableTurns.toFixed(4),final_four_pct:r.finalFourPct.toFixed(4),
   moves:r.moves,jumps:r.jumps,redeployments:r.redeployments,moves_per_game:r.movesPerGame.toFixed(4),jumps_per_game:r.jumpsPerGame.toFixed(4),redeployments_per_game:r.redeploymentsPerGame.toFixed(4),
   p1_moves:r.detail.movesByPlayer[0],p2_moves:r.detail.movesByPlayer[1],p1_jumps:r.detail.jumpsByPlayer[0],p2_jumps:r.detail.jumpsByPlayer[1],
   p2_move_games:r.detail.p2MoveGames,p2_move_games_won_p1:r.detail.p2MoveGamesWonByP1,p2_move_games_won_p2:r.detail.p2MoveGamesWonByP2,
-  jump_turn_avg:r.detail.jumpEvents ? (r.detail.jumpTurnTotal/r.detail.jumpEvents).toFixed(4) : "",jump_turn_min:r.detail.jumpEvents?r.detail.jumpTurnMin:"",jump_turn_max:r.detail.jumpEvents?r.detail.jumpTurnMax:"",
+  jump_action_avg:r.detail.jumpEvents ? (r.detail.jumpTurnTotal/r.detail.jumpEvents).toFixed(4) : "",jump_action_min:r.detail.jumpEvents?r.detail.jumpTurnMin:"",jump_action_max:r.detail.jumpEvents?r.detail.jumpTurnMax:"",
   jump_after_gap_avg:r.detail.jumpDiagonalGames ? (r.detail.jumpToWinGapTotal/r.detail.jumpDiagonalGames).toFixed(4) : "",jump_after_gap_min:r.detail.jumpDiagonalGames?r.detail.jumpToWinGapMin:"",jump_after_gap_max:r.detail.jumpDiagonalGames?r.detail.jumpToWinGapMax:"",
   jump_diagonal_win_by_placement:r.detail.jumpDiagonalWinningActions.placement||0,jump_diagonal_win_by_move:r.detail.jumpDiagonalWinningActions.move||0,
-  one_colour_turn_avg:r.detail.oneColourEntries ? (r.detail.oneColourTurnTotal/r.detail.oneColourEntries).toFixed(4) : "",one_colour_turn_min:r.detail.oneColourEntries?r.detail.oneColourTurnMin:"",one_colour_turn_max:r.detail.oneColourEntries?r.detail.oneColourTurnMax:"",
-  max_turn_draws:r.maxTurnDraws,repetition_games:r.repetitionGames,repetition_events:r.repetitionEvents,
+  one_colour_action_avg:r.detail.oneColourEntries ? (r.detail.oneColourTurnTotal/r.detail.oneColourEntries).toFixed(4) : "",one_colour_action_min:r.detail.oneColourEntries?r.detail.oneColourTurnMin:"",one_colour_action_max:r.detail.oneColourEntries?r.detail.oneColourTurnMax:"",
+  max_action_draws:r.maxTurnDraws,repetition_games:r.repetitionGames,repetition_events:r.repetitionEvents,
   horizontal:r.formations.horizontal||0,vertical:r.formations.vertical||0,diagonal:r.formations.diagonal||0,square:r.formations.square||0,spaced_square:r.formations["spaced-square"]||0,
   one_colour_first_p1:r.oneColourFirst[0],one_colour_first_p2:r.oneColourFirst[1],final_four_first_p1:r.finalFourFirst[0],final_four_first_p2:r.finalFourFirst[1],
   jump_games:r.structural.gamesWithJump,one_jump_games:r.structural.gamesWithExactlyOneJump,multi_jump_games:r.structural.gamesWithMultipleJumps,
@@ -457,11 +458,11 @@ try {
         branch:rep.branch,
         seed:rep.seed,
         final_winner:rep.winner === "draw" ? "draw" : actorName(rep.winner),
-        final_turns:rep.turns,
+        final_actions:rep.turns,
         final_win_type:rep.winType,
         final_winning_action:rep.winningAction,
         seq:ev.seq,
-        turn:ev.turn,
+        action_number:ev.turn,
         event:ev.event,
         actor:actorName(ev.actor),
         colour:ev.colour ?? "",
