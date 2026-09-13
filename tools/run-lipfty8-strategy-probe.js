@@ -144,7 +144,7 @@ function continueTactical(s) {
       S.commitMoveResponse(s,rules,"tactical");
     }
   }
-  return {winner:s.winner||"draw",actions:s.turns,winType:null,winningAction:null};
+  return {winner:s.winner??"draw",actions:s.turns,winType:null,winningAction:null};
 }
 
 function perspectiveScore(winner, player) {
@@ -280,7 +280,7 @@ function runBaselineAndProbe(gameSeed) {
     }
   }
 
-  const winner=s.winner||"draw";
+  const winner=s.winner??"draw";
   const check=L8.playGame({rules,seed:gameSeed,strength:"tactical",maxTurns:maxActions,...fixed});
   if(check.winner!==winner || check.turns!==s.turns) {
     throw new Error(`Baseline replay mismatch for seed ${gameSeed}: probe ${actorName(winner)}/${s.turns}, simulator ${actorName(check.winner)}/${check.turns}.`);
