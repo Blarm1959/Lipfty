@@ -3,7 +3,7 @@
 // Lipfty 8 analysis-only simulator.
 //
 // This deliberately delegates all post-opening rules and tactical choices to
-// the frozen Lipfty 7 simulator.  Lipfty 8 changes only the Opening Four setup.
+// the frozen Lipfty 7 simulator. Lipfty 8 changes only the Opening Four setup.
 const S = require("./lipfty7-simulator.js");
 
 const COLOURS = ["black", "white"];
@@ -15,9 +15,6 @@ const OPENING_POLICIES = [
   "corners-diagonal"
 ];
 
-// Inner 6x6 board uses row-major indexes 0..35.
-// Centre 2x2: (2,2) (2,3) (3,2) (3,3) => 14,15,20,21.
-// Inner-board corners: (0,0) (0,5) (5,0) (5,5) => 0,5,30,35.
 const AUTOMATIC_OPENINGS = {
   "centre-adjacent": [
     {to:14, colour:"black"}, {to:15, colour:"black"},
@@ -61,9 +58,6 @@ function prepareState(seed, jumpPolicy, responsePolicy, boundaryPolicy, jumpCons
     s.board[item.to] = {id:s.nextPieceId++, colour:item.colour};
   }
 
-  // The four top-corner pieces have already been consumed by setup.  No player
-  // has yet taken a turn.  P1 is the randomly selected starting player in the
-  // real game; in simulation P1 means whichever player was selected to start.
   s.openingRemaining = 0;
   s.cornerRemaining = {black:0, white:0};
   s.currentPlayer = 0;
@@ -128,7 +122,9 @@ function recordPhaseTransition(d, s, beforeColours, beforeReserve, action, wasFo
       transitionActor:actor,
       cause,
       turn:s.turns,
-      remainingColour:COLOURS.find(c => s.normalRemaining[c] > 0)
+      remainingColour:COLOURS.find(c => s.normalRemaining[c] > 0),
+      remainingBlack:s.normalRemaining.black,
+      remainingWhite:s.normalRemaining.white
     };
   }
   if(!d.finalFourEntry && beforeReserve > 0 && afterReserve === 0 && s.finalFour) {
@@ -148,6 +144,7 @@ function recordPhaseTransition(d, s, beforeColours, beforeReserve, action, wasFo
 function emptyResponseStats() {
   return {
     placements:0, moves:0, jumps:0, redeployPlacements:0, forcedPlacements:0,
+    placementsByPlayer:[0,0], movesByPlayer:[0,0], jumpsByPlayer:[0,0], jumpEvents:[],
     twoPieceResponses:0, boundaryResponses:0, jumpRedeployResponses:0, sequentialSecondChoices:0,
     redeployWins:[0,0], jumpReserveWins:[0,0], maxConsecutiveRedeployOnlyJumps:0,
     boundaryFirstSources:{normal:0,corner:0},
@@ -167,8 +164,6 @@ function finish(result, phaseDiagnostics, openingPolicy, repetitionObserved, rep
     automaticOpening,
     repetitionObserved,
     repetitionEvents,
-    // Adds the four automatic setup placements back for an apples-to-apples
-    // board-development length beside the true post-setup player-turn count.
     comparableTurns:result.turns + (automaticOpening ? 4 : 0)
   };
 }
@@ -223,7 +218,9 @@ function playGame({
     if(forcedColourInfo && !phaseDiagnostics.oneColourEntry) {
       phaseDiagnostics.oneColourEntry = {
         firstActor:s.currentPlayer, transitionActor:null, cause:"pre-existing", turn:s.turns,
-        remainingColour:forcedColourInfo.colour
+        remainingColour:forcedColourInfo.colour,
+        remainingBlack:s.normalRemaining.black,
+        remainingWhite:s.normalRemaining.white
       };
     }
 
@@ -234,12 +231,29 @@ function playGame({
     if(!(action.type === "jump" && (s.jumpConsequence === "redeploy-only" || s.jumpConsequence === "redeploy-pass"))) {
       consecutiveRedeployOnlyJumps = 0;
     }
-    if(action.type.includes("place")) stats.placements++;
-    else if(action.type === "move") stats.moves++;
-    else stats.jumps++;
-    if(wasForced) stats.forcedPlacements++;
 
     const actor = s.currentPlayer;
+    const actionTurn = s.turns + 1;
+    if(action.type.includes("place")) {
+      stats.placements++;
+      stats.placementsByPlayer[actor]++;
+    } else if(action.type === "move") {
+      stats.moves++;
+      stats.movesByPlayer[actor]++;
+    } else {
+      stats.jumps++;
+      stats.jumpsByPlayer[actor]++;
+      stats.jumpEvents.push({
+        turn:actionTurn,
+        actor,
+        colour,
+        from:action.from,
+        to:action.to,
+        over:action.over
+      });
+    }
+    if(wasForced) stats.forcedPlacements++;
+
     const beforeColours = normalColourCount(s), beforeReserve = normalReserveCount(s);
     if(resultCategory === "final-four" && action.type === "final-place") {
       phaseDiagnostics.finalFourPlacements++;
