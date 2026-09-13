@@ -81,12 +81,7 @@ const selectedConfigNumbers = requestedConfigNumbers
   ? configs.map((_,i)=>i+1).filter(n => requestedConfigNumbers.includes(n))
   : configs.map((_,i)=>i+1);
 
-function pct(n) { return (100*n/games).toFixed(2); }
 function pp(n) { return `${n >= 0 ? "+" : ""}${n.toFixed(2)} pp`; }
-function fmtDist(obj) {
-  const e = Object.entries(obj).sort((a,b) => Number(a[0]) - Number(b[0]));
-  return e.length ? e.map(([k,v]) => `${k}:${v}`).join(" ") : "none";
-}
 function fmtFormation(obj) {
   const order = ["horizontal","vertical","diagonal","square","spaced-square","diamond","spaced-diamond","other"];
   const names = {horizontal:"H",vertical:"V",diagonal:"D",square:"Square","spaced-square":"Spaced Square",diamond:"Diamond","spaced-diamond":"Spaced Diamond",other:"Other"};
@@ -106,17 +101,31 @@ function fmtDuration(ms) {
   return `${s}s`;
 }
 
-function aggregate(openingPolicy, configIndex) {
+function aggregate(openingPolicy) {
   const wins=[0,0], formations={}, resultCategories={"normal-both-colours":[0,0],"normal-one-colour":[0,0],"final-four":[0,0],"opening-four":[0,0]};
   const winningActions={placement:[0,0],move:[0,0],jump:[0,0],redeploy:[0,0]};
   const oneColourFirst=[0,0], finalFourFirst=[0,0], oneColourOutcomes=[{wins:[0,0],draws:0},{wins:[0,0],draws:0}], finalFourOutcomes=[{wins:[0,0],draws:0},{wins:[0,0],draws:0}];
   const turnDist={}, comparableTurnDist={};
+  const structural = {
+    gamesWithJump:0,
+    gamesWithExactlyOneJump:0,
+    gamesWithMultipleJumps:0,
+    gamesWithRedeploy:0,
+    jumpGamesWithEqualRedeployCount:0,
+    jumpGamesEndingDiagonal:0,
+    jumpGamesNotEndingDiagonal:0,
+    diagonalWinsWithoutJump:0,
+    p2WinsWithOneColourP2First:0,
+    p2WinsWithoutOneColourP2First:0,
+    oneColourP2FirstNotP2Win:0
+  };
   let draws=0,totalTurns=0,totalComparableTurns=0,minTurns=Infinity,maxTurnsSeen=0,finalFour=0,moves=0,jumps=0,redeployments=0,maxTurnDraws=0,repetitionGames=0,repetitionEvents=0;
 
   const progressMilestones = Array.from({length:10},(_,i)=>Math.max(1,Math.ceil(games*(i+1)/10)));
   const start = Date.now();
   let blockStart = start;
   let progressIndex = 0;
+
   for(let i=0;i<games;i++) {
     const g = L8.playGame({rules,seed:seed+i,strength,maxTurns,openingPolicy,...fixed});
     if(g.winner === "draw") draws++; else wins[g.winner]++;
@@ -125,16 +134,33 @@ function aggregate(openingPolicy, configIndex) {
       if(g.resultCategory in resultCategories) resultCategories[g.resultCategory][g.winner]++;
       if(g.winningActionType && winningActions[g.winningActionType]) winningActions[g.winningActionType][g.winner]++;
     }
+
     totalTurns += g.turns;
     totalComparableTurns += g.comparableTurns;
-    minTurns = Math.min(minTurns,g.turns); maxTurnsSeen = Math.max(maxTurnsSeen,g.turns);
+    minTurns = Math.min(minTurns,g.turns);
+    maxTurnsSeen = Math.max(maxTurnsSeen,g.turns);
     turnDist[g.turns] = (turnDist[g.turns] || 0) + 1;
     comparableTurnDist[g.comparableTurns] = (comparableTurnDist[g.comparableTurns] || 0) + 1;
     finalFour += g.reachedFinalFour ? 1 : 0;
-    moves += g.moves; jumps += g.jumps; redeployments += g.redeployPlacements;
+    moves += g.moves;
+    jumps += g.jumps;
+    redeployments += g.redeployPlacements;
     if(g.maxTurnDraw) maxTurnDraws++;
     if(g.repetitionObserved) repetitionGames++;
     repetitionEvents += g.repetitionEvents || 0;
+
+    const hadJump = g.jumps > 0;
+    const diagonalWin = g.winner !== "draw" && g.winType === "diagonal";
+    if(hadJump) {
+      structural.gamesWithJump++;
+      if(g.jumps === 1) structural.gamesWithExactlyOneJump++;
+      else structural.gamesWithMultipleJumps++;
+      if(g.jumps === g.redeployPlacements) structural.jumpGamesWithEqualRedeployCount++;
+      if(diagonalWin) structural.jumpGamesEndingDiagonal++;
+      else structural.jumpGamesNotEndingDiagonal++;
+    }
+    if(g.redeployPlacements > 0) structural.gamesWithRedeploy++;
+    if(diagonalWin && !hadJump) structural.diagonalWinsWithoutJump++;
 
     const one = g.phaseDiagnostics?.oneColourEntry;
     if(one) {
@@ -142,6 +168,12 @@ function aggregate(openingPolicy, configIndex) {
       if(g.winner === "draw") oneColourOutcomes[one.firstActor].draws++;
       else oneColourOutcomes[one.firstActor].wins[g.winner]++;
     }
+    if(g.winner === 1) {
+      if(one?.firstActor === 1) structural.p2WinsWithOneColourP2First++;
+      else structural.p2WinsWithoutOneColourP2First++;
+    }
+    if(one?.firstActor === 1 && g.winner !== 1) structural.oneColourP2FirstNotP2Win++;
+
     const ff = g.phaseDiagnostics?.finalFourEntry;
     if(ff) {
       finalFourFirst[ff.firstActor]++;
@@ -152,13 +184,10 @@ function aggregate(openingPolicy, configIndex) {
     const done=i+1;
     if(progressIndex < progressMilestones.length && done === progressMilestones[progressIndex]) {
       const now=Date.now();
-      const blockNumber=progressIndex+1;
-      const blockFrom=(blockNumber-1)*10;
-      const blockTo=blockNumber*10;
       const scorePct=100*(wins[0]+draws/2)/done;
       process.stdout.write(
         `  ${done}/${games} | Sim ${fmtClock(start)}`+
-        ` | ${blockFrom}-${blockTo}% ${fmtClock(blockStart)} | ${fmtDuration(now-blockStart)}`+
+        ` | ${fmtClock(blockStart)} | ${fmtDuration(now-blockStart)}`+
         ` | P1 ${wins[0]} P2 ${wins[1]} D${draws} | Score ${scorePct.toFixed(1)}%\n`
       );
       blockStart=now;
@@ -176,6 +205,7 @@ function aggregate(openingPolicy, configIndex) {
     movesPerGame:moves/games,jumpsPerGame:jumps/games,redeploymentsPerGame:redeployments/games,
     formations,resultCategories,winningActions,
     oneColourFirst,finalFourFirst,oneColourOutcomes,finalFourOutcomes,
+    structural,
     maxTurnDraws,repetitionGames,repetitionEvents,turnDist,comparableTurnDist,
     runtimeMs:finishedAt-start,finishedAt
   };
@@ -190,6 +220,9 @@ function printSummary(c, r, baseline=null) {
   console.log(`  Winning actions: placement ${r.winningActions.placement[0]}/${r.winningActions.placement[1]}, move ${r.winningActions.move[0]}/${r.winningActions.move[1]}, jump ${r.winningActions.jump[0]}/${r.winningActions.jump[1]}, redeploy ${r.winningActions.redeploy[0]}/${r.winningActions.redeploy[1]}`);
   console.log(`  Formations: ${fmtFormation(r.formations)}`);
   console.log(`  Phase entry — one-colour first actor P1/P2: ${r.oneColourFirst[0]}/${r.oneColourFirst[1]} | Final Four first actor P1/P2: ${r.finalFourFirst[0]}/${r.finalFourFirst[1]}`);
+  console.log(`  Structural diagnostics — jump games ${r.structural.gamesWithJump} (exactly 1: ${r.structural.gamesWithExactlyOneJump}, 2+: ${r.structural.gamesWithMultipleJumps}); jump/redeploy counts equal in ${r.structural.jumpGamesWithEqualRedeployCount}/${r.structural.gamesWithJump} jump games`);
+  console.log(`  Jump/diagonal overlap — jump games ending diagonal ${r.structural.jumpGamesEndingDiagonal}; jump games not diagonal ${r.structural.jumpGamesNotEndingDiagonal}; diagonal wins without a jump ${r.structural.diagonalWinsWithoutJump}`);
+  console.log(`  P2/one-colour overlap — P2 wins with P2 first in one-colour ${r.structural.p2WinsWithOneColourP2First}; P2 wins without it ${r.structural.p2WinsWithoutOneColourP2First}; P2-first one-colour games not won by P2 ${r.structural.oneColourP2FirstNotP2Win}`);
   console.log(`  Loops/repetition observed: ${r.repetitionGames} games, ${r.repetitionEvents} repeated states | max-turn draws ${r.maxTurnDraws}`);
   console.log(`  Time: ${fmtDuration(r.runtimeMs)} | finished ${fmtFinish(r.finishedAt)}`);
   if(baseline) {
@@ -209,11 +242,11 @@ console.log("For automatic openings, 'avg turns' counts player turns after setup
 
 const results=[];
 let baseline=null;
-for(const configNumber of selectedConfigNumbers) {
+for(const [selectedIndex,configNumber] of selectedConfigNumbers.entries()) {
   const configIndex=configNumber-1;
   const c=configs[configIndex];
-  console.log(`\nStarting ${configNumber}/${configs.length} ${c.label} at ${fmtClock()}...`);
-  const r=aggregate(c.id,configIndex);
+  console.log(`\nStarting ${selectedIndex+1}/${selectedConfigNumbers.length} (${configNumber}) ${c.label} at ${fmtClock()}...`);
+  const r=aggregate(c.id);
   const result={configNumber,...c,...r};
   results.push(result);
   if(configNumber === 1) baseline=result;
@@ -236,6 +269,11 @@ const rows=results.map(r=>({
   max_turn_draws:r.maxTurnDraws,repetition_games:r.repetitionGames,repetition_events:r.repetitionEvents,
   horizontal:r.formations.horizontal||0,vertical:r.formations.vertical||0,diagonal:r.formations.diagonal||0,square:r.formations.square||0,spaced_square:r.formations["spaced-square"]||0,
   one_colour_first_p1:r.oneColourFirst[0],one_colour_first_p2:r.oneColourFirst[1],final_four_first_p1:r.finalFourFirst[0],final_four_first_p2:r.finalFourFirst[1],
+  jump_games:r.structural.gamesWithJump,one_jump_games:r.structural.gamesWithExactlyOneJump,multi_jump_games:r.structural.gamesWithMultipleJumps,
+  jump_redeploy_equal_games:r.structural.jumpGamesWithEqualRedeployCount,jump_games_ending_diagonal:r.structural.jumpGamesEndingDiagonal,
+  jump_games_not_diagonal:r.structural.jumpGamesNotEndingDiagonal,diagonal_wins_without_jump:r.structural.diagonalWinsWithoutJump,
+  p2_wins_with_one_colour_p2_first:r.structural.p2WinsWithOneColourP2First,p2_wins_without_one_colour_p2_first:r.structural.p2WinsWithoutOneColourP2First,
+  one_colour_p2_first_not_p2_win:r.structural.oneColourP2FirstNotP2Win,
   runtime_seconds:(r.runtimeMs/1000).toFixed(1),finished_at:new Date(r.finishedAt).toISOString()
 }));
 
