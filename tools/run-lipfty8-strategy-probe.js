@@ -9,6 +9,10 @@
 // Lipfty 7 tactical play. We also test the two-colour handover choice from the
 // opponent/chooser's point of view.
 //
+// Rollouts use common random numbers: every option at a given decision gets
+// the same downstream RNG seed for rollout N. This makes option-vs-baseline
+// comparisons paired and reduces noise from later tactical tie-breaks.
+//
 // This is deliberately analysis-only. It does NOT alter Lipfty rules or the
 // released tactical chooser, and it is not an exhaustive proof/game-tree solve.
 
@@ -23,8 +27,9 @@ function arg(name, fallback) {
 }
 
 const seedArg = arg("seeds", "10001,10002,10003,10005");
-const rollouts = Number(arg("rollouts", "2"));
-const topActions = Number(arg("top-actions", "4"));
+const rollouts = Number(arg("rollouts", "20"));
+const topActions = Number(arg("top-actions", "8"));
+const reportGain = Number(arg("report-gain", "0.20"));
 const maxActions = Number(arg("max-turns", "500")); // compatibility with existing simulator option name
 const outDir = arg("out", "C:\\bxd\\Lipfty-Simulation-Results");
 
@@ -32,6 +37,7 @@ const seeds = String(seedArg).split(",").map(v=>v.trim()).filter(Boolean).map(Nu
 if(!seeds.length || seeds.some(v=>!Number.isInteger(v))) throw new Error("--seeds must be a comma-separated list of integers.");
 if(!Number.isInteger(rollouts) || rollouts < 1) throw new Error("--rollouts must be a positive integer.");
 if(!Number.isInteger(topActions) || topActions < 1) throw new Error("--top-actions must be a positive integer.");
+if(!Number.isFinite(reportGain) || reportGain < 0 || reportGain > 1) throw new Error("--report-gain must be between 0 and 1.");
 if(!Number.isInteger(maxActions) || maxActions < 1) throw new Error("--max-turns must be a positive integer.");
 
 const rules = S.normaliseRules({
@@ -84,8 +90,10 @@ function hash32(text) {
   }
   return h>>>0;
 }
-function rolloutSeed(gameSeed, actionNumber, kind, option, index) {
-  return (gameSeed ^ hash32(`${actionNumber}|${kind}|${option}|${index}`) ^ Math.imul(index+1,0x9E3779B1))>>>0;
+function rolloutSeed(gameSeed, actionNumber, kind, index) {
+  // Deliberately excludes the option itself. Every option at this decision uses
+  // the same seed for rollout N, giving a paired/common-random-number comparison.
+  return (gameSeed ^ hash32(`${actionNumber}|${kind}|paired|${index}`) ^ Math.imul(index+1,0x9E3779B1))>>>0;
 }
 
 function cloneStateForRollout(s, seed) {
@@ -100,7 +108,6 @@ function cloneStateForRollout(s, seed) {
   };
 }
 
-function normalReserveCount(s) { return s.normalRemaining.black+s.normalRemaining.white; }
 function normalColourCount(s) { return ["black","white"].filter(c=>s.normalRemaining[c]>0).length; }
 
 function commitPending(s) {
@@ -154,29 +161,33 @@ function perspectiveScore(winner, player) {
 
 function evaluateActionOption(s, action, player, gameSeed, actionNumber) {
   let wins=0,draws=0,losses=0,total=0;
+  const outcomes=[];
   for(let r=0;r<rollouts;r++) {
-    const rs=rolloutSeed(gameSeed,actionNumber,"action",actionKey(action),r);
+    const rs=rolloutSeed(gameSeed,actionNumber,"action",r);
     const t=cloneStateForRollout(s,rs);
     const result=finishConsequencesAndContinue(t,action);
     const sc=perspectiveScore(result.winner,player);
+    outcomes.push(sc);
     total+=sc;
     if(sc===1)wins++;else if(sc===0.5)draws++;else losses++;
   }
-  return {score:total/rollouts,wins,draws,losses};
+  return {score:total/rollouts,wins,draws,losses,outcomes};
 }
 
 function evaluateColourOption(s, colour, chooser, gameSeed, actionNumber) {
   let wins=0,draws=0,losses=0,total=0;
+  const outcomes=[];
   for(let r=0;r<rollouts;r++) {
-    const rs=rolloutSeed(gameSeed,actionNumber,"handover",colour,r);
+    const rs=rolloutSeed(gameSeed,actionNumber,"handover",r);
     const t=cloneStateForRollout(s,rs);
     const action=S.chooseAction(t,colour,rules,"tactical");
     const result=action ? finishConsequencesAndContinue(t,action) : {winner:"draw"};
     const sc=perspectiveScore(result.winner,chooser);
+    outcomes.push(sc);
     total+=sc;
     if(sc===1)wins++;else if(sc===0.5)draws++;else losses++;
   }
-  return {score:total/rollouts,wins,draws,losses};
+  return {score:total/rollouts,wins,draws,losses,outcomes};
 }
 
 function topCandidateActions(s, colour, baselineAction) {
@@ -196,15 +207,34 @@ function isFreeNormalDecision(s) {
     !s.sequentialSecondOwed && !s.boundaryCornerOwed && !s.boundarySelfCornerOwed;
 }
 
+function pairedCounts(option, baseline) {
+  const a=option?.outcomes || [], b=baseline?.outcomes || [];
+  const n=Math.min(a.length,b.length);
+  let better=0,same=0,worse=0;
+  for(let i=0;i<n;i++) {
+    if(a[i] > b[i]) better++;
+    else if(a[i] < b[i]) worse++;
+    else same++;
+  }
+  return {better,same,worse,net:better-worse,n};
+}
+
 const decisionRows=[];
 const optionRows=[];
 const gameRows=[];
 
 function recordDecision({gameSeed,baselineWinner,actionNumber,type,maker,recipient,baselineOption,options,meta={}}) {
   const baseline=options.find(o=>o.option===baselineOption);
-  const sorted=[...options].sort((a,b)=>b.score-a.score || a.option.localeCompare(b.option));
-  const best=sorted[0];
-  const gain=best.score-(baseline?.score??0);
+  if(!baseline) throw new Error(`Baseline option missing at seed ${gameSeed}, action ${actionNumber}, ${type}.`);
+
+  const ranked=options.map(o=>({o,pair:pairedCounts(o,baseline)})).sort((a,b)=>
+    b.o.score-a.o.score || b.pair.net-a.pair.net || a.o.option.localeCompare(b.o.option)
+  );
+  const best=ranked[0].o;
+  const bestPair=ranked[0].pair;
+  const gain=best.score-baseline.score;
+  const loser=baselineWinner===0||baselineWinner===1 ? other(baselineWinner) : null;
+
   decisionRows.push({
     seed:gameSeed,
     baseline_winner:actorName(baselineWinner),
@@ -213,19 +243,27 @@ function recordDecision({gameSeed,baselineWinner,actionNumber,type,maker,recipie
     decision_maker:actorName(maker),
     recipient:recipient===null||recipient===undefined?"":actorName(recipient),
     baseline_option:baselineOption,
-    baseline_rollout_score:baseline?baseline.score.toFixed(4):"",
+    baseline_rollout_score:baseline.score.toFixed(4),
     best_option:best.option,
     best_rollout_score:best.score.toFixed(4),
     gain:gain.toFixed(4),
+    best_paired_better:bestPair.better,
+    best_paired_same:bestPair.same,
+    best_paired_worse:bestPair.worse,
+    best_paired_net:bestPair.net,
     option_count:options.length,
     baseline_is_best:Math.abs(gain)<1e-9?1:0,
-    baseline_loser_decision:maker===other(baselineWinner)?1:0,
+    baseline_loser_decision:loser!==null&&maker===loser?1:0,
     ...meta
   });
+
   for(const o of options) {
+    const pair=pairedCounts(o,baseline);
     optionRows.push({
       seed:gameSeed,action_number:actionNumber,decision_type:type,decision_maker:actorName(maker),
       option:o.option,is_baseline:o.option===baselineOption?1:0,rollout_score:o.score.toFixed(4),
+      gain_vs_baseline:(o.score-baseline.score).toFixed(4),
+      paired_better:pair.better,paired_same:pair.same,paired_worse:pair.worse,paired_net:pair.net,
       wins:o.wins,draws:o.draws,losses:o.losses,heuristic_score:o.heuristic===undefined?"":formatNum(o.heuristic)
     });
   }
@@ -296,14 +334,17 @@ function runBaselineAndProbe(gameSeed) {
 
   const seedDecisions=decisionRows.filter(r=>r.seed===gameSeed);
   const improved=seedDecisions.filter(r=>Number(r.gain)>1e-9);
+  const material=improved.filter(r=>Number(r.gain)>=reportGain && r.best_paired_better>r.best_paired_worse);
   const loser=winner==="draw"?null:other(winner);
   const loserImprovements=loser===null?[]:improved.filter(r=>r.decision_maker===actorName(loser));
+  const loserMaterial=loser===null?[]:material.filter(r=>r.decision_maker===actorName(loser));
   gameRows.push({
     seed:gameSeed,winner:actorName(winner),actions:s.turns,win_type:winType||check.winType||"",winning_action:winningAction||check.winningActionType||"",
-    decisions:seedDecisions.length,improvable_decisions:improved.length,baseline_loser_improvable_decisions:loserImprovements.length
+    decisions:seedDecisions.length,improvable_decisions:improved.length,material_improvable_decisions:material.length,
+    baseline_loser_improvable_decisions:loserImprovements.length,baseline_loser_material_leads:loserMaterial.length
   });
 
-  console.log(`  Seed ${gameSeed}: ${actorName(winner)} in ${s.turns} actions (${winType||check.winType||"n/a"}/${winningAction||check.winningActionType||"n/a"}) | decisions ${seedDecisions.length}, better rollout option ${improved.length}, loser opportunities ${loserImprovements.length}`);
+  console.log(`  Seed ${gameSeed}: ${actorName(winner)} in ${s.turns} actions (${winType||check.winType||"n/a"}/${winningAction||check.winningActionType||"n/a"}) | decisions ${seedDecisions.length}, better ${improved.length}, substantial paired leads ${material.length}, loser leads ${loserMaterial.length}`);
 }
 
 function writeCsv(filePath, rows) {
@@ -314,7 +355,9 @@ function writeCsv(filePath, rows) {
 }
 
 console.log("Lipfty 8 — Config 5 play-well / winning-strategy probe");
-console.log(`Seeds: ${seeds.join(", ")} | ${rollouts} tactical rollout(s) per option | top ${topActions} action candidates + baseline.`);
+console.log(`Seeds: ${seeds.join(", ")} | ${rollouts} paired tactical rollout(s) per option | top ${topActions} action candidates + baseline.`);
+console.log(`Substantial-lead reporting threshold: ${(100*reportGain).toFixed(0)} percentage points.`);
+console.log("Common random numbers: ON — every option at the same decision uses the same rollout seed.");
 console.log("Opening: 2.2 inner-board corners, colours diagonal. All Lipfty 7 rules remain frozen.");
 console.log("This is a one-deviation rollout probe, not a full mathematical game-tree proof.\n");
 
@@ -325,21 +368,24 @@ const improved=decisionRows.filter(r=>Number(r.gain)>1e-9);
 const actionImproved=improved.filter(r=>r.decision_type==="action");
 const handoverImproved=improved.filter(r=>r.decision_type==="handover");
 const loserImproved=improved.filter(r=>r.baseline_loser_decision===1);
+const material=improved.filter(r=>Number(r.gain)>=reportGain && r.best_paired_better>r.best_paired_worse);
+const materialLoser=material.filter(r=>r.baseline_loser_decision===1);
 
 console.log("\nSUMMARY");
 console.log(`  Baseline games: ${gameRows.length} | P1 wins ${gameRows.filter(g=>g.winner==="P1").length} | P2 wins ${gameRows.filter(g=>g.winner==="P2").length} | draws ${gameRows.filter(g=>g.winner==="draw").length}`);
 console.log(`  Decisions tested: ${decisionRows.length} | baseline not rollout-best: ${improved.length}`);
 console.log(`  Action-choice improvements: ${actionImproved.length} | handover-colour improvements: ${handoverImproved.length}`);
-console.log(`  Decisions belonging to the eventual baseline loser with a better rollout option: ${loserImproved.length}`);
+console.log(`  Eventual baseline loser decisions with any better rollout option: ${loserImproved.length}`);
+console.log(`  Substantial paired leads: ${material.length} | belonging to eventual baseline loser: ${materialLoser.length}`);
 
-const critical=loserImproved.filter(r=>Number(r.gain)>=0.5).sort((a,b)=>Number(b.gain)-Number(a.gain));
+const critical=materialLoser.sort((a,b)=>Number(b.gain)-Number(a.gain) || b.best_paired_net-a.best_paired_net);
 if(critical.length) {
-  console.log("\nPOTENTIAL ESCAPE / WINNING-STRATEGY LEADS (gain >= 50 percentage points in this small rollout sample)");
-  for(const r of critical.slice(0,12)) {
-    console.log(`  Seed ${r.seed}, action ${r.action_number}, ${r.decision_maker} ${r.decision_type}: ${r.baseline_option} ${scoreText(Number(r.baseline_rollout_score))} -> ${r.best_option} ${scoreText(Number(r.best_rollout_score))}`);
+  console.log(`\nPAIRED ESCAPE / STRATEGY LEADS (gain >= ${(100*reportGain).toFixed(0)}pp and paired better > worse)`);
+  for(const r of critical.slice(0,16)) {
+    console.log(`  Seed ${r.seed}, action ${r.action_number}, ${r.decision_maker} ${r.decision_type}: ${r.baseline_option} ${scoreText(Number(r.baseline_rollout_score))} -> ${r.best_option} ${scoreText(Number(r.best_rollout_score))} | paired ${r.best_paired_better} better / ${r.best_paired_same} same / ${r.best_paired_worse} worse`);
   }
 } else {
-  console.log("\nNo >=50pp baseline-loser escape was found in this first probe.");
+  console.log(`\nNo substantial paired baseline-loser lead met the ${(100*reportGain).toFixed(0)}pp threshold.`);
 }
 
 try {
