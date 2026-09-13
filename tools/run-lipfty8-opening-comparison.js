@@ -17,6 +17,7 @@ const strength = arg("strength", "tactical");
 const outDir = arg("out", "C:\\bxd\\Lipfty-Simulation-Results");
 const configArg = arg("config", null);
 const trace = flag("trace");
+const sequence = flag("sequence");
 
 if(!Number.isInteger(games) || games < 1) throw new Error("--games must be a positive integer.");
 if(!Number.isInteger(seed)) throw new Error("--seed must be an integer.");
@@ -94,10 +95,33 @@ function fmtDuration(ms) {
 }
 function avg(total,count,digits=2) { return count ? (total/count).toFixed(digits) : "n/a"; }
 function actorName(value) { return value === 0 ? "P1" : value === 1 ? "P2" : ""; }
+function cellName(value) {
+  if(value === null || value === undefined || value === "") return "";
+  const n=Number(value);
+  if(!Number.isInteger(n) || n < 0 || n >= 36) return "";
+  return `R${Math.floor(n/6)+1}C${n%6+1}`;
+}
 function inc(obj,key) { obj[key] = (obj[key] || 0) + 1; }
 function fmtCounts(obj) {
   const entries=Object.entries(obj);
   return entries.length ? entries.map(([k,v])=>`${k} ${v}`).join(", ") : "none";
+}
+
+const SEQUENCE_BRANCH_ORDER = [
+  "P1 win - move",
+  "P1 win - placement",
+  "P2 win - no-jump branch",
+  "P2 win - jump branch"
+];
+
+function sequenceBranch(g) {
+  if(g.winner === 0) {
+    if(g.winningActionType === "move") return "P1 win - move";
+    if(g.winningActionType === "placement") return "P1 win - placement";
+    return `P1 win - ${g.winningActionType || "other"}`;
+  }
+  if(g.winner === 1) return g.jumps > 0 ? "P2 win - jump branch" : "P2 win - no-jump branch";
+  return "Draw";
 }
 
 function aggregate(openingPolicy) {
@@ -129,6 +153,7 @@ function aggregate(openingPolicy) {
     oneColourCauses:{}, oneColourTransitionActors:[0,0], oneColourRemainingColours:{black:0,white:0}
   };
   const traceRows=[];
+  const sequenceRepresentatives=new Map();
   let draws=0,totalTurns=0,totalComparableTurns=0,minTurns=Infinity,maxTurnsSeen=0,finalFour=0,moves=0,jumps=0,redeployments=0,maxTurnDraws=0,repetitionGames=0,repetitionEvents=0;
 
   const progressMilestones = Array.from({length:10},(_,i)=>Math.max(1,Math.ceil(games*(i+1)/10)));
@@ -138,7 +163,7 @@ function aggregate(openingPolicy) {
 
   for(let i=0;i<games;i++) {
     const gameSeed=seed+i;
-    const g = L8.playGame({rules,seed:gameSeed,strength,maxTurns,openingPolicy,...fixed});
+    const g = L8.playGame({rules,seed:gameSeed,strength,maxTurns,openingPolicy,traceActions:sequence,...fixed});
     if(g.winner === "draw") draws++; else wins[g.winner]++;
     if(g.winner !== "draw") {
       if(g.winType) formations[g.winType] = (formations[g.winType] || 0) + 1;
@@ -233,6 +258,21 @@ function aggregate(openingPolicy) {
       else finalFourOutcomes[ff.firstActor].wins[g.winner]++;
     }
 
+    if(sequence && g.actionTrace?.length) {
+      const branch=sequenceBranch(g);
+      if(!sequenceRepresentatives.has(branch)) {
+        sequenceRepresentatives.set(branch,{
+          branch,
+          seed:gameSeed,
+          winner:g.winner,
+          turns:g.turns,
+          winType:g.winType || "",
+          winningAction:g.winningActionType || "",
+          actionTrace:g.actionTrace
+        });
+      }
+    }
+
     if(trace) {
       const lastJump=jumpEvents.length ? jumpEvents[jumpEvents.length-1] : null;
       traceRows.push({
@@ -287,7 +327,7 @@ function aggregate(openingPolicy) {
     movesPerGame:moves/games,jumpsPerGame:jumps/games,redeploymentsPerGame:redeployments/games,
     formations,resultCategories,winningActions,
     oneColourFirst,finalFourFirst,oneColourOutcomes,finalFourOutcomes,
-    structural,detail,traceRows,
+    structural,detail,traceRows,sequenceRepresentatives:[...sequenceRepresentatives.values()],
     maxTurnDraws,repetitionGames,repetitionEvents,turnDist,comparableTurnDist,
     runtimeMs:finishedAt-start,finishedAt
   };
@@ -318,6 +358,14 @@ function printSummary(c, r, baseline=null) {
   if(r.detail.oneColourEntries) {
     console.log(`  One-colour timing — ${r.detail.oneColourEntries} entries; turn avg ${avg(r.detail.oneColourTurnTotal,r.detail.oneColourEntries)}, range ${r.detail.oneColourTurnMin}-${r.detail.oneColourTurnMax}; transition actor P1/P2 ${r.detail.oneColourTransitionActors[0]}/${r.detail.oneColourTransitionActors[1]}; causes ${fmtCounts(r.detail.oneColourCauses)}`);
   }
+  if(sequence) {
+    const byBranch=new Map(r.sequenceRepresentatives.map(x=>[x.branch,x]));
+    const found=SEQUENCE_BRANCH_ORDER.filter(branch=>byBranch.has(branch)).map(branch=>`${branch}: seed ${byBranch.get(branch).seed}`);
+    const extra=r.sequenceRepresentatives.filter(x=>!SEQUENCE_BRANCH_ORDER.includes(x.branch)).map(x=>`${x.branch}: seed ${x.seed}`);
+    console.log(`  Representative sequences — ${[...found,...extra].join("; ") || "none found"}`);
+    const missing=SEQUENCE_BRANCH_ORDER.filter(branch=>!byBranch.has(branch));
+    if(missing.length) console.log(`  Representative branches still missing — ${missing.join("; ")}`);
+  }
   console.log(`  Loops/repetition observed: ${r.repetitionGames} games, ${r.repetitionEvents} repeated states | max-turn draws ${r.maxTurnDraws}`);
   console.log(`  Time: ${fmtDuration(r.runtimeMs)} | finished ${fmtFinish(r.finishedAt)}`);
   if(baseline) {
@@ -339,6 +387,7 @@ console.log(`${games} games each; tactical strength ${strength}; base seed ${see
 console.log(`Configurations: ${selectedConfigNumbers.join(",")} of ${configs.length}.`);
 console.log(`Run started: ${fmtFinish(overallStart)} | progress output: 10% intervals (10 lines per configuration for normal run sizes).`);
 if(trace) console.log("Per-game structural trace: ON (--trace).");
+if(sequence) console.log("Representative action-sequence capture: ON (--sequence).");
 console.log("Fixed Lipfty 7 Standard rules: Move ON, opposite-colour Jump, redeploy-pass, sequential Move response, responder-choice boundary, one-colour placement-only, player/tactical Final Four choice, H/V/Diagonal + tight/spaced square wins, no diamonds.");
 console.log("Each configuration uses exactly the same seed range.");
 console.log("For automatic openings, 'avg turns' counts player turns after setup; 'comparable board-development avg' adds the four setup placements back so game length can also be compared directly with Lipfty 7.");
@@ -398,6 +447,51 @@ try {
     const tracePath=path.join(outDir,`lipfty8-structure-trace-${strength}-${games}-seed${seed}${configTag}.csv`);
     writeCsv(tracePath,traceRows);
     console.log(`Structural trace CSV: ${tracePath}`);
+  }
+
+  if(sequence) {
+    const sequenceRows=results.flatMap(r=>r.sequenceRepresentatives.flatMap(rep=>
+      rep.actionTrace.map(ev=>({
+        config_number:r.configNumber,
+        opening:r.openingPolicy,
+        branch:rep.branch,
+        seed:rep.seed,
+        final_winner:rep.winner === "draw" ? "draw" : actorName(rep.winner),
+        final_turns:rep.turns,
+        final_win_type:rep.winType,
+        final_winning_action:rep.winningAction,
+        seq:ev.seq,
+        turn:ev.turn,
+        event:ev.event,
+        actor:actorName(ev.actor),
+        colour:ev.colour ?? "",
+        from:ev.from ?? "",
+        from_rc:cellName(ev.from),
+        over:ev.over ?? "",
+        over_rc:cellName(ev.over),
+        to:ev.to ?? "",
+        to_rc:cellName(ev.to),
+        forced:ev.forced ? 1 : 0,
+        response_slot:ev.responseSlot ?? "",
+        result_category:ev.resultCategory ?? "",
+        normal_black_before:ev.normalBlackBefore ?? "",
+        normal_white_before:ev.normalWhiteBefore ?? "",
+        normal_black_after:ev.normalBlackAfter ?? "",
+        normal_white_after:ev.normalWhiteAfter ?? "",
+        one_colour_entry:ev.oneColourEntry ? 1 : 0,
+        ended:ev.ended ? 1 : 0,
+        winner_after:ev.winner === null || ev.winner === undefined ? "" : (ev.winner === "draw" ? "draw" : actorName(ev.winner)),
+        win_type:ev.winType ?? "",
+        current_player_after:actorName(ev.currentPlayerAfter),
+        forced_queue_after:ev.forcedQueueAfter ?? "",
+        final_four_after:ev.finalFourAfter ? 1 : 0,
+        board_before:ev.boardBefore ?? "",
+        board_after:ev.boardAfter ?? ""
+      }))
+    ));
+    const sequencePath=path.join(outDir,`lipfty8-action-sequences-${strength}-${games}-seed${seed}${configTag}.csv`);
+    writeCsv(sequencePath,sequenceRows);
+    console.log(`Action sequence CSV: ${sequencePath}`);
   }
 } catch(err) {
   console.warn(`\nCSV not written: ${err.message}`);

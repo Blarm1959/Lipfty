@@ -79,6 +79,41 @@ function boardKey(s) {
   ].join("|");
 }
 
+function boardSnapshot(s) {
+  const cells = s.board.map(p => p ? (p.colour === "black" ? "B" : "W") : ".");
+  const rows = [];
+  for(let r=0;r<6;r++) rows.push(cells.slice(r*6,r*6+6).join(""));
+  return rows.join("/");
+}
+
+function traceState(s) {
+  return {
+    board:boardSnapshot(s),
+    normalBlack:s.normalRemaining.black,
+    normalWhite:s.normalRemaining.white,
+    currentPlayer:s.currentPlayer,
+    forcedQueue:s.forcedQueue.length,
+    finalFour:!!s.finalFour
+  };
+}
+
+function appendTrace(stats, s, before, data) {
+  stats.actionTrace.push({
+    seq:stats.actionTrace.length,
+    turn:s.turns,
+    ...data,
+    normalBlackBefore:before?.normalBlack ?? "",
+    normalWhiteBefore:before?.normalWhite ?? "",
+    normalBlackAfter:s.normalRemaining.black,
+    normalWhiteAfter:s.normalRemaining.white,
+    boardBefore:before?.board ?? "",
+    boardAfter:boardSnapshot(s),
+    currentPlayerAfter:s.currentPlayer,
+    forcedQueueAfter:s.forcedQueue.length,
+    finalFourAfter:!!s.finalFour
+  });
+}
+
 function actionWins(s, action, rules) {
   return !!S.fastCheckWin(S.boardAfter(s, action), rules, action.to);
 }
@@ -144,7 +179,7 @@ function recordPhaseTransition(d, s, beforeColours, beforeReserve, action, wasFo
 function emptyResponseStats() {
   return {
     placements:0, moves:0, jumps:0, redeployPlacements:0, forcedPlacements:0,
-    placementsByPlayer:[0,0], movesByPlayer:[0,0], jumpsByPlayer:[0,0], jumpEvents:[],
+    placementsByPlayer:[0,0], movesByPlayer:[0,0], jumpsByPlayer:[0,0], jumpEvents:[], actionTrace:[],
     twoPieceResponses:0, boundaryResponses:0, jumpRedeployResponses:0, sequentialSecondChoices:0,
     redeployWins:[0,0], jumpReserveWins:[0,0], maxConsecutiveRedeployOnlyJumps:0,
     boundaryFirstSources:{normal:0,corner:0},
@@ -172,7 +207,7 @@ function playGame({
   rules={}, seed=1, strength="tactical", maxTurns=500,
   jumpPolicy="opposite", responsePolicy="sequential", boundaryPolicy="responder-choice",
   jumpConsequence="redeploy-pass", finalFourColourPolicy="tactical",
-  oneColourPolicy="placement-only", openingPolicy="lipfty7"
+  oneColourPolicy="placement-only", openingPolicy="lipfty7", traceActions=false
 }={}) {
   rules = S.normaliseRules(rules);
   jumpPolicy = S.normaliseJumpPolicy(jumpPolicy);
@@ -186,6 +221,19 @@ function playGame({
   const automaticOpening = openingPolicy !== "lipfty7";
   const s = prepareState(seed, jumpPolicy, responsePolicy, boundaryPolicy, jumpConsequence, oneColourPolicy, openingPolicy);
   const stats = emptyResponseStats(), phaseDiagnostics = newPhaseDiagnostics();
+  if(traceActions) {
+    stats.actionTrace.push({
+      seq:0, turn:0, event:"start", actor:null, colour:null,
+      from:null, over:null, to:null, forced:false, responseSlot:null,
+      resultCategory:"start", ended:false, winner:null, winType:null,
+      oneColourEntry:false,
+      normalBlackBefore:"", normalWhiteBefore:"",
+      normalBlackAfter:s.normalRemaining.black, normalWhiteAfter:s.normalRemaining.white,
+      boardBefore:"", boardAfter:boardSnapshot(s),
+      currentPlayerAfter:s.currentPlayer, forcedQueueAfter:s.forcedQueue.length,
+      finalFourAfter:!!s.finalFour
+    });
+  }
   let consecutiveRedeployOnlyJumps = 0, repetitionObserved = false, repetitionEvents = 0;
   const seen = new Set([boardKey(s)]);
 
@@ -234,6 +282,7 @@ function playGame({
 
     const actor = s.currentPlayer;
     const actionTurn = s.turns + 1;
+    const traceBefore = traceActions ? traceState(s) : null;
     if(action.type.includes("place")) {
       stats.placements++;
       stats.placementsByPlayer[actor]++;
@@ -268,6 +317,16 @@ function playGame({
       phaseDiagnostics.finalFourFirstActionImmediateWin = true;
     }
     if(result.ended) {
+      if(traceActions) {
+        appendTrace(stats, s, traceBefore, {
+          event:action.type, actor, colour,
+          from:action.from ?? null, over:action.over ?? null, to:action.to ?? null,
+          forced:wasForced, responseSlot,
+          resultCategory, ended:true,
+          winner:s.winner, winType:result.winType || null,
+          oneColourEntry:false
+        });
+      }
       return finish({
         ...stats, winner:s.winner, turns:s.turns, reachedFinalFour:s.reachedFinalFour,
         winType:result.winType || null,
@@ -282,12 +341,39 @@ function playGame({
     }
 
     recordPhaseTransition(phaseDiagnostics, s, beforeColours, beforeReserve, action, wasForced, responseSlot, actor, rules);
+    if(traceActions) {
+      const oneTriggered = !!phaseDiagnostics.oneColourEntry &&
+        phaseDiagnostics.oneColourEntry.turn === s.turns &&
+        phaseDiagnostics.oneColourEntry.transitionActor === actor;
+      appendTrace(stats, s, traceBefore, {
+        event:action.type, actor, colour,
+        from:action.from ?? null, over:action.over ?? null, to:action.to ?? null,
+        forced:wasForced, responseSlot,
+        resultCategory, ended:false,
+        winner:null, winType:null,
+        oneColourEntry:oneTriggered
+      });
+    }
 
     if(action.type === "jump" && s.jumpConsequence !== "current") {
       stats.jumpRedeployResponses++;
+      const redeployActor = s.currentPlayer;
+      const redeployBefore = traceActions ? traceState(s) : null;
       const response = S.resolveJumpRedeploy(s, action, rules, strength);
       stats.redeployPlacements++;
       stats.forcedPlacements++;
+      if(traceActions) {
+        appendTrace(stats, s, redeployBefore, {
+          event:"redeploy", actor:redeployActor, colour:response.piece?.colour ?? null,
+          from:action.over ?? null, over:null, to:response.plan?.to ?? null,
+          forced:true, responseSlot:1,
+          resultCategory,
+          ended:response.stage === "redeploy",
+          winner:response.stage === "redeploy" ? s.winner : null,
+          winType:response.stage === "redeploy" ? (response.firstResult?.winType || null) : null,
+          oneColourEntry:false
+        });
+      }
       if(response.stage === "redeploy") {
         stats.redeployWins[s.winner]++;
         return finish({
