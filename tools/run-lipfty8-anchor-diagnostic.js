@@ -89,6 +89,43 @@ function fmtDuration(ms) {
 }
 function pct(n, d) { return d ? 100 * n / d : 0; }
 function actorName(v) { return v === 0 ? "P1" : v === 1 ? "P2" : "draw"; }
+
+function safeArchiveDestination(oldDir, fileName) {
+  const direct = path.join(oldDir, fileName);
+  if(!fs.existsSync(direct)) return direct;
+  const ext = path.extname(fileName);
+  const base = path.basename(fileName, ext);
+  const d = new Date();
+  const stamp = [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, "0"),
+    String(d.getDate()).padStart(2, "0"),
+    "-",
+    String(d.getHours()).padStart(2, "0"),
+    String(d.getMinutes()).padStart(2, "0"),
+    String(d.getSeconds()).padStart(2, "0")
+  ].join("");
+  let candidate = path.join(oldDir, `${base}-${stamp}${ext}`);
+  let n = 2;
+  while(fs.existsSync(candidate)) candidate = path.join(oldDir, `${base}-${stamp}-${n++}${ext}`);
+  return candidate;
+}
+
+function archivePreviousResults() {
+  fs.mkdirSync(outDir, {recursive:true});
+  const oldDir = path.join(outDir, "old");
+  fs.mkdirSync(oldDir, {recursive:true});
+  console.log("Archiving previous results...");
+  let moved = 0;
+  for(const entry of fs.readdirSync(outDir, {withFileTypes:true})) {
+    if(!entry.isFile()) continue;
+    const src = path.join(outDir, entry.name);
+    const dst = safeArchiveDestination(oldDir, entry.name);
+    fs.renameSync(src, dst);
+    moved++;
+  }
+  console.log(`  moved ${moved} file${moved === 1 ? "" : "s"} to ${oldDir}`);
+}
 function cell(r, c) { return r * 6 + c; }
 function rc(i) { return [Math.floor(i / 6), i % 6]; }
 function inBounds(r, c) { return r >= 0 && r < 6 && c >= 0 && c < 6; }
@@ -236,9 +273,10 @@ function hasSpacedSquare(board, colour) {
     for(let r2 = r1 + 1; r2 < 6; r2++) {
       for(let c1 = 0; c1 < 5; c1++) {
         for(let c2 = c1 + 1; c2 < 6; c2++) {
-          // Tight 2x2 is classified separately by the existing rules; this
-          // detector counts only genuinely spaced axis-aligned squares.
-          if(r2 - r1 === 1 && c2 - c1 === 1) continue;
+          // A spaced square must have equal row and column span.
+          if(r2 - r1 !== c2 - c1) continue;
+          // Tight 2x2 is classified separately by the existing rules.
+          if(r2 - r1 === 1) continue;
           const cells = [cell(r1,c1), cell(r1,c2), cell(r2,c1), cell(r2,c2)];
           if(cells.every(i => board[i]?.colour === colour)) return true;
         }
@@ -603,7 +641,7 @@ function reasonLines(s5, s6) {
 }
 
 const runStarted = Date.now();
-fs.mkdirSync(outDir, {recursive:true});
+archivePreviousResults();
 const allRows = [];
 const summaries = [];
 let completed = 0;
@@ -614,7 +652,7 @@ console.log("Lipfty 8 — Config 5 / Config 6 anchor diagnostic");
 console.log(`Run started: ${fmtDateTime(runStarted)}`);
 console.log(`Results: ${outDir}`);
 console.log(`Games: ${games} per configuration | same seeds ${seed}-${seed + games - 1} | ${strength} strength.`);
-console.log("Existing simulation result files are NOT archived or moved by this diagnostic.\n");
+console.log("Previous top-level simulation result/log files were moved to .\\old before this run.\n");
 
 for(let ci = 0; ci < CONFIGS.length; ci++) {
   const config = CONFIGS[ci];
