@@ -1,0 +1,179 @@
+/* Lipfty 8 v8.0.20 — desktop single-screen playing layout.
+   This file intentionally overrides only presentation. Phone/tablet scrolling
+   behaviour remains controlled by the main stylesheet. */
+
+.rules-panel--quick p {
+  margin: .5rem 0;
+}
+
+@media (min-width: 901px) {
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    min-height: 0;
+  }
+
+  .app-shell {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+    padding-top: 2px;
+    padding-bottom: 4px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .app-header {
+    flex: 0 0 auto;
+    min-height: 40px;
+    margin-bottom: 2px;
+  }
+
+  .app-header h1 {
+    line-height: 1;
+  }
+
+  .game-layout {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 6px;
+  }
+
+  .turn-status-row {
+    min-height: 0;
+  }
+
+  .player-status-card,
+  .move-timer-card,
+  .turn-message-card {
+    min-height: 48px;
+    padding: 5px 10px;
+  }
+
+  .turn-message-card p {
+    line-height: 1.15;
+  }
+
+  .game-stage {
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+    gap: 12px;
+    align-items: start;
+  }
+
+  .board-section {
+    height: 100%;
+    min-height: 0;
+    justify-content: flex-start;
+  }
+
+  /* Height as well as width now limits the board. 190px leaves room for the
+     title, turn strip, command bar, gaps and the board caption. */
+  .board-frame {
+    width: min(100%, 600px, calc(100dvh - 190px));
+    max-width: 600px;
+    padding: 5px;
+    border-width: 3px;
+    border-radius: 14px;
+  }
+
+  .board-note {
+    margin: 3px 2px 0;
+    font-size: .68rem;
+    line-height: 1.15;
+  }
+
+  .reserve-panel,
+  .rules-panel,
+  .stage-info-card {
+    padding: 10px 12px;
+    border-radius: 12px;
+  }
+
+  .reserve-panel h2,
+  .rules-panel h2 {
+    margin-bottom: 8px;
+  }
+
+  .reserve-button {
+    min-height: 62px;
+    padding: 7px 9px;
+  }
+
+  .rules-panel--quick {
+    max-height: 100%;
+    overflow: hidden;
+  }
+
+  .rules-panel--quick p {
+    margin: .42rem 0;
+    font-size: .80rem;
+    line-height: 1.28;
+  }
+
+  .stage-info-card .panel-help {
+    font-size: .82rem;
+    line-height: 1.28;
+  }
+
+  .action-bar {
+    min-height: 40px;
+    padding: 4px 7px;
+  }
+
+  .action-bar .button {
+    min-height: 34px;
+  }
+}
+
+/* On narrower laptop/tablet-width desktop windows the full rules are already
+   available through Help, so do not create a second row merely for the panel. */
+@media (min-width: 901px) and (max-width: 1120px) {
+  .game-stage {
+    grid-template-columns: minmax(180px, .7fr) minmax(400px, 1.6fr);
+  }
+
+  .rules-panel {
+    display: none;
+  }
+
+  .board-section {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+
+/* Very short desktop windows still remain usable without page scrolling. */
+@media (min-width: 901px) and (max-height: 720px) {
+  .app-header {
+    min-height: 34px;
+  }
+
+  .app-header h1 {
+    font-size: 1.72rem;
+  }
+
+  .player-status-card,
+  .move-timer-card,
+  .turn-message-card {
+    min-height: 43px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+
+  .board-frame {
+    width: min(100%, 560px, calc(100dvh - 170px));
+  }
+
+  .rules-panel--quick p {
+    font-size: .75rem;
+    line-height: 1.2;
+  }
+}

@@ -1,9 +1,9 @@
-const VERSION = "8.0.19";
+const VERSION = "8.0.20";
 const STATIC_CACHE = `lipfty-static-v${VERSION}`;
 const RUNTIME_CACHE = `lipfty-runtime-v${VERSION}`;
 const APP_SHELL = [
-  "./", "./index.html", "./offline.html", "./css/style.css",
-  "./js/app.js", "./js/rules.js", "./manifest.json", "./package.json",
+  "./", "./index.html", "./offline.html", "./css/style.css", "./css/lipfty8-layout.css",
+  "./js/app.js", "./js/rules.js", "./js/lipfty8-ui.js", "./manifest.json", "./package.json",
   "./release.json", "./build-info.json", "./Lipfty-Rules.pdf",
   "./icons/lipfty-96.png", "./icons/lipfty-128.png", "./icons/lipfty-144.png", "./icons/lipfty-152.png",
   "./icons/lipfty-180.png", "./icons/lipfty-192.png", "./icons/lipfty-384.png", "./icons/lipfty-512.png",

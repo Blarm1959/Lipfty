@@ -15,6 +15,7 @@
   <link rel="icon" href="icons/lipfty-192.png" type="image/png">
   <link rel="apple-touch-icon" href="icons/lipfty-180.png">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/lipfty8-layout.css">
 </head>
 <body>
   <div class="app-shell">
@@ -73,15 +74,12 @@
           </div>
         </section>
 
-        <aside class="rules-panel">
+        <aside class="rules-panel rules-panel--quick">
           <h2>Lipfty 8 Standard</h2>
-          <p><strong>Opening Four:</strong> four pieces start automatically on the four corners of the inner 6×6, with matching colours diagonally opposite. They remain pinned for the whole game: they cannot Move, Jump or be jumped over, but they count normally towards a win.</p>
-          <p><strong>Main play:</strong> the opponent of the starting player hands over the first normal reserve piece. Use its colour to <strong>Place</strong> it, <strong>Move</strong> a matching movable board piece one adjacent square, or make one <strong>Jump</strong> over an adjacent opposite-colour movable piece.</p>
-          <p><strong>After a Move:</strong> the responder chooses and makes one compulsory reserve placement, then chooses a second reserve piece for the original mover to place. The responder then takes the next normal turn.</p>
-          <p><strong>After a Jump:</strong> if the Jump itself does not win, lift the jumped piece. The opponent redeploys that exact piece anywhere empty and then takes the next normal turn; the original jumper chooses the reserve colour for that turn.</p>
-          <p><strong>One-colour finish:</strong> as soon as either normal reserve colour is exhausted, Move and Jump stop. Every remaining normal reserve piece must then be placed.</p>
-          <p><strong>Final Four:</strong> after the normal reserve is empty, players choose and place the four corner pieces. Final Four is placement-only.</p>
-          <p class="panel-help">Wins: four horizontal, vertical or diagonal; a tight 2×2 square; or a spaced board-aligned square. A win ends the game immediately.</p>
+          <p><strong>Opening:</strong> four diagonal-colour anchors start pinned on the corners of the inner 6×6. They count towards wins but never move and cannot be jumped over.</p>
+          <p><strong>Your turn:</strong> use the reserve colour handed to you to <strong>Place</strong>, <strong>Move</strong> one adjacent square, or make one opposite-colour <strong>Jump</strong>.</p>
+          <p><strong>Win:</strong> make four in a horizontal, vertical or diagonal line, a tight 2×2 square, or a spaced board-aligned square.</p>
+          <p class="panel-help"><strong>?</strong> opens the complete rules, including Move and Jump consequences, the one-colour finish and Final Four.</p>
         </aside>
       </section>
 
@@ -91,7 +89,7 @@
           <button class="button button--secondary" id="end-test" type="button">End</button>
         </div>
         <div class="action-bar-centre"><button class="button button--secondary" id="undo" type="button">Undo</button></div>
-        <div class="build-info"><span id="app-version">Version 8.0.19</span><span id="build-reference"></span></div>
+        <div class="build-info"><span id="app-version">Version 8.0.20</span><span id="build-reference"></span></div>
       </section>
     </main>
   </div>
@@ -233,5 +231,6 @@
 
   <script src="js/rules.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/lipfty8-ui.js"></script>
 </body>
 </html>
