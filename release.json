@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "project": "Lipfty",
-  "version": "8.0.20",
-  "githubSource": "v8.0.20",
+  "version": "8.0.21",
+  "githubSource": "v8.0.21",
   "zipPrefix": "Lipfty-",
   "port": 0,
   "packageChanges": false,

@@ -37,9 +37,15 @@
           <span class="turn-label">Current turn</span>
           <strong id="current-player">Player</strong>
         </div>
-        <div class="move-timer-card">
-          <span class="turn-label">Move timer</span>
-          <strong id="move-timer">00:30</strong>
+        <div class="chess-clock-panel" id="chess-clocks" hidden aria-label="Chess clocks">
+          <div class="chess-clock-card" data-clock-player="0">
+            <span class="chess-clock-name" id="clock-player-0-name">Player</span>
+            <strong id="clock-player-0">15:00</strong>
+          </div>
+          <div class="chess-clock-card" data-clock-player="1">
+            <span class="chess-clock-name" id="clock-player-1-name">Computer</span>
+            <strong id="clock-player-1">15:00</strong>
+          </div>
         </div>
         <div class="turn-message-card"><p id="status">The opening anchors are pinned in place.</p></div>
       </section>
@@ -89,7 +95,7 @@
           <button class="button button--secondary" id="end-test" type="button">End</button>
         </div>
         <div class="action-bar-centre"><button class="button button--secondary" id="undo" type="button">Undo</button></div>
-        <div class="build-info"><span id="app-version">Version 8.0.20</span><span id="build-reference"></span></div>
+        <div class="build-info"><span id="app-version">Version 8.0.21</span><span id="build-reference"></span></div>
       </section>
     </main>
   </div>
@@ -165,12 +171,25 @@
 
       <section class="wizard-step" data-wizard-step="4" hidden>
         <h3>Final options</h3>
-        <fieldset class="setup-fieldset"><legend>Move timer</legend><div class="choice-grid">
-          <label><input checked name="timer" type="radio" value="30"><span>30 seconds</span></label>
-          <label><input name="timer" type="radio" value="45"><span>45 seconds</span></label>
-          <label><input name="timer" type="radio" value="60"><span>60 seconds</span></label>
-          <label><input name="timer" type="radio" value="0"><span>Unlimited</span></label>
-        </div></fieldset>
+        <fieldset class="setup-fieldset"><legend>Chess clock</legend>
+          <p class="setup-help">Optional total thinking time for each player. Off is the normal Lipfty game.</p>
+          <div class="choice-grid clock-choice-grid">
+            <label><input checked name="clockMinutes" type="radio" value="0"><span>Off</span></label>
+            <label><input name="clockMinutes" type="radio" value="5"><span>5 minutes</span></label>
+            <label><input name="clockMinutes" type="radio" value="10"><span>10 minutes</span></label>
+            <label><input name="clockMinutes" type="radio" value="15"><span>15 minutes</span></label>
+            <label><input name="clockMinutes" type="radio" value="30"><span>30 minutes</span></label>
+            <label><input name="clockMinutes" type="radio" value="60"><span>60 minutes</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="setup-fieldset" id="clock-increment-field" disabled><legend>Clock increment</legend>
+          <p class="setup-help">Added when control passes after a player's completed decision.</p>
+          <div class="choice-grid">
+            <label><input checked name="clockIncrement" type="radio" value="0"><span>+0 seconds</span></label>
+            <label><input name="clockIncrement" type="radio" value="5"><span>+5 seconds</span></label>
+            <label><input name="clockIncrement" type="radio" value="10"><span>+10 seconds</span></label>
+          </div>
+        </fieldset>
         <fieldset class="setup-fieldset"><legend>Game feel</legend><div class="toggle-list">
           <label class="toggle-row"><span><strong>Sound effects</strong></span><input checked id="setting-sound" type="checkbox"></label>
           <label class="toggle-row"><span><strong>Animations</strong></span><input checked id="setting-animations" type="checkbox"></label>
@@ -212,7 +231,7 @@
       <p><strong>Final Four.</strong> When the normal reserve is empty, the four corner pieces become playable. Final Four is placement-only. On each turn the player chooses one of the remaining Final Four pieces and places it anywhere empty. If all four are placed without a win, the game is a draw.</p>
       <p><strong>Immediate wins.</strong> A win ends the game immediately whether it is made by a normal placement, Move, Jump, Jump redeployment, compulsory placement or Final Four placement.</p>
       <p><strong>Standard and variants.</strong> Lipfty 8 Standard uses the automatic pinned diagonal-corner opening, with Move, Jump, Diagonal, Tight Square and Spaced Square switched on; Diamonds are off. The setup Rules page keeps switches available for experimental or simpler variants, but the Lipfty 8 Standard baseline is the configuration above.</p>
-      <p><strong>Undo and timer.</strong> If Undo is enabled, the previous decision can be restored even after a win. The timer may be 30, 45 or 60 seconds, or Unlimited; reaching zero does not force a turn to end.</p>
+      <p><strong>Undo and chess clock.</strong> Ordinary Lipfty has no timer. An optional chess-style clock can give each player 5, 10, 15, 30 or 60 minutes, with an optional 5- or 10-second increment. Only the player currently making the decision has their clock running. Running out of time loses the game. Undo restores the clocks with the restored decision.</p>
       <p><a class="button button--secondary" href="Lipfty-Rules.pdf" target="_blank" rel="noopener">Printable Lipfty 8 rules (PDF)</a></p>
     </div>
   </dialog>
@@ -231,6 +250,5 @@
 
   <script src="js/rules.js"></script>
   <script src="js/app.js"></script>
-  <script src="js/lipfty8-ui.js"></script>
 </body>
 </html>

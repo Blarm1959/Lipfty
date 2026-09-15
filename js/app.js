@@ -45,14 +45,17 @@ const mobileVersionElement = document.getElementById("mobile-version");
   let computerBusy = false;
   let flowTimer = null;
   let checkpoints = [];
-  let moveTimerInterval = null;
-  let moveTimerRemaining = 30;
+  let clockInterval = null;
+  let clockRemainingMs = [0, 0];
+  let clockActivePlayer = null;
+  let clockLastTick = null;
+  let clockSuppressIncrementOnce = false;
 
   function loadSettings() {
     const defaults = {
       mode: "computer", player1: "Player", player2: "Player 2", level: "standard",
       starter: "random", undo: true, language: "en-GB", colour1: "red", colour2: "blue",
-      timer: 30, sound: true, animations: true, undoPreviousJump: false,
+      clockMinutes: 0, clockIncrement: 0, sound: true, animations: true, undoPreviousJump: false,
       rulesBaseline: 8,
       ...STANDARD_RULES
     };
@@ -67,6 +70,12 @@ const mobileVersionElement = document.getElementById("mobile-version");
         });
       }
       delete saved.winLevel;
+      // v8.0.21 replaces the old per-move timer with an optional chess clock.
+      // Existing players therefore migrate to Clock Off rather than inheriting
+      // an old 30/45/60-second move limit.
+      if (saved.clockMinutes === undefined) saved.clockMinutes = 0;
+      if (saved.clockIncrement === undefined) saved.clockIncrement = 0;
+      delete saved.timer;
       // Lipfty 8 keeps the confirmed Lipfty 7 Standard play rules and changes
       // only the opening setup to the four permanent diagonal-colour anchors.
       if (saved.rulesBaseline !== 8) {
@@ -155,6 +164,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
       compulsoryPlacementsRemaining: 0,
       jumpFlashIndex: null,
       winner: null,
+      winReason: null,
       winningCells: []
     };
   }
@@ -232,7 +242,14 @@ const mobileVersionElement = document.getElementById("mobile-version");
       legalMoves: [], legalJumps: [], selectedPieceIndex: null
     };
   }
-  function makeSnapshot() { return { state: serialiseState(), nextPieceId }; }
+  function makeSnapshot() {
+    settleChessClock();
+    return {
+      state: serialiseState(),
+      nextPieceId,
+      clock: { remainingMs: [...clockRemainingMs], activePlayer: clockActivePlayer }
+    };
+  }
   function snapshotKey(snapshot) { return JSON.stringify(snapshot.state); }
   function isHumanDecisionPoint() {
     if (!state || state.winner !== null || computerBusy) return false;
@@ -258,7 +275,8 @@ const mobileVersionElement = document.getElementById("mobile-version");
       redeployPiece: snap.state.redeployPiece ? { ...snap.state.redeployPiece } : null,
       selectedPieceIndex: null, legalMoves: new Set(), legalJumps: new Map()
     };
-    resetMoveTimer();
+    restoreChessClock(snap.clock);
+    clockSuppressIncrementOnce = true;
     processFlow("Previous decision restored.");
   }
   function undo() {
@@ -274,9 +292,12 @@ const mobileVersionElement = document.getElementById("mobile-version");
     const win = rules.checkWin(state.board, settings);
     if (!win) return false;
     state.winner = state.currentPlayer;
+    state.winReason = "board";
     state.winningCells = [...win.line];
     computerBusy = false;
-    if (moveTimerInterval) { clearInterval(moveTimerInterval); moveTimerInterval = null; }
+    stopChessClockInterval();
+    clockActivePlayer = null;
+    clockLastTick = null;
     clearSelection();
     setStatus(`${participantName(state.currentPlayer)} wins with four ${colourTitle(win.colour)} pieces!`);
     render();
@@ -359,7 +380,9 @@ const mobileVersionElement = document.getElementById("mobile-version");
       const colours = availableChoiceColours();
       if (!colours.length) {
         state.winner = "draw";
-        if (moveTimerInterval) { clearInterval(moveTimerInterval); moveTimerInterval = null; }
+        stopChessClockInterval();
+        clockActivePlayer = null;
+        clockLastTick = null;
         setStatus("Draw - no legal piece is available.");
         render();
         maybeShowUpdateDialog();
@@ -373,6 +396,9 @@ const mobileVersionElement = document.getElementById("mobile-version");
     if (message) setStatus(message);
     else if (state.choosingColour) setStatus(colourPrompt());
     else setStatus(actionPrompt());
+    syncChessClock({ addIncrement: !clockSuppressIncrementOnce });
+    clockSuppressIncrementOnce = false;
+    if (state.winner !== null) return;
     render();
 
     if (isHumanDecisionPoint()) { rememberDecisionPoint(); return; }
@@ -401,7 +427,6 @@ const mobileVersionElement = document.getElementById("mobile-version");
     state.compulsoryPlacementsRemaining = 0;
     clearHeldPiece();
     if (!beginFinalFourIfReady()) state.choosingColour = true;
-    resetMoveTimer();
     processFlow();
   }
 
@@ -426,7 +451,6 @@ const mobileVersionElement = document.getElementById("mobile-version");
     state.compulsoryPlacementsRemaining = 2;
     clearHeldPiece();
     state.choosingColour = true;
-    resetMoveTimer();
     processFlow("Move completed. The responder now chooses and makes the first compulsory reserve placement.");
   }
 
@@ -440,7 +464,6 @@ const mobileVersionElement = document.getElementById("mobile-version");
       state.compulsoryPlacementsRemaining = 1;
       clearHeldPiece();
       state.choosingColour = true;
-      resetMoveTimer();
       processFlow(`${participantName(c.responder)} now chooses the second compulsory reserve piece for ${participantName(c.mover)}.`);
       return;
     }
@@ -462,7 +485,6 @@ const mobileVersionElement = document.getElementById("mobile-version");
     state.protectedPieceId = protectedPieceId;
     clearHeldPiece();
     state.choosingColour = true;
-    resetMoveTimer();
     processFlow(`${participantName(jumper)} now chooses the reserve piece/colour for ${participantName(responder)}'s normal turn.`);
   }
 
@@ -489,7 +511,9 @@ const mobileVersionElement = document.getElementById("mobile-version");
       if (finishWin()) return true;
       if (!finalCornerPiecesRemain()) {
         state.winner = "draw";
-        if (moveTimerInterval) { clearInterval(moveTimerInterval); moveTimerInterval = null; }
+        stopChessClockInterval();
+        clockActivePlayer = null;
+        clockLastTick = null;
         setStatus("Draw - all four Final Four pieces have been placed without a win.");
         render(); maybeShowUpdateDialog(); return true;
       }
@@ -497,7 +521,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
       state.currentPlayer = otherPlayer(finishing);
       state.colourChooser = state.currentPlayer;
       state.choosingColour = true;
-      resetMoveTimer(); processFlow(); return true;
+      processFlow(); return true;
     }
 
     if (CORNERS.includes(state.selectedReserveIndex)) return false;
@@ -589,7 +613,6 @@ const mobileVersionElement = document.getElementById("mobile-version");
     state.assignedColour = jumpedPiece.colour;
     state.selectedReserveIndex = null;
     state.choosingColour = false;
-    resetMoveTimer();
     processFlow(`${participantName(responder)}: redeploy the exact jumped ${colourTitle(jumpedPiece.colour)} piece anywhere empty.`);
   }
 
@@ -794,7 +817,14 @@ const mobileVersionElement = document.getElementById("mobile-version");
     return state.reserveLayout.active.filter(c => c === colour).length;
   }
   function render() {
-    currentPlayerElement.textContent = state.winner === "draw" ? "Draw" : state.winner !== null ? `${participantName(state.winner)} wins` : participantName(state.currentPlayer);
+    const decisionActor = decisionActorIndex();
+    currentPlayerElement.textContent = state.winner === "draw" ? "Draw" : state.winner !== null ? `${participantName(state.winner)} wins` : participantName(decisionActor ?? state.currentPlayer);
+    const decisionLabel = currentPlayerElement.closest(".player-status-card")?.querySelector(".turn-label");
+    if (decisionLabel) {
+      if (state.winner !== null) decisionLabel.textContent = "Result";
+      else decisionLabel.textContent = decisionActor !== state.currentPlayer ? "Decision by" : "Current turn";
+    }
+    renderChessClocks();
     blackRemainingElement.textContent = state.finalFourPhase ? `${state.finalCornerPieces.filter(c => c === "black").length} final remaining` : `${activeColourTotal("black")} remaining`;
     whiteRemainingElement.textContent = state.finalFourPhase ? `${state.finalCornerPieces.filter(c => c === "white").length} final remaining` : `${activeColourTotal("white")} remaining`;
     document.getElementById("colour1-name").textContent = COLOURS[settings.colour1][0];
@@ -842,7 +872,8 @@ const mobileVersionElement = document.getElementById("mobile-version");
     } while (rules.checkWin(state.board, settings) && attempts < 10000);
     state.currentPlayer = 0; state.colourChooser = 0; state.choosingColour = true;
     prepareFinalCorners(); state.finalFourPhase = true;
-    resetMoveTimer(); processFlow();
+    initialiseChessClock();
+    processFlow();
   }
 
   function resolvedStarterIndex() {
@@ -865,24 +896,125 @@ const mobileVersionElement = document.getElementById("mobile-version");
     // normal handover to the selected starting player.
     state.colourChooser = otherPlayer(state.currentPlayer);
     state.choosingColour = true;
-    resetMoveTimer();
-    processFlow("The four diagonal-colour opening anchors are pinned in place. The opponent chooses the first normal reserve piece.");
+    initialiseChessClock();
+    processFlow();
   }
 
-  function timerText(seconds) { const m = Math.floor(seconds / 60), s = Math.max(0, seconds % 60); return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`; }
-  function renderMoveTimer() {
-    const el = document.getElementById("move-timer"); if (!el) return;
-    if (!settings.timer) { el.textContent = "∞"; el.classList.remove("move-timer--expired"); return; }
-    el.textContent = timerText(moveTimerRemaining); el.classList.toggle("move-timer--expired", moveTimerRemaining <= 0);
+  function clockEnabled() { return Number(settings.clockMinutes) > 0; }
+  function clockIncrementMs() { return Math.max(0, Number(settings.clockIncrement) || 0) * 1000; }
+  function decisionActorIndex() {
+    if (!state || state.winner !== null) return null;
+    return state.choosingColour ? state.colourChooser : state.currentPlayer;
   }
-  function resetMoveTimer() {
-    if (moveTimerInterval) clearInterval(moveTimerInterval);
-    moveTimerRemaining = Number(settings.timer) || 0; renderMoveTimer();
-    if (!settings.timer) return;
-    moveTimerInterval = setInterval(() => {
-      if (moveTimerRemaining > 0) { moveTimerRemaining -= 1; renderMoveTimer(); }
-      else clearInterval(moveTimerInterval);
-    }, 1000);
+  function formatChessClock(milliseconds) {
+    const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  }
+  function stopChessClockInterval() {
+    if (clockInterval) clearInterval(clockInterval);
+    clockInterval = null;
+  }
+  function settleChessClock(now = Date.now()) {
+    if (!clockEnabled() || clockActivePlayer === null || clockLastTick === null || state?.winner !== null) return null;
+    const elapsed = Math.max(0, now - clockLastTick);
+    if (elapsed > 0) {
+      clockRemainingMs[clockActivePlayer] = Math.max(0, clockRemainingMs[clockActivePlayer] - elapsed);
+      clockLastTick = now;
+    }
+    return clockRemainingMs[clockActivePlayer] <= 0 ? clockActivePlayer : null;
+  }
+  function initialiseChessClock() {
+    stopChessClockInterval();
+    const initial = clockEnabled() ? Number(settings.clockMinutes) * 60 * 1000 : 0;
+    clockRemainingMs = [initial, initial];
+    clockActivePlayer = null;
+    clockLastTick = null;
+    renderChessClocks();
+  }
+  function restoreChessClock(snapshot) {
+    stopChessClockInterval();
+    if (!clockEnabled()) {
+      clockRemainingMs = [0, 0];
+      clockActivePlayer = null;
+      clockLastTick = null;
+      return;
+    }
+    const initial = Number(settings.clockMinutes) * 60 * 1000;
+    clockRemainingMs = Array.isArray(snapshot?.remainingMs) ? [...snapshot.remainingMs] : [initial, initial];
+    clockActivePlayer = Number.isInteger(snapshot?.activePlayer) ? snapshot.activePlayer : null;
+    clockLastTick = clockActivePlayer === null ? null : Date.now();
+  }
+  function finishTimeLoss(expiredPlayer) {
+    if (!state || state.winner !== null) return;
+    clearTimeout(flowTimer);
+    computerBusy = false;
+    stopChessClockInterval();
+    clockRemainingMs[expiredPlayer] = 0;
+    clockActivePlayer = null;
+    clockLastTick = null;
+    state.winner = otherPlayer(expiredPlayer);
+    state.winReason = "time";
+    clearSelection();
+    setStatus(`${participantName(expiredPlayer)} ran out of time. ${participantName(state.winner)} wins on time.`);
+    render();
+    maybeShowUpdateDialog();
+  }
+  function startChessClockInterval() {
+    if (clockInterval || !clockEnabled() || clockActivePlayer === null || state?.winner !== null) return;
+    clockInterval = setInterval(() => {
+      const expired = settleChessClock();
+      if (expired !== null) { finishTimeLoss(expired); return; }
+      renderChessClocks();
+    }, 200);
+  }
+  function syncChessClock({ addIncrement = true } = {}) {
+    if (!clockEnabled()) {
+      stopChessClockInterval();
+      clockActivePlayer = null;
+      clockLastTick = null;
+      renderChessClocks();
+      return;
+    }
+    const now = Date.now();
+    const expired = settleChessClock(now);
+    if (expired !== null) { finishTimeLoss(expired); return; }
+    if (!state || state.winner !== null) {
+      stopChessClockInterval();
+      clockActivePlayer = null;
+      clockLastTick = null;
+      renderChessClocks();
+      return;
+    }
+    const nextPlayer = decisionActorIndex();
+    if (nextPlayer !== clockActivePlayer) {
+      if (addIncrement && clockActivePlayer !== null) {
+        clockRemainingMs[clockActivePlayer] += clockIncrementMs();
+      }
+      clockActivePlayer = nextPlayer;
+    }
+    clockLastTick = clockActivePlayer === null ? null : now;
+    startChessClockInterval();
+    renderChessClocks();
+  }
+  function renderChessClocks() {
+    const panel = document.getElementById("chess-clocks");
+    const row = document.querySelector(".turn-status-row");
+    if (!panel) return;
+    const enabled = clockEnabled();
+    panel.hidden = !enabled;
+    row?.classList.toggle("chess-clock-enabled", enabled);
+    if (!enabled) return;
+    const names = [document.getElementById("clock-player-0-name"), document.getElementById("clock-player-1-name")];
+    const values = [document.getElementById("clock-player-0"), document.getElementById("clock-player-1")];
+    for (let player = 0; player < 2; player += 1) {
+      if (names[player]) names[player].textContent = participantName(player);
+      if (values[player]) values[player].textContent = formatChessClock(clockRemainingMs[player]);
+      const card = panel.querySelector(`[data-clock-player="${player}"]`);
+      card?.classList.toggle("chess-clock-card--active", state?.winner === null && clockActivePlayer === player);
+      card?.classList.toggle("chess-clock-card--expired", clockRemainingMs[player] <= 0);
+    }
   }
 
   blackButton.addEventListener("click", () => {});
@@ -936,18 +1068,30 @@ const mobileVersionElement = document.getElementById("mobile-version");
   function selectedRuleSummary() { const labels = []; document.querySelectorAll("[data-rule-option]:checked").forEach(e => labels.push(e.dataset.ruleLabel)); return labels.length ? labels.join(", ") : "Basic placement only"; }
   function summary() {
     const one = fv("gameMode") === "computer", level = ["", "Beginner", "Standard", "Expert"][Number(difficultyInput.value)];
-    document.getElementById("setup-summary").textContent = `${one ? "Player vs Computer · " + level : "Two players"} · ${COLOURS[fv("colour1")][0]} / ${COLOURS[fv("colour2")][0]} · ${selectedRuleSummary()} · ${fv("timer") === "0" ? "Unlimited" : fv("timer") + "-second"} turns`;
+    const clockMinutes = Number(fv("clockMinutes") || 0), increment = Number(fv("clockIncrement") || 0);
+    const clockSummary = clockMinutes ? `${clockMinutes} min each${increment ? ` + ${increment}s` : ""}` : "Clock off";
+    document.getElementById("setup-summary").textContent = `${one ? "Player vs Computer · " + level : "Two players"} · ${COLOURS[fv("colour1")][0]} / ${COLOURS[fv("colour2")][0]} · ${selectedRuleSummary()} · ${clockSummary}`;
   }
   function openSettings() {
     sr("gameMode", settings.mode); difficultyInput.value = settings.level === "beginner" ? 1 : settings.level === "expert" ? 3 : 2;
     sr("allowUndo", settings.undo ? "yes" : "no"); sr("colour1", settings.colour1); sr("colour2", settings.colour2);
-    player1Input.value = settings.player1; player2Input.value = settings.player2; sr("starter", settings.starter); sr("timer", String(settings.timer));
+    player1Input.value = settings.player1; player2Input.value = settings.player2; sr("starter", settings.starter);
+    sr("clockMinutes", String(settings.clockMinutes || 0)); sr("clockIncrement", String(settings.clockIncrement || 0));
     ruleOptionIds.forEach(k => { const e = document.getElementById(ruleId(k)); if (e) e.checked = !!settings[k]; });
     syncRuleDependencies(); document.getElementById("setting-sound").checked = settings.sound; document.getElementById("setting-animations").checked = settings.animations;
-    syncMode(); syncDifficulty(); showStep(0); settingsDialog.showModal();
+    syncMode(); syncDifficulty(); syncClockOptions(); showStep(0); settingsDialog.showModal();
   }
   settingsForm.querySelectorAll('[name="gameMode"]').forEach(e => e.addEventListener("change", syncMode));
   difficultyInput.addEventListener("input", syncDifficulty);
+  function syncClockOptions() {
+    const enabled = Number(fv("clockMinutes") || 0) > 0;
+    const field = document.getElementById("clock-increment-field");
+    if (field) field.disabled = !enabled;
+    if (!enabled) sr("clockIncrement", "0");
+    if (wizardStep === 4) summary();
+  }
+  settingsForm.querySelectorAll('[name="clockMinutes"]').forEach(e => e.addEventListener("change", syncClockOptions));
+  settingsForm.querySelectorAll('[name="clockIncrement"]').forEach(e => e.addEventListener("change", () => { if (wizardStep === 4) summary(); }));
   wizardNext.addEventListener("click", () => { if (wizardStep === 1 && !coloursValid()) { setStatus("Choose two different piece colours."); return; } showStep(wizardStep + 1); });
   wizardBack.addEventListener("click", () => showStep(wizardStep - 1));
   document.getElementById("settings-button").addEventListener("click", openSettings);
@@ -959,7 +1103,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
     ruleOptionIds.forEach(k => { ruleSettings[k] = document.getElementById(ruleId(k)).checked; });
     if (!ruleSettings.allowSquare) ruleSettings.allowSpacedSquare = false;
     if (!ruleSettings.allowDiamond) ruleSettings.allowSpacedDiamond = false;
-    settings = { ...settings, ...ruleSettings, mode: fv("gameMode"), player1: player1Input.value.trim() || "Player", player2: player2Input.value.trim() || "Player 2", level: n === 1 ? "beginner" : n === 3 ? "expert" : "standard", starter: fv("starter"), undo: fv("allowUndo") === "yes", colour1: fv("colour1"), colour2: fv("colour2"), timer: Number(fv("timer")), sound: document.getElementById("setting-sound").checked, animations: document.getElementById("setting-animations").checked, language: document.getElementById("setting-language").value };
+    settings = { ...settings, ...ruleSettings, mode: fv("gameMode"), player1: player1Input.value.trim() || "Player", player2: player2Input.value.trim() || "Player 2", level: n === 1 ? "beginner" : n === 3 ? "expert" : "standard", starter: fv("starter"), undo: fv("allowUndo") === "yes", colour1: fv("colour1"), colour2: fv("colour2"), clockMinutes: Number(fv("clockMinutes") || 0), clockIncrement: Number(fv("clockIncrement") || 0), sound: document.getElementById("setting-sound").checked, animations: document.getElementById("setting-animations").checked, language: document.getElementById("setting-language").value };
     saveSettings(); settingsDialog.close(); startNewGame();
   });
 
