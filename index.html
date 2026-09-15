@@ -95,7 +95,7 @@
           <button class="button button--secondary" id="end-test" type="button">End</button>
         </div>
         <div class="action-bar-centre"><button class="button button--secondary" id="undo" type="button">Undo</button></div>
-        <div class="build-info"><span id="app-version">Version 8.0.21</span><span id="build-reference"></span></div>
+        <div class="build-info"><span id="app-version">Version 8.0.22</span><span id="build-reference"></span></div>
       </section>
     </main>
   </div>
@@ -111,7 +111,8 @@
         <span class="wizard-progress-step" data-step-indicator="1">2 <small>Colours</small></span><span class="wizard-progress-line"></span>
         <span class="wizard-progress-step" data-step-indicator="2">3 <small>Rules</small></span><span class="wizard-progress-line"></span>
         <span class="wizard-progress-step" data-step-indicator="3">4 <small>Players</small></span><span class="wizard-progress-line"></span>
-        <span class="wizard-progress-step" data-step-indicator="4">5 <small>Options</small></span>
+        <span class="wizard-progress-step" data-step-indicator="4">5 <small>Timer</small></span><span class="wizard-progress-line"></span>
+        <span class="wizard-progress-step" data-step-indicator="5">6 <small>Options</small></span>
       </div>
 
       <section class="wizard-step" data-wizard-step="0">
@@ -150,8 +151,6 @@
           <label class="toggle-row"><span><strong>Allow Diagonal</strong><small>Diagonal four-in-line wins</small></span><input data-rule-option data-rule-label="Diagonal" id="setting-allow-diagonal" type="checkbox"></label>
           <label class="toggle-row"><span><strong>Allow Square</strong><small>Tight 2×2 square wins</small></span><input data-rule-option data-rule-label="Square" id="setting-allow-square" type="checkbox"></label>
           <label class="toggle-row"><span><strong>Allow Spaced Square</strong><small>Larger board-aligned square wins</small></span><input data-rule-option data-rule-label="Spaced Square" id="setting-allow-spaced-square" type="checkbox"></label>
-          <label class="toggle-row"><span><strong>Allow Diamond</strong><small>Experimental; not part of Standard</small></span><input data-rule-option data-rule-label="Diamond" id="setting-allow-diamond" type="checkbox"></label>
-          <label class="toggle-row"><span><strong>Allow Spaced Diamond</strong><small>Experimental; not part of Standard</small></span><input data-rule-option data-rule-label="Spaced Diamond" id="setting-allow-spaced-diamond" type="checkbox"></label>
         </div></fieldset>
       </section>
 
@@ -170,7 +169,7 @@
       </section>
 
       <section class="wizard-step" data-wizard-step="4" hidden>
-        <h3>Final options</h3>
+        <h3>Timer options</h3>
         <fieldset class="setup-fieldset"><legend>Chess clock</legend>
           <p class="setup-help">Optional total thinking time for each player. Off is the normal Lipfty game.</p>
           <div class="choice-grid clock-choice-grid">
@@ -190,6 +189,10 @@
             <label><input name="clockIncrement" type="radio" value="10"><span>+10 seconds</span></label>
           </div>
         </fieldset>
+      </section>
+
+      <section class="wizard-step" data-wizard-step="5" hidden>
+        <h3>Game options</h3>
         <fieldset class="setup-fieldset"><legend>Game feel</legend><div class="toggle-list">
           <label class="toggle-row"><span><strong>Sound effects</strong></span><input checked id="setting-sound" type="checkbox"></label>
           <label class="toggle-row"><span><strong>Animations</strong></span><input checked id="setting-animations" type="checkbox"></label>
@@ -230,7 +233,7 @@
       <p><strong>One-colour finish.</strong> As soon as either normal reserve colour is exhausted, Move and Jump stop completely. The remaining normal reserve pieces must be placed, one per normal turn, until the normal reserve is empty. If a two-placement Move consequence has already started, finish that consequence first.</p>
       <p><strong>Final Four.</strong> When the normal reserve is empty, the four corner pieces become playable. Final Four is placement-only. On each turn the player chooses one of the remaining Final Four pieces and places it anywhere empty. If all four are placed without a win, the game is a draw.</p>
       <p><strong>Immediate wins.</strong> A win ends the game immediately whether it is made by a normal placement, Move, Jump, Jump redeployment, compulsory placement or Final Four placement.</p>
-      <p><strong>Standard and variants.</strong> Lipfty 8 Standard uses the automatic pinned diagonal-corner opening, with Move, Jump, Diagonal, Tight Square and Spaced Square switched on; Diamonds are off. The setup Rules page keeps switches available for experimental or simpler variants, but the Lipfty 8 Standard baseline is the configuration above.</p>
+      <p><strong>Standard and variants.</strong> Lipfty 8 Standard uses the automatic pinned diagonal-corner opening, with Move, Jump, Diagonal, Tight Square and Spaced Square. Diamonds and spaced diamonds are not part of Lipfty 8. The setup Rules page retains switches only for simpler variants of the standard rules.</p>
       <p><strong>Undo and chess clock.</strong> Ordinary Lipfty has no timer. An optional chess-style clock can give each player 5, 10, 15, 30 or 60 minutes, with an optional 5- or 10-second increment. Only the player currently making the decision has their clock running. Running out of time loses the game. Undo restores the clocks with the restored decision.</p>
       <p><a class="button button--secondary" href="Lipfty-Rules.pdf" target="_blank" rel="noopener">Printable Lipfty 8 rules (PDF)</a></p>
     </div>

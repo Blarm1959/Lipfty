@@ -70,6 +70,12 @@ const mobileVersionElement = document.getElementById("mobile-version");
         });
       }
       delete saved.winLevel;
+      // Diamonds were experimental in earlier versions and are no longer part
+      // of Lipfty 8. Remove any legacy saved switches and always keep them off.
+      const hadLegacyDiamondSettings = Object.prototype.hasOwnProperty.call(saved, "allowDiamond") ||
+        Object.prototype.hasOwnProperty.call(saved, "allowSpacedDiamond");
+      delete saved.allowDiamond;
+      delete saved.allowSpacedDiamond;
       // v8.0.21 replaces the old per-move timer with an optional chess clock.
       // Existing players therefore migrate to Clock Off rather than inheriting
       // an old 30/45/60-second move limit.
@@ -78,11 +84,15 @@ const mobileVersionElement = document.getElementById("mobile-version");
       delete saved.timer;
       // Lipfty 8 keeps the confirmed Lipfty 7 Standard play rules and changes
       // only the opening setup to the four permanent diagonal-colour anchors.
-      if (saved.rulesBaseline !== 8) {
+      const needsRulesBaselineMigration = saved.rulesBaseline !== 8;
+      if (needsRulesBaselineMigration) {
         Object.assign(saved, STANDARD_RULES, { rulesBaseline: 8 });
-        localStorage.setItem("lipfty-settings", JSON.stringify(saved));
       }
-      return { ...defaults, ...saved };
+      const migrated = { ...defaults, ...saved, allowDiamond: false, allowSpacedDiamond: false };
+      if (hadLegacyDiamondSettings || needsRulesBaselineMigration) {
+        localStorage.setItem("lipfty-settings", JSON.stringify(migrated));
+      }
+      return migrated;
     } catch (_) {
       return defaults;
     }
@@ -1049,20 +1059,19 @@ const mobileVersionElement = document.getElementById("mobile-version");
     document.getElementById("starter-other-label").textContent = one ? "Computer" : "Player 2";
   }
   function syncDifficulty() { const n = Number(difficultyInput.value), names = ["", "Beginner", "Standard", "Expert"]; document.getElementById("difficulty-name").textContent = `${n} · ${names[n]}`; }
-  const ruleOptionIds = ["allowJump", "allowMove", "allowDiagonal", "allowSquare", "allowSpacedSquare", "allowDiamond", "allowSpacedDiamond"];
+  const ruleOptionIds = ["allowJump", "allowMove", "allowDiagonal", "allowSquare", "allowSpacedSquare"];
   function ruleId(k) { return `setting-${k.replace(/[A-Z]/g, m => "-" + m.toLowerCase())}`; }
   function syncRuleDependencies() {
-    const square = document.getElementById("setting-allow-square").checked, diamond = document.getElementById("setting-allow-diamond").checked;
+    const square = document.getElementById("setting-allow-square").checked;
     document.getElementById("setting-allow-spaced-square").disabled = !square;
-    document.getElementById("setting-allow-spaced-diamond").disabled = !diamond;
   }
   document.querySelectorAll("[data-rule-option]").forEach(e => e.addEventListener("change", syncRuleDependencies));
   function showStep(n) {
-    wizardStep = Math.max(0, Math.min(4, n));
+    wizardStep = Math.max(0, Math.min(5, n));
     wizardSteps.forEach((e, i) => e.hidden = i !== wizardStep);
     wizardIndicators.forEach((e, i) => { e.classList.toggle("wizard-progress-step--active", i === wizardStep); e.classList.toggle("wizard-progress-step--complete", i < wizardStep); });
-    wizardBack.hidden = wizardStep === 0; wizardNext.hidden = wizardStep === 4; wizardStart.hidden = wizardStep !== 4;
-    if (wizardStep === 4) summary();
+    wizardBack.hidden = wizardStep === 0; wizardNext.hidden = wizardStep === 5; wizardStart.hidden = wizardStep !== 5;
+    if (wizardStep === 5) summary();
   }
   function coloursValid() { return fv("colour1") !== fv("colour2"); }
   function selectedRuleSummary() { const labels = []; document.querySelectorAll("[data-rule-option]:checked").forEach(e => labels.push(e.dataset.ruleLabel)); return labels.length ? labels.join(", ") : "Basic placement only"; }
@@ -1088,10 +1097,10 @@ const mobileVersionElement = document.getElementById("mobile-version");
     const field = document.getElementById("clock-increment-field");
     if (field) field.disabled = !enabled;
     if (!enabled) sr("clockIncrement", "0");
-    if (wizardStep === 4) summary();
+    if (wizardStep === 5) summary();
   }
   settingsForm.querySelectorAll('[name="clockMinutes"]').forEach(e => e.addEventListener("change", syncClockOptions));
-  settingsForm.querySelectorAll('[name="clockIncrement"]').forEach(e => e.addEventListener("change", () => { if (wizardStep === 4) summary(); }));
+  settingsForm.querySelectorAll('[name="clockIncrement"]').forEach(e => e.addEventListener("change", () => { if (wizardStep === 5) summary(); }));
   wizardNext.addEventListener("click", () => { if (wizardStep === 1 && !coloursValid()) { setStatus("Choose two different piece colours."); return; } showStep(wizardStep + 1); });
   wizardBack.addEventListener("click", () => showStep(wizardStep - 1));
   document.getElementById("settings-button").addEventListener("click", openSettings);
@@ -1102,7 +1111,8 @@ const mobileVersionElement = document.getElementById("mobile-version");
     const n = Number(difficultyInput.value), ruleSettings = {};
     ruleOptionIds.forEach(k => { ruleSettings[k] = document.getElementById(ruleId(k)).checked; });
     if (!ruleSettings.allowSquare) ruleSettings.allowSpacedSquare = false;
-    if (!ruleSettings.allowDiamond) ruleSettings.allowSpacedDiamond = false;
+    ruleSettings.allowDiamond = false;
+    ruleSettings.allowSpacedDiamond = false;
     settings = { ...settings, ...ruleSettings, mode: fv("gameMode"), player1: player1Input.value.trim() || "Player", player2: player2Input.value.trim() || "Player 2", level: n === 1 ? "beginner" : n === 3 ? "expert" : "standard", starter: fv("starter"), undo: fv("allowUndo") === "yes", colour1: fv("colour1"), colour2: fv("colour2"), clockMinutes: Number(fv("clockMinutes") || 0), clockIncrement: Number(fv("clockIncrement") || 0), sound: document.getElementById("setting-sound").checked, animations: document.getElementById("setting-animations").checked, language: document.getElementById("setting-language").value };
     saveSettings(); settingsDialog.close(); startNewGame();
   });
