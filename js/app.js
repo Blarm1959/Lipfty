@@ -5,6 +5,13 @@ const mobileVersionElement = document.getElementById("mobile-version");
   const rules = window.LipftyRules;
   const BOARD_CELLS = rules.SIZE * rules.SIZE;
   const CORNERS = [0, 7, 56, 63];
+  const ANCHOR_SQUARES = [0, 5, 30, 35];
+  const ANCHOR_SETUP = [
+    { index: 0, colour: "black" },
+    { index: 5, colour: "white" },
+    { index: 30, colour: "white" },
+    { index: 35, colour: "black" }
+  ];
   const STANDARD_RULES = Object.freeze({
     allowJump: true,
     allowMove: true,
@@ -46,7 +53,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
       mode: "computer", player1: "Player", player2: "Player 2", level: "standard",
       starter: "random", undo: true, language: "en-GB", colour1: "red", colour2: "blue",
       timer: 30, sound: true, animations: true, undoPreviousJump: false,
-      rulesBaseline: 7,
+      rulesBaseline: 8,
       ...STANDARD_RULES
     };
     try {
@@ -60,11 +67,10 @@ const mobileVersionElement = document.getElementById("mobile-version");
         });
       }
       delete saved.winLevel;
-      // v7.0.16 establishes the confirmed Lipfty 7 Standard rules as the new
-      // playable baseline. Migrate older saved rule switches once; afterwards
-      // any variants the player deliberately saves are preserved.
-      if (saved.rulesBaseline !== 7) {
-        Object.assign(saved, STANDARD_RULES, { rulesBaseline: 7 });
+      // Lipfty 8 keeps the confirmed Lipfty 7 Standard play rules and changes
+      // only the opening setup to the four permanent diagonal-colour anchors.
+      if (saved.rulesBaseline !== 8) {
+        Object.assign(saved, STANDARD_RULES, { rulesBaseline: 8 });
         localStorage.setItem("lipfty-settings", JSON.stringify(saved));
       }
       return { ...defaults, ...saved };
@@ -106,27 +112,38 @@ const mobileVersionElement = document.getElementById("mobile-version");
     const nonCorners = outer.filter(i => !CORNERS.includes(i));
     const active = Array(64).fill(null);
     const locked = Array(64).fill(null);
-    const cornerColours = shuffled(["black", "black", "white", "white"]);
-    cornerColours.forEach((colour, i) => {
-      active[CORNERS[i]] = colour;
-      locked[CORNERS[i]] = colour;
-    });
+
+    // The Opening Four are already on the inner board in Lipfty 8. The 24
+    // ordinary reserve pieces therefore occupy only the non-corner ring slots.
     shuffled([...Array(12).fill("black"), ...Array(12).fill("white")])
       .forEach((colour, i) => { active[nonCorners[i]] = colour; });
+
+    // Final Four remains unchanged from Lipfty 7: two pieces of each colour
+    // sit under the four reserve-corner markers until the normal reserve ends.
+    shuffled(["black", "black", "white", "white"])
+      .forEach((colour, i) => { locked[CORNERS[i]] = colour; });
+
     return { active, locked };
+  }
+
+  function makeAutomaticAnchorBoard() {
+    const board = Array(BOARD_CELLS).fill(null);
+    for (const anchor of ANCHOR_SETUP) {
+      board[anchor.index] = { id: nextPieceId++, colour: anchor.colour, pinned: true };
+    }
+    return board;
   }
 
   function freshState() {
     return {
-      board: Array(BOARD_CELLS).fill(null),
+      board: makeAutomaticAnchorBoard(),
       reserveLayout: makeReserveLayout(),
       currentPlayer: 0,
-      openingCornerPlacementsRemaining: 4,
       finalFourPhase: false,
       finalCornerPieces: [null, null, null, null],
       finalCornersPrepared: false,
       choosingColour: true,
-      colourChooser: 0,
+      colourChooser: 1,
       assignedColour: null,
       selectedReserveIndex: null,
       selectedPieceIndex: null,
@@ -142,25 +159,22 @@ const mobileVersionElement = document.getElementById("mobile-version");
     };
   }
 
-  function initialCornerPhase() { return state.openingCornerPlacementsRemaining > 0; }
-  function activeReserveIndices(mode = "normal", colour = null) {
-    const wantedCorner = mode === "opening";
+  function activeReserveIndices(colour = null) {
     const result = [];
     for (let i = 0; i < 64; i += 1) {
       const c = state.reserveLayout.active[i];
-      if (!c || (colour && c !== colour)) continue;
-      const isCorner = CORNERS.includes(i);
-      if ((wantedCorner && isCorner) || (!wantedCorner && !isCorner)) result.push(i);
+      if (!c || CORNERS.includes(i) || (colour && c !== colour)) continue;
+      result.push(i);
     }
     return result;
   }
-  function normalReserveRemaining(colour) { return activeReserveIndices("normal", colour).length; }
+  function normalReserveRemaining(colour) { return activeReserveIndices(colour).length; }
   function normalReserveTotal() { return normalReserveRemaining("black") + normalReserveRemaining("white"); }
   function normalReserveColourCount() {
     return ["black", "white"].filter(colour => normalReserveRemaining(colour) > 0).length;
   }
   function oneColourPlacementOnly() {
-    return !initialCornerPhase() && !state.finalFourPhase && !state.consequence && !state.redeployPiece &&
+    return !state.finalFourPhase && !state.consequence && !state.redeployPiece &&
       normalReserveTotal() > 0 && normalReserveColourCount() === 1;
   }
   function finalCornerPiecesRemain() { return state.finalCornerPieces.some(Boolean); }
@@ -170,7 +184,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
     state.finalCornersPrepared = true;
   }
   function beginFinalFourIfReady() {
-    if (state.finalFourPhase || initialCornerPhase() || state.consequence || state.redeployPiece || normalReserveTotal() !== 0) return false;
+    if (state.finalFourPhase || state.consequence || state.redeployPiece || normalReserveTotal() !== 0) return false;
     prepareFinalCorners();
     state.finalFourPhase = true;
     state.assignedColour = null;
@@ -182,16 +196,15 @@ const mobileVersionElement = document.getElementById("mobile-version");
   }
 
   function moveAllowedNow() {
-    return !!settings.allowMove && !initialCornerPhase() && !state.finalFourPhase && !state.consequence &&
+    return !!settings.allowMove && !state.finalFourPhase && !state.consequence &&
       !state.redeployPiece && !oneColourPlacementOnly();
   }
   function jumpAllowedNow() {
-    return !!settings.allowJump && !initialCornerPhase() && !state.finalFourPhase && !state.consequence &&
+    return !!settings.allowJump && !state.finalFourPhase && !state.consequence &&
       !state.redeployPiece && !oneColourPlacementOnly();
   }
 
-  function firstNormalReserveIndex(colour) { return activeReserveIndices("normal", colour)[0] ?? null; }
-  function firstOpeningReserveIndex(colour) { return activeReserveIndices("opening", colour)[0] ?? null; }
+  function firstNormalReserveIndex(colour) { return activeReserveIndices(colour)[0] ?? null; }
   function firstFinalCornerIndex(colour) {
     const slot = state.finalCornerPieces.findIndex(c => c === colour);
     return slot >= 0 ? CORNERS[slot] : null;
@@ -272,13 +285,12 @@ const mobileVersionElement = document.getElementById("mobile-version");
   }
 
   function availableChoiceColours() {
-    if (initialCornerPhase()) return ["black", "white"].filter(c => firstOpeningReserveIndex(c) !== null);
     if (state.finalFourPhase) return ["black", "white"].filter(c => firstFinalCornerIndex(c) !== null);
     return ["black", "white"].filter(c => normalReserveRemaining(c) > 0);
   }
 
   function chooserIsChoosingForSelf() {
-    if (initialCornerPhase() || state.finalFourPhase) return true;
+    if (state.finalFourPhase) return true;
     return state.consequence?.type === "move" && state.consequence.step === 1;
   }
 
@@ -287,9 +299,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
     if (!availableChoiceColours().includes(colour)) return false;
     let index = reserveIndex;
     if (index === null) {
-      index = initialCornerPhase() ? firstOpeningReserveIndex(colour)
-        : state.finalFourPhase ? firstFinalCornerIndex(colour)
-        : firstNormalReserveIndex(colour);
+      index = state.finalFourPhase ? firstFinalCornerIndex(colour) : firstNormalReserveIndex(colour);
     }
     if (index === null) return false;
     state.selectedReserveIndex = index;
@@ -305,9 +315,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
     const colours = availableChoiceColours();
     if (colours.length !== 1) return false;
     const colour = colours[0];
-    const index = initialCornerPhase() ? firstOpeningReserveIndex(colour)
-      : state.finalFourPhase ? firstFinalCornerIndex(colour)
-      : firstNormalReserveIndex(colour);
+    const index = state.finalFourPhase ? firstFinalCornerIndex(colour) : firstNormalReserveIndex(colour);
     if (index === null) return false;
     state.selectedReserveIndex = index;
     state.assignedColour = colour;
@@ -317,7 +325,6 @@ const mobileVersionElement = document.getElementById("mobile-version");
   }
 
   function colourPrompt() {
-    if (initialCornerPhase()) return `${participantName(state.currentPlayer)}: choose one of the remaining top-corner pieces to place.`;
     if (state.finalFourPhase) return `${participantName(state.currentPlayer)}: choose one of the remaining Final Four corner pieces to place.`;
     if (state.consequence?.type === "move" && state.consequence.step === 1) {
       return `${participantName(state.currentPlayer)}: choose a reserve piece for your first compulsory placement.`;
@@ -330,7 +337,6 @@ const mobileVersionElement = document.getElementById("mobile-version");
   function actionPrompt() {
     const actor = participantName(state.currentPlayer);
     if (state.redeployPiece) return `${actor}: redeploy the jumped ${colourTitle(state.redeployPiece.colour)} piece on any empty square.`;
-    if (initialCornerPhase()) return `${actor}: place the chosen top-corner ${colourTitle(state.assignedColour)} piece. Opening turns are placement only.`;
     if (state.finalFourPhase) return `${actor}: place the chosen Final Four ${colourTitle(state.assignedColour)} piece. No Move or Jump.`;
     if (state.consequence?.type === "move") {
       return `${actor}: compulsory placement ${state.consequence.step} of 2 - place ${colourTitle(state.assignedColour)}.`;
@@ -477,7 +483,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
     if (state.finalFourPhase) {
       const slot = CORNERS.indexOf(state.selectedReserveIndex);
       if (slot < 0 || state.finalCornerPieces[slot] !== colour) return false;
-      state.board[index] = { id: nextPieceId++, colour };
+      state.board[index] = { id: nextPieceId++, colour, pinned: false };
       state.finalCornerPieces[slot] = null;
       clearHeldPiece();
       if (finishWin()) return true;
@@ -494,22 +500,11 @@ const mobileVersionElement = document.getElementById("mobile-version");
       resetMoveTimer(); processFlow(); return true;
     }
 
-    const opening = initialCornerPhase();
-    const isCorner = CORNERS.includes(state.selectedReserveIndex);
-    if (opening !== isCorner) return false;
+    if (CORNERS.includes(state.selectedReserveIndex)) return false;
     if (!consumeSelectedActivePiece()) return false;
-    state.board[index] = { id: nextPieceId++, colour };
-    if (opening) state.openingCornerPlacementsRemaining -= 1;
+    state.board[index] = { id: nextPieceId++, colour, pinned: false };
     clearHeldPiece();
     if (finishWin()) return true;
-
-    if (opening) {
-      const finishing = state.currentPlayer;
-      state.currentPlayer = otherPlayer(finishing);
-      state.colourChooser = state.currentPlayer;
-      state.choosingColour = true;
-      resetMoveTimer(); processFlow(); return true;
-    }
 
     if (state.consequence?.type === "move") {
       advanceMoveConsequence();
@@ -523,18 +518,22 @@ const mobileVersionElement = document.getElementById("mobile-version");
   function legalSingleJumps(from) {
     if (!jumpAllowedNow()) return [];
     const piece = state.board[from];
-    if (!piece) return [];
+    if (!piece || piece.pinned) return [];
     return rules.jumpDestinations(state.board, from).filter(j => {
       const over = state.board[j.over];
-      return over && over.colour !== piece.colour;
+      return over && !over.pinned && over.colour !== piece.colour;
     });
   }
 
   function selectPiece(index) {
     if (computerBusy || state.winner !== null || state.choosingColour || state.redeployPiece || state.consequence ||
-        initialCornerPhase() || state.finalFourPhase || oneColourPlacementOnly()) return;
+        state.finalFourPhase || oneColourPlacementOnly()) return;
     const piece = state.board[index];
     if (!piece || piece.colour !== state.assignedColour) return;
+    if (piece.pinned) {
+      setStatus("That opening corner piece is pinned and cannot Move or Jump.");
+      render(); return;
+    }
     if (piece.id === state.protectedPieceId) {
       setStatus("You cannot Move or Jump the piece your opponent moved on their previous turn.");
       render(); return;
@@ -553,7 +552,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
 
   function moveBoardPiece(from, to, jump = null, afterFlash = false) {
     const piece = state.board[from];
-    if (!piece || state.board[to]) return;
+    if (!piece || piece.pinned || state.board[to]) return;
     if (jump && !afterFlash) {
       state.jumpFlashIndex = jump.over;
       render();
@@ -563,6 +562,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
       }, settings.animations ? 400 : 0);
       return;
     }
+    if (jump && state.board[jump.over]?.pinned) return;
     state.board[to] = piece;
     state.board[from] = null;
     clearSelection();
@@ -578,7 +578,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
     }
 
     const jumpedPiece = state.board[jump.over];
-    if (!jumpedPiece || jumpedPiece.colour === piece.colour) return;
+    if (!jumpedPiece || jumpedPiece.pinned || jumpedPiece.colour === piece.colour) return;
     state.board[jump.over] = null;
     const jumper = state.currentPlayer;
     const responder = otherPlayer(jumper);
@@ -609,7 +609,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
   function cloneBoard(board) { return board.map(piece => piece ? { ...piece } : null); }
   function boardAfterAction(action) {
     const board = cloneBoard(state.board);
-    if (["place", "final-place", "redeploy"].includes(action.type)) board[action.to] = { id: -1, colour: action.colour };
+    if (["place", "final-place", "redeploy"].includes(action.type)) board[action.to] = { id: -1, colour: action.colour, pinned: false };
     else { board[action.to] = board[action.from]; board[action.from] = null; }
     return board;
   }
@@ -646,7 +646,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
     if (mustPlace || oneColourPlacementOnly()) return actions;
     for (let from = 0; from < BOARD_CELLS; from += 1) {
       const piece = state.board[from];
-      if (!piece || piece.colour !== colour || piece.id === state.protectedPieceId) continue;
+      if (!piece || piece.pinned || piece.colour !== colour || piece.id === state.protectedPieceId) continue;
       if (moveAllowedNow()) for (const to of rules.adjacentDestinations(state.board, from)) actions.push({ type: "move", from, to, colour });
       if (jumpAllowedNow()) for (const j of legalSingleJumps(from)) actions.push({ type: "jump", from, to: j.to, over: j.over, colour });
     }
@@ -663,7 +663,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
       const winning = colours.filter(colour => {
         for (let to = 0; to < BOARD_CELLS; to += 1) {
           if (state.board[to]) continue;
-          if (rules.checkWin(Object.assign(cloneBoard(state.board), { [to]: { id: -1, colour } }), settings)) return true;
+          if (rules.checkWin(Object.assign(cloneBoard(state.board), { [to]: { id: -1, colour, pinned: false } }), settings)) return true;
         }
         return false;
       });
@@ -672,7 +672,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
       const safe = colours.filter(colour => {
         for (let to = 0; to < BOARD_CELLS; to += 1) {
           if (state.board[to]) continue;
-          const board = cloneBoard(state.board); board[to] = { id: -1, colour };
+          const board = cloneBoard(state.board); board[to] = { id: -1, colour, pinned: false };
           if (rules.checkWin(board, settings)) return false;
         }
         return true;
@@ -680,9 +680,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
       if (safe.length) pool = safe;
     }
     const colour = pool[Math.floor(Math.random() * pool.length)];
-    const index = initialCornerPhase() ? firstOpeningReserveIndex(colour)
-      : state.finalFourPhase ? firstFinalCornerIndex(colour)
-      : firstNormalReserveIndex(colour);
+    const index = state.finalFourPhase ? firstFinalCornerIndex(colour) : firstNormalReserveIndex(colour);
     flowTimer = setTimeout(() => {
       computerBusy = false;
       state.selectedReserveIndex = index;
@@ -701,8 +699,6 @@ const mobileVersionElement = document.getElementById("mobile-version");
       for (let to = 0; to < BOARD_CELLS; to += 1) if (!state.board[to]) actions.push({ type: "redeploy", to, colour: state.redeployPiece.colour });
     } else if (state.finalFourPhase) {
       for (let to = 0; to < BOARD_CELLS; to += 1) if (!state.board[to]) actions.push({ type: "final-place", to, colour: state.assignedColour });
-    } else if (initialCornerPhase()) {
-      for (let to = 0; to < BOARD_CELLS; to += 1) if (!state.board[to]) actions.push({ type: "place", to, colour: state.assignedColour });
     } else {
       actions = enumerateActions(state.assignedColour, !!state.consequence);
     }
@@ -719,9 +715,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
   function chooseReservePiece(displayIndex, colour) {
     if (state.winner !== null || computerBusy || !state.choosingColour || isComputer(state.colourChooser)) return;
     if (!availableChoiceColours().includes(colour)) return;
-    if (initialCornerPhase()) {
-      if (!CORNERS.includes(displayIndex) || state.reserveLayout.active[displayIndex] !== colour) return;
-    } else if (state.finalFourPhase) {
+    if (state.finalFourPhase) {
       const slot = CORNERS.indexOf(displayIndex);
       if (slot < 0 || state.finalCornerPieces[slot] !== colour) return;
     } else {
@@ -754,16 +748,15 @@ const mobileVersionElement = document.getElementById("mobile-version");
         }
         if (activeColour && !picked) {
           const disc = document.createElement("span");
-          disc.className = `piece piece--${activeColour}${corner ? " piece--corner-top" : ""}`; disc.setAttribute("aria-hidden", "true");
+          disc.className = `piece piece--${activeColour}`; disc.setAttribute("aria-hidden", "true");
           cell.appendChild(disc);
         } else if (!corner || markerAway) cell.classList.add("board-cell--reserve-empty");
 
         let selectable = null;
         const humanChooser = state.winner === null && state.choosingColour && !computerBusy && !isComputer(state.colourChooser);
         if (humanChooser) {
-          if (initialCornerPhase() && corner && activeColour) selectable = activeColour;
-          else if (state.finalFourPhase && corner && state.finalCornerPieces[slot]) selectable = state.finalCornerPieces[slot];
-          else if (!initialCornerPhase() && !state.finalFourPhase && !corner && activeColour) selectable = activeColour;
+          if (state.finalFourPhase && corner && state.finalCornerPieces[slot]) selectable = state.finalCornerPieces[slot];
+          else if (!state.finalFourPhase && !corner && activeColour) selectable = activeColour;
         }
         cell.disabled = !selectable;
         if (selectable) {
@@ -785,8 +778,11 @@ const mobileVersionElement = document.getElementById("mobile-version");
       }
       const piece = state.board[index];
       if (piece) {
-        const disc = document.createElement("span"); disc.className = `piece piece--${piece.colour}`; disc.setAttribute("aria-hidden", "true"); cell.appendChild(disc);
-        cell.setAttribute("aria-label", `${colourTitle(piece.colour)} piece, row ${row + 1}, column ${col + 1}`);
+        const disc = document.createElement("span");
+        disc.className = `piece piece--${piece.colour}`;
+        disc.setAttribute("aria-hidden", "true");
+        cell.appendChild(disc);
+        cell.setAttribute("aria-label", `${colourTitle(piece.colour)}${piece.pinned ? " pinned opening anchor" : " piece"}, row ${row + 1}, column ${col + 1}`);
       } else cell.setAttribute("aria-label", `Empty playing square, row ${row + 1}, column ${col + 1}`);
       cell.disabled = computerBusy;
       cell.addEventListener("click", () => handleCell(index));
@@ -807,11 +803,10 @@ const mobileVersionElement = document.getElementById("mobile-version");
     const phaseHelp = document.getElementById("phase-help");
     if (phaseHelp) {
       phaseHelp.textContent = state.finalFourPhase ? `Final Four - ${state.finalCornerPieces.filter(Boolean).length} pieces left - placement only`
-        : initialCornerPhase() ? `Opening - ${state.openingCornerPlacementsRemaining} top-corner placements remaining`
         : state.redeployPiece ? `Jump consequence - ${participantName(state.currentPlayer)} redeploys the exact jumped piece`
         : state.consequence?.type === "move" ? `Move consequence - compulsory placement ${state.consequence.step} of 2`
         : oneColourPlacementOnly() ? `One-colour finish - ${normalReserveTotal()} normal reserve pieces left - placement only`
-        : `Main play - opponent hands a reserve piece: Place, Move or Jump with that colour.`;
+        : `Main play - four pinned opening anchors are in place; opponent hands a reserve piece: Place, Move or Jump with that colour.`;
     }
     const placementAlert = document.getElementById("placement-alert");
     if (placementAlert) {
@@ -833,16 +828,16 @@ const mobileVersionElement = document.getElementById("mobile-version");
   }
 
   function jumpToFinalFourTest() {
-    clearTimeout(flowTimer); computerBusy = false; checkpoints = []; state = freshState();
-    state.openingCornerPlacementsRemaining = 0;
+    clearTimeout(flowTimer); computerBusy = false; nextPieceId = 1; checkpoints = []; state = freshState();
     state.reserveLayout.active.fill(null);
-    const cells = [...Array(BOARD_CELLS).keys()];
+    const anchorBoard = state.board.map(piece => piece ? { ...piece } : null);
+    const availableCells = [...Array(BOARD_CELLS).keys()].filter(i => !anchorBoard[i]);
     let attempts = 0;
     do {
-      state.board = Array(BOARD_CELLS).fill(null);
-      const occupied = shuffled(cells).slice(0, 28);
-      const colours = shuffled([...Array(14).fill("black"), ...Array(14).fill("white")]);
-      occupied.forEach((index, i) => { state.board[index] = { id: nextPieceId++, colour: colours[i] }; });
+      state.board = anchorBoard.map(piece => piece ? { ...piece } : null);
+      const occupied = shuffled(availableCells).slice(0, 24);
+      const colours = shuffled([...Array(12).fill("black"), ...Array(12).fill("white")]);
+      occupied.forEach((index, i) => { state.board[index] = { id: nextPieceId++, colour: colours[i], pinned: false }; });
       attempts += 1;
     } while (rules.checkWin(state.board, settings) && attempts < 10000);
     state.currentPlayer = 0; state.colourChooser = 0; state.choosingColour = true;
@@ -850,20 +845,28 @@ const mobileVersionElement = document.getElementById("mobile-version");
     resetMoveTimer(); processFlow();
   }
 
+  function resolvedStarterIndex() {
+    let starter = settings.starter;
+    if (starter === "random") return Math.random() < 0.5 ? 0 : 1;
+    if (starter === "alternate") {
+      const previous = localStorage.getItem("lipfty-last-starter") || "other";
+      const next = previous === "player" ? "other" : "player";
+      localStorage.setItem("lipfty-last-starter", next);
+      return next === "player" ? 0 : 1;
+    }
+    if (starter === "computer") return 1;
+    return 0;
+  }
+
   function startNewGame() {
     clearTimeout(flowTimer); computerBusy = false; nextPieceId = 1; checkpoints = []; state = freshState(); applyPieceColours();
-    if (settings.mode === "computer") {
-      let starter = settings.starter;
-      if (starter === "random") starter = Math.random() < 0.5 ? "player" : "computer";
-      if (starter === "alternate") {
-        const prev = localStorage.getItem("lipfty-last-starter") || "computer";
-        starter = prev === "player" ? "computer" : "player";
-        localStorage.setItem("lipfty-last-starter", starter);
-      }
-      state.currentPlayer = starter === "computer" ? 1 : 0;
-    } else state.currentPlayer = 0;
-    state.colourChooser = state.currentPlayer;
-    resetMoveTimer(); processFlow();
+    state.currentPlayer = resolvedStarterIndex();
+    // With the automatic opening already complete, P2/opponent makes the first
+    // normal handover to the selected starting player.
+    state.colourChooser = otherPlayer(state.currentPlayer);
+    state.choosingColour = true;
+    resetMoveTimer();
+    processFlow("The four diagonal-colour opening anchors are pinned in place. The opponent chooses the first normal reserve piece.");
   }
 
   function timerText(seconds) { const m = Math.floor(seconds / 60), s = Math.max(0, seconds % 60); return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`; }
@@ -968,7 +971,12 @@ const mobileVersionElement = document.getElementById("mobile-version");
   document.getElementById("close-help").addEventListener("click", () => helpDialog.close());
 
   let pendingUpdateRegistration = null;
-  function gameIsInProgress() { return !!state && state.winner === null && (state.board.some(Boolean) || state.redeployPiece); }
+  function gameIsInProgress() {
+    return !!state && state.winner === null && (
+      state.redeployPiece || state.finalFourPhase || normalReserveTotal() < 24 ||
+      state.board.some(piece => piece && !piece.pinned)
+    );
+  }
   function maybeShowUpdateDialog() {
     const registration = pendingUpdateRegistration, dialog = document.getElementById("pwa-update-dialog");
     if (!registration?.waiting || !dialog || dialog.open || gameIsInProgress()) return;

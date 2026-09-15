@@ -7,10 +7,10 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Lipfty 7">
-  <meta name="application-name" content="Lipfty 7">
-  <meta name="description" content="Lipfty 7 is a shared-piece 6×6 strategy game with placement, movement, single redeploying jumps and square wins.">
-  <title>Lipfty 7</title>
+  <meta name="apple-mobile-web-app-title" content="Lipfty 8">
+  <meta name="application-name" content="Lipfty 8">
+  <meta name="description" content="Lipfty 8 is a shared-piece 6×6 strategy game with four pinned opening anchors, placement, movement, single redeploying jumps and square wins.">
+  <title>Lipfty 8</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/lipfty-192.png" type="image/png">
   <link rel="apple-touch-icon" href="icons/lipfty-180.png">
@@ -21,7 +21,7 @@
     <header class="app-header">
       <div>
         <p class="eyebrow">Shared-piece strategy</p>
-        <h1>Lipfty 7</h1>
+        <h1>Lipfty 8</h1>
       </div>
       <span class="mobile-version" id="mobile-version" aria-hidden="true"></span>
       <div class="header-actions">
@@ -40,7 +40,7 @@
           <span class="turn-label">Move timer</span>
           <strong id="move-timer">00:30</strong>
         </div>
-        <div class="turn-message-card"><p id="status">Choose an Opening Four piece.</p></div>
+        <div class="turn-message-card"><p id="status">The opening anchors are pinned in place.</p></div>
       </section>
 
       <section class="game-stage">
@@ -49,24 +49,24 @@
           <div class="reserve-grid">
             <button class="reserve-button" id="place-black" type="button">
               <span class="piece piece--black"></span>
-              <span><strong id="colour1-name">Red</strong><small id="black-remaining">14 remaining</small></span>
+              <span><strong id="colour1-name">Red</strong><small id="black-remaining">12 remaining</small></span>
             </button>
             <button class="reserve-button" id="place-white" type="button">
               <span class="piece piece--white"></span>
-              <span><strong id="colour2-name">Blue</strong><small id="white-remaining">14 remaining</small></span>
+              <span><strong id="colour2-name">Blue</strong><small id="white-remaining">12 remaining</small></span>
             </button>
           </div>
         </aside>
 
         <aside class="stage-info-card" id="stage-info-card">
-          <p class="panel-help" id="phase-help">Opening · place the four top-corner pieces first.</p>
+          <p class="panel-help" id="phase-help">Main play · four diagonal-colour opening anchors are already pinned on the inner 6×6 corners.</p>
           <p class="placement-alert" id="placement-alert" hidden></p>
         </aside>
 
         <section class="board-section">
           <div class="board-frame">
             <div class="board" id="board" role="grid" aria-label="Lipfty eight by eight board with inner six by six playing area"></div>
-            <p class="board-note">Inner 6×6 = playing area · outer ring = shared reserve. The full 32-piece set is divided into 4 Opening Four pieces, 24 normal reserve pieces and 4 Final Four corner pieces.</p>
+            <p class="board-note">Inner 6×6 = playing area · outer ring = shared reserve. The full 32-piece set is divided into 4 automatic pinned opening anchors, 24 normal reserve pieces and 4 Final Four corner pieces.</p>
           </div>
           <div class="jump-controls" id="jump-controls" hidden>
             <button class="button button--primary" id="finish-jump" type="button">Finish turn</button>
@@ -74,9 +74,9 @@
         </section>
 
         <aside class="rules-panel">
-          <h2>Lipfty 7 Standard</h2>
-          <p><strong>Opening Four:</strong> each player chooses and places one of the four top-corner pieces on their turn. Opening turns are placement-only.</p>
-          <p><strong>Main play:</strong> your opponent hands you an actual normal reserve piece. Use its colour to <strong>Place</strong> it, <strong>Move</strong> a matching board piece one adjacent square, or make one <strong>Jump</strong> over an adjacent opposite-colour piece.</p>
+          <h2>Lipfty 8 Standard</h2>
+          <p><strong>Opening Four:</strong> four pieces start automatically on the four corners of the inner 6×6, with matching colours diagonally opposite. They remain pinned for the whole game: they cannot Move, Jump or be jumped over, but they count normally towards a win.</p>
+          <p><strong>Main play:</strong> the opponent of the starting player hands over the first normal reserve piece. Use its colour to <strong>Place</strong> it, <strong>Move</strong> a matching movable board piece one adjacent square, or make one <strong>Jump</strong> over an adjacent opposite-colour movable piece.</p>
           <p><strong>After a Move:</strong> the responder chooses and makes one compulsory reserve placement, then chooses a second reserve piece for the original mover to place. The responder then takes the next normal turn.</p>
           <p><strong>After a Jump:</strong> if the Jump itself does not win, lift the jumped piece. The opponent redeploys that exact piece anywhere empty and then takes the next normal turn; the original jumper chooses the reserve colour for that turn.</p>
           <p><strong>One-colour finish:</strong> as soon as either normal reserve colour is exhausted, Move and Jump stop. Every remaining normal reserve piece must then be placed.</p>
@@ -91,7 +91,7 @@
           <button class="button button--secondary" id="end-test" type="button">End</button>
         </div>
         <div class="action-bar-centre"><button class="button button--secondary" id="undo" type="button">Undo</button></div>
-        <div class="build-info"><span id="app-version">Version 7.0.16</span><span id="build-reference"></span></div>
+        <div class="build-info"><span id="app-version">Version 8.0.19</span><span id="build-reference"></span></div>
       </section>
     </main>
   </div>
@@ -139,7 +139,7 @@
 
       <section class="wizard-step" data-wizard-step="2" hidden>
         <h3>Rules</h3>
-        <p class="setup-help"><strong>Lipfty 7 Standard</strong> uses Jump, Move, Diagonal, Tight Square and Spaced Square. These switches remain available for experiments and simpler variants.</p>
+        <p class="setup-help"><strong>Lipfty 8 Standard</strong> uses the pinned diagonal-corner opening with Jump, Move, Diagonal, Tight Square and Spaced Square. The switches below remain available for experiments and simpler variants.</p>
         <fieldset class="setup-fieldset"><legend>Rule switches</legend><div class="toggle-list">
           <label class="toggle-row"><span><strong>Allow Jump</strong><small>Single opposite-colour Jump with redeployment</small></span><input data-rule-option data-rule-label="Jump" id="setting-allow-jump" type="checkbox"></label>
           <label class="toggle-row"><span><strong>Allow Move</strong><small>One square in any of eight directions</small></span><input data-rule-option data-rule-label="Move" id="setting-allow-move" type="checkbox"></label>
@@ -198,24 +198,24 @@
 
   <dialog id="help-dialog">
     <div class="dialog-heading">
-      <div><p class="dialog-eyebrow">How to play</p><h2>Lipfty 7</h2></div>
+      <div><p class="dialog-eyebrow">How to play</p><h2>Lipfty 8</h2></div>
       <button class="dialog-close" id="close-help" type="button" aria-label="Close">×</button>
     </div>
     <div class="rules-copy">
       <p><strong>Objective.</strong> Lipfty uses a standard 8×8 draughts/checkers board and full 32-piece set. Play takes place on the inner 6×6 area. The pieces are shared by both players rather than owned by one player. Win by making four matching-colour pieces horizontally, vertically or diagonally, or by making the four corners of a tight 2×2 square or a larger board-aligned spaced square.</p>
-      <p><strong>Piece groups.</strong> The outer ring contains four top-corner <strong>Opening Four</strong> pieces, 24 <strong>normal reserve</strong> pieces (12 of each colour), and four pieces underneath the corner tops which become the <strong>Final Four</strong>.</p>
-      <p><strong>Opening Four.</strong> For the first four turns, the player whose turn it is chooses one of the available top-corner pieces and places it anywhere empty in the inner 6×6 area. These turns are placement-only: there is no opponent handover, Move or Jump.</p>
-      <p><strong>Normal handover.</strong> After the Opening Four, the player who has just completed a normal turn chooses an actual normal reserve piece and hands it to the opponent. Its colour is the colour the receiving player must use. While both normal reserve colours remain, the receiver may either place that handed piece, Move a matching board piece, or make one legal Jump with a matching board piece.</p>
-      <p><strong>Move.</strong> Move one board piece of the handed colour exactly one square to any empty adjacent square: horizontal, vertical or diagonal. You may not Move or Jump the exact board piece your opponent moved on their immediately preceding turn.</p>
+      <p><strong>Piece groups.</strong> Four pieces begin automatically on the four corners of the inner 6×6 as the <strong>Opening Four anchors</strong>. The outer ring holds 24 <strong>normal reserve</strong> pieces (12 of each colour), plus four corner pieces which become the <strong>Final Four</strong>.</p>
+      <p><strong>Opening Four.</strong> Before either player starts, the four opening pieces are placed automatically on the four corners of the inner 6×6. Matching colours are diagonally opposite. These four pieces are permanent anchors: they cannot Move or Jump, and no Jump may pass over them. They still count normally in every winning pattern.</p>
+      <p><strong>First turn and normal handover.</strong> After the anchors are in place, the starting player is selected according to the game setup. The opponent chooses the first normal reserve piece and hands it to the starting player. After that, the player who has just completed a normal turn chooses an actual normal reserve piece and hands it to the opponent. Its colour is the colour the receiving player must use. While both normal reserve colours remain, the receiver may either place that handed piece, Move a matching movable board piece, or make one legal Jump with a matching movable board piece.</p>
+      <p><strong>Move.</strong> Move one movable board piece of the handed colour exactly one square to any empty adjacent square: horizontal, vertical or diagonal. The four opening anchors can never Move or Jump. You may not Move or Jump the exact board piece your opponent moved on their immediately preceding turn.</p>
       <p><strong>Move consequence.</strong> A non-winning Move does not consume the handed reserve piece. Instead, the opponent chooses a normal reserve piece and immediately places it. If that does not win, the same opponent chooses another remaining normal reserve piece for the original mover, who places it. If neither placement wins, the opponent takes the next normal turn.</p>
-      <p><strong>Jump.</strong> Make one non-capturing-style leap with a board piece of the handed colour over one adjacent <strong>opposite-colour</strong> piece into the empty square immediately beyond it. Jumps may be horizontal, vertical or diagonal and there are no multi-jumps. If the Jump itself makes a win, the game ends before anything else happens.</p>
+      <p><strong>Jump.</strong> Make one non-capturing-style leap with a movable board piece of the handed colour over one adjacent <strong>opposite-colour</strong> movable piece into the empty square immediately beyond it. The four pinned opening anchors cannot be jumped over. Jumps may be horizontal, vertical or diagonal and there are no multi-jumps. If the Jump itself makes a win, the game ends before anything else happens.</p>
       <p><strong>Jump consequence.</strong> If the Jump does not win, lift the exact jumped piece. The opponent immediately redeploys that same piece on any empty square. A win made by the redeployment ends the game. Otherwise the opponent gets the next normal turn, and the original jumper chooses the normal reserve piece/colour handed to them. A Jump consumes no normal reserve piece.</p>
       <p><strong>One-colour finish.</strong> As soon as either normal reserve colour is exhausted, Move and Jump stop completely. The remaining normal reserve pieces must be placed, one per normal turn, until the normal reserve is empty. If a two-placement Move consequence has already started, finish that consequence first.</p>
-      <p><strong>Final Four.</strong> When the normal reserve is empty, the four underneath corner pieces become playable. Final Four is placement-only. On each turn the player chooses one of the remaining Final Four pieces and places it anywhere empty. If all four are placed without a win, the game is a draw.</p>
+      <p><strong>Final Four.</strong> When the normal reserve is empty, the four corner pieces become playable. Final Four is placement-only. On each turn the player chooses one of the remaining Final Four pieces and places it anywhere empty. If all four are placed without a win, the game is a draw.</p>
       <p><strong>Immediate wins.</strong> A win ends the game immediately whether it is made by a normal placement, Move, Jump, Jump redeployment, compulsory placement or Final Four placement.</p>
-      <p><strong>Standard and variants.</strong> Lipfty 7 Standard has Move, Jump, Diagonal, Tight Square and Spaced Square switched on; Diamonds are off. The setup Rules page keeps switches available for experimental or simpler variants, but the Lipfty 7 Standard baseline is the configuration above.</p>
+      <p><strong>Standard and variants.</strong> Lipfty 8 Standard uses the automatic pinned diagonal-corner opening, with Move, Jump, Diagonal, Tight Square and Spaced Square switched on; Diamonds are off. The setup Rules page keeps switches available for experimental or simpler variants, but the Lipfty 8 Standard baseline is the configuration above.</p>
       <p><strong>Undo and timer.</strong> If Undo is enabled, the previous decision can be restored even after a win. The timer may be 30, 45 or 60 seconds, or Unlimited; reaching zero does not force a turn to end.</p>
-      <p><a class="button button--secondary" href="Lipfty-Rules.pdf" target="_blank" rel="noopener">Printable Lipfty 7 rules (PDF)</a></p>
+      <p><a class="button button--secondary" href="Lipfty-Rules.pdf" target="_blank" rel="noopener">Printable Lipfty 8 rules (PDF)</a></p>
     </div>
   </dialog>
 
