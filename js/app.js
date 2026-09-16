@@ -16,8 +16,8 @@ const mobileVersionElement = document.getElementById("mobile-version");
     allowJump: true,
     allowMove: true,
     allowDiagonal: true,
-    allowSquare: true,
-    allowSpacedSquare: true,
+    allowSquare: false,
+    allowSpacedSquare: false,
     allowDiamond: false,
     allowSpacedDiamond: false
   });
@@ -59,7 +59,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
       mode: "computer", player1: "Player", player2: "Player 2", level: "standard",
       starter: "random", undo: true, language: "en-GB", colour1: "red", colour2: "blue",
       clockMinutes: 0, clockIncrement: 0, sound: true, animations: true, undoPreviousJump: false,
-      rulesBaseline: 8,
+      rulesBaseline: 10,
       ...STANDARD_RULES
     };
     try {
@@ -74,7 +74,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
       }
       delete saved.winLevel;
       // Diamonds were experimental in earlier versions and are no longer part
-      // of Lipfty 8. Remove any legacy saved switches and always keep them off.
+      // of Lipfty. Remove any legacy saved switches and always keep them off.
       const hadLegacyDiamondSettings = Object.prototype.hasOwnProperty.call(saved, "allowDiamond") ||
         Object.prototype.hasOwnProperty.call(saved, "allowSpacedDiamond");
       delete saved.allowDiamond;
@@ -85,11 +85,11 @@ const mobileVersionElement = document.getElementById("mobile-version");
       if (saved.clockMinutes === undefined) saved.clockMinutes = 0;
       if (saved.clockIncrement === undefined) saved.clockIncrement = 0;
       delete saved.timer;
-      // Lipfty 8 keeps the confirmed Lipfty 7 Standard play rules and changes
-      // only the opening setup to the four permanent diagonal-colour anchors.
-      const needsRulesBaselineMigration = saved.rulesBaseline !== 8;
+      // Lipfty 10 introduces the Learning / Standard / Extreme version set.
+      // Existing saved settings migrate safely to Standard.
+      const needsRulesBaselineMigration = saved.rulesBaseline !== 10;
       if (needsRulesBaselineMigration) {
-        Object.assign(saved, STANDARD_RULES, { rulesBaseline: 8 });
+        Object.assign(saved, STANDARD_RULES, { rulesBaseline: 10 });
       }
       const migrated = { ...defaults, ...saved, allowDiamond: false, allowSpacedDiamond: false };
       if (hadLegacyDiamondSettings || needsRulesBaselineMigration) {
@@ -135,7 +135,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
     const active = Array(64).fill(null);
     const locked = Array(64).fill(null);
 
-    // The Opening Four are already on the inner board in Lipfty 8. The 24
+    // The Opening Four are already on the inner board. The 24
     // ordinary reserve pieces therefore occupy only the non-corner ring slots.
     shuffled([...Array(12).fill("black"), ...Array(12).fill("white")])
       .forEach((colour, i) => { active[nonCorners[i]] = colour; });

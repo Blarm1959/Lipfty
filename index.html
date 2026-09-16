@@ -144,11 +144,11 @@
 
       <section class="wizard-step" data-wizard-step="2" hidden>
         <h3>Choose Lipfty version</h3>
-        <p class="setup-help">Move, Jump and diagonal wins are core Lipfty rules. The versions differ only in which extra winning patterns are allowed.</p>
+        <p class="setup-help">Choose the version you want to play. Learning is placement-only; Standard adds Move and Jump; Extreme adds the two Square patterns.</p>
         <fieldset class="setup-fieldset"><legend>Winning patterns</legend><div class="mode-choice-grid">
-          <label class="mode-choice"><input checked name="gameVersion" type="radio" value="standard"><span><strong>Standard</strong><small>Horizontal, vertical or diagonal four-in-line</small></span></label>
-          <label class="mode-choice"><input name="gameVersion" type="radio" value="advanced"><span><strong>Advanced</strong><small>Standard plus a tight 2×2 square</small></span></label>
-          <label class="mode-choice"><input name="gameVersion" type="radio" value="extreme"><span><strong>Extreme</strong><small>Advanced plus larger board-aligned spaced squares</small></span></label>
+          <label class="mode-choice"><input name="gameVersion" type="radio" value="learning"><span><strong>Learning</strong><small>Horizontal, vertical or diagonal four-in-line - placement only</small></span></label>
+          <label class="mode-choice"><input checked name="gameVersion" type="radio" value="standard"><span><strong>Standard</strong><small>Four-in-line wins with Place, Move and Jump</small></span></label>
+          <label class="mode-choice"><input name="gameVersion" type="radio" value="extreme"><span><strong>Extreme</strong><small>Standard plus tight and spaced Square wins</small></span></label>
         </div></fieldset>
         <div hidden aria-hidden="true">
           <input data-rule-option data-rule-label="Jump" id="setting-allow-jump" type="checkbox">
@@ -227,15 +227,15 @@
       <button class="dialog-close" id="close-help" type="button" aria-label="Close">×</button>
     </div>
     <div class="rules-copy">
-      <p><strong>Objective.</strong> Lipfty uses a standard 8×8 draughts/checkers board and full 32-piece set. Play takes place on the inner 6×6 area. The pieces are shared by both players rather than owned by one player. In <strong>Standard</strong>, win by making four matching-colour pieces horizontally, vertically or diagonally.</p>
-      <p><strong>Game versions.</strong> <strong>Standard</strong> uses horizontal, vertical and diagonal four-in-line wins. <strong>Advanced</strong> adds the tight 2×2 square. <strong>Extreme</strong> adds larger board-aligned spaced squares as well. Move, Jump, the pinned opening, one-colour finish and Final Four are identical in all three versions.</p>
+      <p><strong>Objective.</strong> Lipfty uses a standard 8×8 draughts/checkers board and full 32-piece set. Play takes place on the inner 6×6 area. The pieces are shared by both players rather than owned by one player. Make one of the winning patterns permitted by the version you selected.</p>
+      <p><strong>Game versions.</strong> <strong>Learning</strong> uses horizontal, vertical and diagonal four-in-line wins, with placement only. <strong>Standard</strong> uses the same line wins with Place, Move and Jump. <strong>Extreme</strong> uses Standard rules and also allows a tight 2×2 Square and a spaced board-aligned Square. The pinned opening, shared reserve, one-colour finish and Final Four are identical in all three versions.</p>
       <p><strong>Piece groups.</strong> Four pieces begin automatically on the four corners of the inner 6×6 as the <strong>Opening Four anchors</strong>. The outer ring holds 24 <strong>normal reserve</strong> pieces (12 of each colour), plus four corner pieces which become the <strong>Final Four</strong>.</p>
       <p><strong>Opening Four.</strong> Before either player starts, the four opening pieces are placed automatically on the four corners of the inner 6×6. Matching colours are diagonally opposite. These four pieces are permanent anchors: they cannot Move or Jump, and no Jump may pass over them. They still count normally in every winning pattern allowed by the selected version.</p>
-      <p><strong>First turn and normal handover.</strong> After the anchors are in place, the starting player is selected according to the game setup. The opponent chooses the first normal reserve piece and hands it to the starting player. After that, the player who has just completed a normal turn chooses an actual normal reserve piece and hands it to the opponent. Its colour is the colour the receiving player must use. While both normal reserve colours remain, the receiver may either place that handed piece, Move a matching movable board piece, or make one legal Jump with a matching movable board piece.</p>
-      <p><strong>Move.</strong> Move one movable board piece of the handed colour exactly one square to any empty adjacent square: horizontal, vertical or diagonal. The four opening anchors can never Move or Jump. You may not Move or Jump the exact board piece your opponent moved on their immediately preceding turn.</p>
-      <p><strong>Move consequence.</strong> Keep hold of the reserve piece you were handed. Choose a different available reserve piece for your opponent to place. If that does not win, you then place the piece you were originally handed. The opponent takes the next normal turn.</p>
-      <p><strong>Jump.</strong> Make one non-capturing-style leap with a movable board piece of the handed colour over one adjacent <strong>opposite-colour</strong> movable piece into the empty square immediately beyond it. The four pinned opening anchors cannot be jumped over. Jumps may be horizontal, vertical or diagonal and there are no multi-jumps. If the Jump itself makes a win, the game ends before anything else happens.</p>
-      <p><strong>Jump consequence.</strong> Keep hold of the reserve piece you were handed. Lift the exact jumped piece and give it to your opponent to redeploy on any empty square. If that does not win, you then place the piece you were originally handed. The opponent takes the next normal turn.</p>
+      <p><strong>First turn and normal handover.</strong> After the anchors are in place, the starting player is selected according to the game setup. The opponent chooses the first normal reserve piece and hands it to the starting player. After that, the player who has just completed a normal turn chooses an actual normal reserve piece and hands it to the opponent. Its colour is the colour the receiving player must use. In <strong>Learning</strong>, the receiver places that handed piece. In <strong>Standard</strong> and <strong>Extreme</strong>, while both normal reserve colours remain, the receiver may instead Move a matching movable board piece or make one legal Jump with a matching movable board piece.</p>
+      <p><strong>Move (Standard and Extreme).</strong> Move one movable board piece of the handed colour exactly one square to any empty adjacent square: horizontal, vertical or diagonal. The four opening anchors can never Move or Jump. You may not Move or Jump the exact board piece your opponent moved on their immediately preceding turn.</p>
+      <p><strong>Move consequence (Standard and Extreme).</strong> Keep hold of the reserve piece you were handed. Choose a different available reserve piece for your opponent to place. If that does not win, you then place the piece you were originally handed. The opponent takes the next normal turn.</p>
+      <p><strong>Jump (Standard and Extreme).</strong> Make one non-capturing-style leap with a movable board piece of the handed colour over one adjacent <strong>opposite-colour</strong> movable piece into the empty square immediately beyond it. The four pinned opening anchors cannot be jumped over. Jumps may be horizontal, vertical or diagonal and there are no multi-jumps. If the Jump itself makes a win, the game ends before anything else happens.</p>
+      <p><strong>Jump consequence (Standard and Extreme).</strong> Keep hold of the reserve piece you were handed. Lift the exact jumped piece and give it to your opponent to redeploy on any empty square. If that does not win, you then place the piece you were originally handed. The opponent takes the next normal turn.</p>
       <p><strong>One-colour finish.</strong> As soon as either normal reserve colour is exhausted, Move and Jump stop completely. The remaining normal reserve pieces must be placed, one per normal turn, until the normal reserve is empty. If a two-placement Move consequence has already started, finish that consequence first.</p>
       <p><strong>Final Four.</strong> When the normal reserve is empty, the four corner pieces become playable. Final Four is placement-only. On each turn the player chooses one of the remaining Final Four pieces and places it anywhere empty. If all four are placed without a win, the game is a draw.</p>
       <p><strong>Immediate wins.</strong> A win ends the game immediately whether it is made by a normal placement, Move, Jump, Jump redeployment, held-piece placement or Final Four placement.</p>
@@ -262,13 +262,13 @@
     "use strict";
 
     const STORAGE_KEY = "lipfty-settings";
-    const LIPFTY9_VERSION_BASELINE = 1;
+    const LIPFTY10_VERSION_BASELINE = 2;
     const VERSION_RULES = {
-      standard: { allowSquare: false, allowSpacedSquare: false },
-      advanced: { allowSquare: true, allowSpacedSquare: false },
-      extreme: { allowSquare: true, allowSpacedSquare: true }
+      learning: { allowJump: false, allowMove: false, allowDiagonal: true, allowSquare: false, allowSpacedSquare: false },
+      standard: { allowJump: true, allowMove: true, allowDiagonal: true, allowSquare: false, allowSpacedSquare: false },
+      extreme: { allowJump: true, allowMove: true, allowDiagonal: true, allowSquare: true, allowSpacedSquare: true }
     };
-    const VERSION_LABELS = { standard: "Standard", advanced: "Advanced", extreme: "Extreme" };
+    const VERSION_LABELS = { learning: "Learning", standard: "Standard", extreme: "Extreme" };
 
     function readSettings() {
       try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); }
@@ -281,8 +281,8 @@
 
     function inferVersion(value) {
       if (VERSION_RULES[value?.gameVersion]) return value.gameVersion;
-      if (value?.allowSpacedSquare) return "extreme";
-      if (value?.allowSquare) return "advanced";
+      if (!value?.allowJump && !value?.allowMove) return "learning";
+      if (value?.allowSquare || value?.allowSpacedSquare) return "extreme";
       return "standard";
     }
 
@@ -291,13 +291,11 @@
       const versionRules = VERSION_RULES[selected];
       return Object.assign(value, {
         gameVersion: selected,
-        lipfty9GameVersionBaseline: LIPFTY9_VERSION_BASELINE,
-        // app.js still owns the Lipfty 8 mechanics baseline; Lipfty 9 changes
-        // only the available winning-pattern sets.
-        rulesBaseline: 8,
-        allowJump: true,
-        allowMove: true,
-        allowDiagonal: true,
+        lipfty10GameVersionBaseline: LIPFTY10_VERSION_BASELINE,
+        rulesBaseline: 10,
+        allowJump: versionRules.allowJump,
+        allowMove: versionRules.allowMove,
+        allowDiagonal: versionRules.allowDiagonal,
         allowSquare: versionRules.allowSquare,
         allowSpacedSquare: versionRules.allowSpacedSquare,
         allowDiamond: false,
@@ -306,7 +304,7 @@
     }
 
     let stored = readSettings();
-    if (stored.lipfty9GameVersionBaseline !== LIPFTY9_VERSION_BASELINE) {
+    if (stored.lipfty10GameVersionBaseline !== LIPFTY10_VERSION_BASELINE) {
       stored = applyVersionRules(stored, "standard");
     } else {
       stored = applyVersionRules(stored, inferVersion(stored));
@@ -321,9 +319,9 @@
       const selected = VERSION_RULES[version] ? version : "standard";
       const config = VERSION_RULES[selected];
       const values = {
-        "setting-allow-jump": true,
-        "setting-allow-move": true,
-        "setting-allow-diagonal": true,
+        "setting-allow-jump": config.allowJump,
+        "setting-allow-move": config.allowMove,
+        "setting-allow-diagonal": config.allowDiagonal,
         "setting-allow-square": config.allowSquare,
         "setting-allow-spaced-square": config.allowSpacedSquare
       };
@@ -336,9 +334,11 @@
     }
 
     function syncRadioFromRules(form) {
+      const jump = !!document.getElementById("setting-allow-jump")?.checked;
+      const move = !!document.getElementById("setting-allow-move")?.checked;
       const square = !!document.getElementById("setting-allow-square")?.checked;
       const spaced = !!document.getElementById("setting-allow-spaced-square")?.checked;
-      const version = spaced ? "extreme" : square ? "advanced" : "standard";
+      const version = !jump && !move ? "learning" : spaced || square ? "extreme" : "standard";
       const radio = form.querySelector(`[name="gameVersion"][value="${version}"]`);
       if (radio) radio.checked = true;
       return version;
@@ -350,10 +350,10 @@
       const win = document.getElementById("quick-win-rule");
       if (title) title.textContent = `Lipfty · ${VERSION_LABELS[selected]}`;
       if (!win) return;
-      if (selected === "advanced") {
-        win.innerHTML = "<strong>Win:</strong> make four in a horizontal, vertical or diagonal line, or a tight 2×2 square.";
+      if (selected === "learning") {
+        win.innerHTML = "<strong>Win:</strong> make four in a horizontal, vertical or diagonal line. Learning is placement-only.";
       } else if (selected === "extreme") {
-        win.innerHTML = "<strong>Win:</strong> make four in a horizontal, vertical or diagonal line, a tight 2×2 square, or a larger board-aligned spaced square.";
+        win.innerHTML = "<strong>Win:</strong> make four in a horizontal, vertical or diagonal line, a tight 2×2 Square, or a spaced board-aligned Square.";
       } else {
         win.innerHTML = "<strong>Win:</strong> make four in a horizontal, vertical or diagonal line.";
       }
@@ -392,7 +392,7 @@
       });
 
       // app.js owns the modal opening. This listener runs afterwards and maps
-      // its hidden rule switches back to the Lipfty 9 version selector.
+      // its hidden rule switches back to the Lipfty 10 version selector.
       settingsButton?.addEventListener("click", () => {
         const version = syncRadioFromRules(form);
         updateQuickRules(version);
@@ -404,7 +404,7 @@
         applyVersionToHidden(form, selectedVersion(form));
       }, true);
 
-      // app.js saves the normal settings first. Then persist the Lipfty 9
+      // app.js saves the normal settings first. Then persist the Lipfty 10
       // version label alongside the rule flags for the next launch.
       form.addEventListener("submit", () => {
         const version = selectedVersion(form);
