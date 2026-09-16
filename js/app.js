@@ -43,6 +43,9 @@ const mobileVersionElement = document.getElementById("mobile-version");
   let state = null;
   let settings = loadSettings();
   let computerBusy = false;
+  // App-only aid: retained only while the computer is showing its chosen action.
+  // It deliberately does not participate in the rules, saved game state or AI choice.
+  let computerMoveVisual = null;
   let flowTimer = null;
   let checkpoints = [];
   let clockInterval = null;
@@ -275,6 +278,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
   function restoreSnapshot(snap) {
     clearTimeout(flowTimer);
     computerBusy = false;
+    computerMoveVisual = null;
     nextPieceId = snap.nextPieceId;
     state = {
       ...snap.state,
@@ -305,6 +309,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
     state.winReason = "board";
     state.winningCells = [...win.line];
     computerBusy = false;
+    computerMoveVisual = null;
     stopChessClockInterval();
     clockActivePlayer = null;
     clockLastTick = null;
@@ -737,12 +742,25 @@ const mobileVersionElement = document.getElementById("mobile-version");
     }
     const action = pickComputerAction(actions);
     if (!action) { computerBusy = false; processFlow("Computer has no legal action."); return; }
+    const actionName = action.type === "final-place" ? "place a Final Four piece" :
+      action.type === "redeploy" ? "redeploy the jumped piece" :
+      action.type === "place" ? "place a piece" : action.type === "jump" ? "Jump" : "Move";
+    computerMoveVisual = {
+      type: action.type,
+      from: action.from ?? null,
+      to: action.to
+    };
+    setStatus(`Computer will ${actionName}.`);
+    render();
     flowTimer = setTimeout(() => {
       computerBusy = false;
+      computerMoveVisual = null;
       if (["place", "final-place", "redeploy"].includes(action.type)) { placeAt(action.to); return; }
       const jump = action.type === "jump" ? { to: action.to, over: action.over } : null;
-      moveBoardPiece(action.from, action.to, jump, true);
-    }, 250);
+      // Retain the established, separate flash of the jumped piece after the
+      // arrow has identified the computer's starting square and destination.
+      moveBoardPiece(action.from, action.to, jump, false);
+    }, settings.animations ? 650 : 0);
   }
 
   function chooseReservePiece(displayIndex, colour) {
@@ -806,6 +824,8 @@ const mobileVersionElement = document.getElementById("mobile-version");
       if (state.legalMoves.has(index)) cell.classList.add("board-cell--move");
       if (state.legalJumps.has(index)) cell.classList.add("board-cell--jump");
       if (state.jumpFlashIndex === index) cell.classList.add("board-cell--jumped-flash");
+      if (computerMoveVisual?.from === index) cell.classList.add("board-cell--computer-source");
+      if (computerMoveVisual?.to === index) cell.classList.add("board-cell--computer-target");
       if (!state.board[index] && !state.choosingColour && !computerBusy && !isComputer(state.currentPlayer) && state.selectedPieceIndex === null) {
         if (state.redeployPiece || state.finalFourPhase || state.selectedReserveIndex !== null) cell.classList.add("board-cell--place");
       }
@@ -821,6 +841,30 @@ const mobileVersionElement = document.getElementById("mobile-version");
       cell.addEventListener("click", () => handleCell(index));
       boardElement.appendChild(cell);
     }
+    renderComputerMoveArrow();
+  }
+
+  function renderComputerMoveArrow() {
+    if (!computerMoveVisual || computerMoveVisual.from === null || computerMoveVisual.to === null) return;
+    const from = boardElement.querySelector(`[data-index="${computerMoveVisual.from}"]`);
+    const to = boardElement.querySelector(`[data-index="${computerMoveVisual.to}"]`);
+    if (!from || !to) return;
+    const boardRect = boardElement.getBoundingClientRect();
+    const fromRect = from.getBoundingClientRect();
+    const toRect = to.getBoundingClientRect();
+    const x1 = fromRect.left + fromRect.width / 2 - boardRect.left;
+    const y1 = fromRect.top + fromRect.height / 2 - boardRect.top;
+    const x2 = toRect.left + toRect.width / 2 - boardRect.left;
+    const y2 = toRect.top + toRect.height / 2 - boardRect.top;
+    const dx = x2 - x1, dy = y2 - y1;
+    const arrow = document.createElement("span");
+    arrow.className = "computer-move-arrow";
+    arrow.setAttribute("aria-hidden", "true");
+    arrow.style.left = `${x1}px`;
+    arrow.style.top = `${y1}px`;
+    arrow.style.width = `${Math.hypot(dx, dy)}px`;
+    arrow.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
+    boardElement.appendChild(arrow);
   }
 
   function activeColourTotal(colour) {
@@ -868,7 +912,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
   }
 
   function jumpToFinalFourTest() {
-    clearTimeout(flowTimer); computerBusy = false; nextPieceId = 1; checkpoints = []; state = freshState();
+    clearTimeout(flowTimer); computerBusy = false; computerMoveVisual = null; nextPieceId = 1; checkpoints = []; state = freshState();
     state.reserveLayout.active.fill(null);
     const anchorBoard = state.board.map(piece => piece ? { ...piece } : null);
     const availableCells = [...Array(BOARD_CELLS).keys()].filter(i => !anchorBoard[i]);
@@ -900,7 +944,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
   }
 
   function startNewGame() {
-    clearTimeout(flowTimer); computerBusy = false; nextPieceId = 1; checkpoints = []; state = freshState(); applyPieceColours();
+    clearTimeout(flowTimer); computerBusy = false; computerMoveVisual = null; nextPieceId = 1; checkpoints = []; state = freshState(); applyPieceColours();
     state.currentPlayer = resolvedStarterIndex();
     // With the automatic opening already complete, P2/opponent makes the first
     // normal handover to the selected starting player.
@@ -960,6 +1004,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
     if (!state || state.winner !== null) return;
     clearTimeout(flowTimer);
     computerBusy = false;
+    computerMoveVisual = null;
     stopChessClockInterval();
     clockRemainingMs[expiredPlayer] = 0;
     clockActivePlayer = null;

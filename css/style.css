@@ -154,6 +154,7 @@ body{
 .panel-help,.rules-panel p{color:var(--muted)}
 .board-frame{width:min(100%,620px);padding:clamp(12px,2vw,20px);border:6px solid #111;border-radius:24px;background:linear-gradient(145deg,#202020,#050505);box-shadow:0 24px 55px rgba(10,18,25,.28),inset 0 1px 0 rgba(255,255,255,.16),inset 0 -4px 10px rgba(0,0,0,.7)}
 .board{gap:clamp(2px,.45vw,4px)}
+.board{position:relative}
 .board-cell{border:2px solid #e7e7e7;border-radius:clamp(7px,1vw,12px);background:#fff;box-shadow:inset 0 0 0 1px rgba(0,0,0,.03)}
 .board-cell--selected{box-shadow:inset 0 0 0 4px rgba(36,91,150,.75)}
 .board-cell--place::after,.board-cell--move::after{background:#7fa8cf}
@@ -167,6 +168,43 @@ body{
 .button--secondary{border:1px solid #b9c7d5;background:#fff;color:var(--navy)}
 .jump-controls{border-color:#bfd0e0;background:#edf5fc;color:var(--navy)}
 .piece{border-color:rgba(20,30,40,.45)}
+
+/* Lipfty 10 — app-only explanation of a computer action. */
+.board-cell--computer-source{
+  box-shadow:inset 0 0 0 5px rgba(36,91,150,.92),0 0 0 3px rgba(36,91,150,.22);
+  z-index:2;
+}
+.board-cell--computer-target{
+  box-shadow:inset 0 0 0 5px rgba(36,91,150,.92),0 0 0 3px rgba(36,91,150,.22);
+  animation:computer-target-pulse .65s ease-in-out infinite alternate;
+  z-index:2;
+}
+.computer-move-arrow{
+  position:absolute;
+  height:8px;
+  margin-top:-4px;
+  transform-origin:0 50%;
+  border-radius:999px;
+  background:#245b96;
+  box-shadow:0 0 0 4px rgba(255,255,255,.78),0 2px 8px rgba(20,54,90,.38);
+  pointer-events:none;
+  z-index:5;
+  animation:computer-arrow-appear .22s ease-out;
+}
+.computer-move-arrow::after{
+  content:"";
+  position:absolute;
+  right:-3px;
+  top:50%;
+  width:19px;
+  height:19px;
+  border-top:8px solid #245b96;
+  border-right:8px solid #245b96;
+  transform:translateY(-50%) rotate(45deg);
+  border-radius:2px;
+}
+@keyframes computer-target-pulse{from{filter:brightness(1)}to{filter:brightness(.88);background:#eaf3fc}}
+@keyframes computer-arrow-appear{from{opacity:0}to{opacity:1}}
 
 /* Quarto dialog foundation */
 dialog{border:0;border-radius:20px;padding:0;box-shadow:0 24px 70px rgba(15,36,57,.30)}
