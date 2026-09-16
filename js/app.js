@@ -322,12 +322,13 @@ const mobileVersionElement = document.getElementById("mobile-version");
 
   function availableChoiceColours() {
     if (state.finalFourPhase) return ["black", "white"].filter(c => firstFinalCornerIndex(c) !== null);
-    return ["black", "white"].filter(c => normalReserveRemaining(c) > 0);
+    const held = state.consequence?.heldReserveIndex;
+    return ["black", "white"].filter(c => activeReserveIndices(c).some(i => i !== held));
   }
 
   function chooserIsChoosingForSelf() {
     if (state.finalFourPhase) return true;
-    return state.consequence?.type === "move" && state.consequence.step === 1;
+    return false;
   }
 
   function chooseColour(colour, reserveIndex = null) {
@@ -335,7 +336,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
     if (!availableChoiceColours().includes(colour)) return false;
     let index = reserveIndex;
     if (index === null) {
-      index = state.finalFourPhase ? firstFinalCornerIndex(colour) : firstNormalReserveIndex(colour);
+      index = state.finalFourPhase ? firstFinalCornerIndex(colour) : activeReserveIndices(colour).find(i => i !== state.consequence?.heldReserveIndex);
     }
     if (index === null) return false;
     state.selectedReserveIndex = index;
@@ -363,7 +364,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
   function colourPrompt() {
     if (state.finalFourPhase) return `${participantName(state.currentPlayer)}: choose one of the remaining Final Four corner pieces to place.`;
     if (state.consequence?.type === "move" && state.consequence.step === 1) {
-      return `${participantName(state.currentPlayer)}: choose a reserve piece for your first compulsory placement.`;
+      return `${participantName(state.colourChooser)}: choose a reserve piece for ${participantName(state.currentPlayer)} to place.`;
     }
     const chooser = participantName(state.colourChooser);
     const receiver = participantName(state.currentPlayer);
@@ -375,7 +376,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
     if (state.redeployPiece) return `${actor}: redeploy the jumped ${colourTitle(state.redeployPiece.colour)} piece on any empty square.`;
     if (state.finalFourPhase) return `${actor}: place the chosen Final Four ${colourTitle(state.assignedColour)} piece. No Move or Jump.`;
     if (state.consequence?.type === "move") {
-      return `${actor}: compulsory placement ${state.consequence.step} of 2 - place ${colourTitle(state.assignedColour)}.`;
+      return state.consequence.step === 1 ? `${actor}: place the reserve piece chosen for you.` : `${actor}: place the piece you were originally handed.`;
     }
     if (oneColourPlacementOnly()) return `${actor}: only ${colourTitle(state.assignedColour)} remains in the normal reserve - placement only until the reserve is empty.`;
     const actions = [];
@@ -450,7 +451,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
     startNextNormalTurn(otherPlayer(finishingPlayer), finishingPlayer, null);
   }
 
-  function beginMoveConsequence(mover, movedPieceId) {
+  function beginMoveConsequence(mover, movedPieceId, heldReserveIndex, heldColour) {
     const total = normalReserveTotal();
     if (total < 2) {
       // Standard Lipfty disables Move as soon as one reserve colour remains,
@@ -459,14 +460,13 @@ const mobileVersionElement = document.getElementById("mobile-version");
       return;
     }
     const responder = otherPlayer(mover);
-    state.consequence = { type: "move", step: 1, mover, responder, protectedPieceId: movedPieceId };
+    state.consequence = { type: "move", step: 1, mover, responder, protectedPieceId: movedPieceId, heldReserveIndex, heldColour };
     state.currentPlayer = responder;
     state.colourChooser = responder;
     state.protectedPieceId = movedPieceId;
     state.compulsoryPlacementsRemaining = 2;
-    clearHeldPiece();
     state.choosingColour = true;
-    processFlow("Move completed. The responder now chooses and makes the first compulsory reserve placement.");
+    processFlow(`Move completed. ${participantName(mover)} chooses a reserve piece for ${participantName(responder)} to place.`);
   }
 
   function advanceMoveConsequence() {
@@ -475,11 +475,11 @@ const mobileVersionElement = document.getElementById("mobile-version");
     if (c.step === 1) {
       c.step = 2;
       state.currentPlayer = c.mover;
-      state.colourChooser = c.responder;
       state.compulsoryPlacementsRemaining = 1;
-      clearHeldPiece();
-      state.choosingColour = true;
-      processFlow(`${participantName(c.responder)} now chooses the second compulsory reserve piece for ${participantName(c.mover)}.`);
+      state.selectedReserveIndex = c.heldReserveIndex;
+      state.assignedColour = c.heldColour;
+      state.choosingColour = false;
+      processFlow(`${participantName(c.mover)} now places the piece they were originally handed.`);
       return;
     }
     const responder = c.responder;
@@ -494,13 +494,14 @@ const mobileVersionElement = document.getElementById("mobile-version");
     const jumper = c.jumper;
     const protectedPieceId = c.protectedPieceId;
     state.redeployPiece = null;
-    state.consequence = null;
-    state.currentPlayer = responder;
-    state.colourChooser = jumper;
+    state.currentPlayer = jumper;
+    state.consequence = { type: "jump-held", jumper, responder, protectedPieceId, heldReserveIndex: c.heldReserveIndex, heldColour: c.heldColour };
     state.protectedPieceId = protectedPieceId;
-    clearHeldPiece();
-    state.choosingColour = true;
-    processFlow(`${participantName(jumper)} now chooses the reserve piece/colour for ${participantName(responder)}'s normal turn.`);
+    state.selectedReserveIndex = c.heldReserveIndex;
+    state.assignedColour = c.heldColour;
+    state.choosingColour = false;
+    state.compulsoryPlacementsRemaining = 1;
+    processFlow(`${participantName(jumper)} now places the piece they were originally handed.`);
   }
 
   function placeAt(index) {
@@ -547,6 +548,11 @@ const mobileVersionElement = document.getElementById("mobile-version");
 
     if (state.consequence?.type === "move") {
       advanceMoveConsequence();
+      return true;
+    }
+    if (state.consequence?.type === "jump-held") {
+      const c = state.consequence;
+      startNextNormalTurn(c.responder, c.jumper, c.protectedPieceId);
       return true;
     }
 
@@ -605,14 +611,13 @@ const mobileVersionElement = document.getElementById("mobile-version");
     state.board[to] = piece;
     state.board[from] = null;
     clearSelection();
-    // The reserve piece handed for a Move/Jump was not placed, so it returns to the ring.
-    state.selectedReserveIndex = null;
-    state.assignedColour = null;
+    const heldReserveIndex = state.selectedReserveIndex;
+    const heldColour = state.assignedColour;
 
     if (finishWin()) return;
 
     if (!jump) {
-      beginMoveConsequence(state.currentPlayer, piece.id);
+      beginMoveConsequence(state.currentPlayer, piece.id, heldReserveIndex, heldColour);
       return;
     }
 
@@ -621,7 +626,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
     state.board[jump.over] = null;
     const jumper = state.currentPlayer;
     const responder = otherPlayer(jumper);
-    state.consequence = { type: "jump-redeploy", jumper, responder, protectedPieceId: piece.id };
+    state.consequence = { type: "jump-redeploy", jumper, responder, protectedPieceId: piece.id, heldReserveIndex, heldColour };
     state.redeployPiece = jumpedPiece;
     state.currentPlayer = responder;
     state.protectedPieceId = piece.id;
@@ -900,7 +905,8 @@ const mobileVersionElement = document.getElementById("mobile-version");
     if (phaseHelp) {
       phaseHelp.textContent = state.finalFourPhase ? `Final Four - ${state.finalCornerPieces.filter(Boolean).length} pieces left - placement only`
         : state.redeployPiece ? `Jump consequence - ${participantName(state.currentPlayer)} redeploys the exact jumped piece`
-        : state.consequence?.type === "move" ? `Move consequence - compulsory placement ${state.consequence.step} of 2`
+        : state.consequence?.type === "move" ? `Move consequence - opponent placement, then held-piece placement`
+        : state.consequence?.type === "jump-held" ? `Jump consequence - place your held piece`
         : oneColourPlacementOnly() ? `One-colour finish - ${normalReserveTotal()} normal reserve pieces left - placement only`
         : `Main play - four pinned opening anchors are in place; opponent hands a reserve piece: Place, Move or Jump with that colour.`;
     }
