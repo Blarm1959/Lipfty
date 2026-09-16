@@ -7,10 +7,10 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Lipfty 9">
-  <meta name="application-name" content="Lipfty 9">
-  <meta name="description" content="Lipfty 9 is a shared-piece 6×6 strategy game with pinned opening anchors, placement, Move, Jump and three selectable winning-pattern versions.">
-  <title>Lipfty 9</title>
+  <meta name="apple-mobile-web-app-title" content="Lipfty">
+  <meta name="application-name" content="Lipfty">
+  <meta name="description" content="Lipfty is a shared-piece 6×6 strategy game with pinned opening anchors, placement, Move, Jump and three selectable winning-pattern versions.">
+  <title>Lipfty</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/lipfty-192.png" type="image/png">
   <link rel="apple-touch-icon" href="icons/lipfty-180.png">
@@ -22,7 +22,7 @@
     <header class="app-header">
       <div>
         <p class="eyebrow">Shared-piece strategy</p>
-        <h1>Lipfty 9</h1>
+        <h1>Lipfty</h1>
       </div>
       <span class="mobile-version" id="mobile-version" aria-hidden="true"></span>
       <div class="header-actions">
@@ -81,11 +81,11 @@
         </section>
 
         <aside class="rules-panel rules-panel--quick">
-          <h2 id="quick-rules-title">Lipfty 9 · Standard</h2>
+          <h2 id="quick-rules-title">Lipfty · Standard</h2>
           <p><strong>Opening:</strong> four diagonal-colour anchors start pinned on the corners of the inner 6×6. They count towards wins but never move and cannot be jumped over.</p>
           <p><strong>Your turn:</strong> use the reserve colour handed to you to <strong>Place</strong>, <strong>Move</strong> one adjacent square, or make one opposite-colour <strong>Jump</strong>.</p>
           <p id="quick-win-rule"><strong>Win:</strong> make four in a horizontal, vertical or diagonal line.</p>
-          <p class="panel-help"><strong>?</strong> opens the complete rules, including the three Lipfty 9 versions, Move and Jump consequences, the one-colour finish and Final Four.</p>
+          <p class="panel-help"><strong>?</strong> opens the complete rules, including the three versions, Move and Jump consequences, the one-colour finish and Final Four.</p>
         </aside>
       </section>
 
@@ -144,7 +144,7 @@
 
       <section class="wizard-step" data-wizard-step="2" hidden>
         <h3>Choose Lipfty version</h3>
-        <p class="setup-help">Move, Jump and diagonal wins are core Lipfty 9 rules. The versions differ only in which extra winning patterns are allowed.</p>
+        <p class="setup-help">Move, Jump and diagonal wins are core Lipfty rules. The versions differ only in which extra winning patterns are allowed.</p>
         <fieldset class="setup-fieldset"><legend>Winning patterns</legend><div class="mode-choice-grid">
           <label class="mode-choice"><input checked name="gameVersion" type="radio" value="standard"><span><strong>Standard</strong><small>Horizontal, vertical or diagonal four-in-line</small></span></label>
           <label class="mode-choice"><input name="gameVersion" type="radio" value="advanced"><span><strong>Advanced</strong><small>Standard plus a tight 2×2 square</small></span></label>
@@ -223,12 +223,12 @@
 
   <dialog id="help-dialog">
     <div class="dialog-heading">
-      <div><p class="dialog-eyebrow">How to play</p><h2>Lipfty 9</h2></div>
+      <div><p class="dialog-eyebrow">How to play</p><h2>Lipfty</h2></div>
       <button class="dialog-close" id="close-help" type="button" aria-label="Close">×</button>
     </div>
     <div class="rules-copy">
       <p><strong>Objective.</strong> Lipfty uses a standard 8×8 draughts/checkers board and full 32-piece set. Play takes place on the inner 6×6 area. The pieces are shared by both players rather than owned by one player. In <strong>Standard</strong>, win by making four matching-colour pieces horizontally, vertically or diagonally.</p>
-      <p><strong>Lipfty 9 versions.</strong> <strong>Standard</strong> uses horizontal, vertical and diagonal four-in-line wins. <strong>Advanced</strong> adds the tight 2×2 square. <strong>Extreme</strong> adds larger board-aligned spaced squares as well. Move, Jump, the pinned opening, one-colour finish and Final Four are identical in all three versions.</p>
+      <p><strong>Game versions.</strong> <strong>Standard</strong> uses horizontal, vertical and diagonal four-in-line wins. <strong>Advanced</strong> adds the tight 2×2 square. <strong>Extreme</strong> adds larger board-aligned spaced squares as well. Move, Jump, the pinned opening, one-colour finish and Final Four are identical in all three versions.</p>
       <p><strong>Piece groups.</strong> Four pieces begin automatically on the four corners of the inner 6×6 as the <strong>Opening Four anchors</strong>. The outer ring holds 24 <strong>normal reserve</strong> pieces (12 of each colour), plus four corner pieces which become the <strong>Final Four</strong>.</p>
       <p><strong>Opening Four.</strong> Before either player starts, the four opening pieces are placed automatically on the four corners of the inner 6×6. Matching colours are diagonally opposite. These four pieces are permanent anchors: they cannot Move or Jump, and no Jump may pass over them. They still count normally in every winning pattern allowed by the selected version.</p>
       <p><strong>First turn and normal handover.</strong> After the anchors are in place, the starting player is selected according to the game setup. The opponent chooses the first normal reserve piece and hands it to the starting player. After that, the player who has just completed a normal turn chooses an actual normal reserve piece and hands it to the opponent. Its colour is the colour the receiving player must use. While both normal reserve colours remain, the receiver may either place that handed piece, Move a matching movable board piece, or make one legal Jump with a matching movable board piece.</p>
@@ -240,8 +240,8 @@
       <p><strong>Final Four.</strong> When the normal reserve is empty, the four corner pieces become playable. Final Four is placement-only. On each turn the player chooses one of the remaining Final Four pieces and places it anywhere empty. If all four are placed without a win, the game is a draw.</p>
       <p><strong>Immediate wins.</strong> A win ends the game immediately whether it is made by a normal placement, Move, Jump, Jump redeployment, compulsory placement or Final Four placement.</p>
       <p><strong>Undo and chess clock.</strong> Ordinary Lipfty has no timer. An optional chess-style clock can give each player 5, 10, 15, 30 or 60 minutes, with an optional 5- or 10-second increment. Only the player currently making the decision has their clock running. Running out of time loses the game. Undo restores the clocks with the restored decision.</p>
-      <p class="setup-help">The printable PDF currently describes the previous Lipfty 8 rules and will be replaced separately.</p>
-      <p><a class="button button--secondary" href="Lipfty-Rules.pdf" target="_blank" rel="noopener">Printable Lipfty 8 rules (previous version)</a></p>
+      <p class="setup-help">The printable PDF currently describes an earlier rules edition and will be replaced separately.</p>
+      <p><a class="button button--secondary" href="Lipfty-Rules.pdf" target="_blank" rel="noopener">Printable rules (previous edition)</a></p>
     </div>
   </dialog>
 
@@ -349,7 +349,7 @@
       const selected = VERSION_RULES[version] ? version : "standard";
       const title = document.getElementById("quick-rules-title");
       const win = document.getElementById("quick-win-rule");
-      if (title) title.textContent = `Lipfty 9 · ${VERSION_LABELS[selected]}`;
+      if (title) title.textContent = `Lipfty · ${VERSION_LABELS[selected]}`;
       if (!win) return;
       if (selected === "advanced") {
         win.innerHTML = "<strong>Win:</strong> make four in a horizontal, vertical or diagonal line, or a tight 2×2 square.";
