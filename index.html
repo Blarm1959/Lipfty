@@ -7,10 +7,10 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Lipfty 8">
-  <meta name="application-name" content="Lipfty 8">
-  <meta name="description" content="Lipfty 8 is a shared-piece 6×6 strategy game with four pinned opening anchors, placement, movement, single redeploying jumps and square wins.">
-  <title>Lipfty 8</title>
+  <meta name="apple-mobile-web-app-title" content="Lipfty 9">
+  <meta name="application-name" content="Lipfty 9">
+  <meta name="description" content="Lipfty 9 is a shared-piece 6×6 strategy game with pinned opening anchors, placement, Move, Jump and three selectable winning-pattern versions.">
+  <title>Lipfty 9</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/lipfty-192.png" type="image/png">
   <link rel="apple-touch-icon" href="icons/lipfty-180.png">
@@ -22,7 +22,7 @@
     <header class="app-header">
       <div>
         <p class="eyebrow">Shared-piece strategy</p>
-        <h1>Lipfty 8</h1>
+        <h1>Lipfty 9</h1>
       </div>
       <span class="mobile-version" id="mobile-version" aria-hidden="true"></span>
       <div class="header-actions">
@@ -81,11 +81,11 @@
         </section>
 
         <aside class="rules-panel rules-panel--quick">
-          <h2>Lipfty 8 Standard</h2>
+          <h2 id="quick-rules-title">Lipfty 9 · Standard</h2>
           <p><strong>Opening:</strong> four diagonal-colour anchors start pinned on the corners of the inner 6×6. They count towards wins but never move and cannot be jumped over.</p>
           <p><strong>Your turn:</strong> use the reserve colour handed to you to <strong>Place</strong>, <strong>Move</strong> one adjacent square, or make one opposite-colour <strong>Jump</strong>.</p>
-          <p><strong>Win:</strong> make four in a horizontal, vertical or diagonal line, a tight 2×2 square, or a spaced board-aligned square.</p>
-          <p class="panel-help"><strong>?</strong> opens the complete rules, including Move and Jump consequences, the one-colour finish and Final Four.</p>
+          <p id="quick-win-rule"><strong>Win:</strong> make four in a horizontal, vertical or diagonal line.</p>
+          <p class="panel-help"><strong>?</strong> opens the complete rules, including the three Lipfty 9 versions, Move and Jump consequences, the one-colour finish and Final Four.</p>
         </aside>
       </section>
 
@@ -95,7 +95,7 @@
           <button class="button button--secondary" id="end-test" type="button">End</button>
         </div>
         <div class="action-bar-centre"><button class="button button--secondary" id="undo" type="button">Undo</button></div>
-        <div class="build-info"><span id="app-version">Version 8.0.22</span><span id="build-reference"></span></div>
+        <div class="build-info"><span id="app-version">Version 9</span><span id="build-reference"></span></div>
       </section>
     </main>
   </div>
@@ -109,7 +109,7 @@
       <div class="wizard-progress">
         <span class="wizard-progress-step wizard-progress-step--active" data-step-indicator="0">1 <small>Game</small></span><span class="wizard-progress-line"></span>
         <span class="wizard-progress-step" data-step-indicator="1">2 <small>Colours</small></span><span class="wizard-progress-line"></span>
-        <span class="wizard-progress-step" data-step-indicator="2">3 <small>Rules</small></span><span class="wizard-progress-line"></span>
+        <span class="wizard-progress-step" data-step-indicator="2">3 <small>Version</small></span><span class="wizard-progress-line"></span>
         <span class="wizard-progress-step" data-step-indicator="3">4 <small>Players</small></span><span class="wizard-progress-line"></span>
         <span class="wizard-progress-step" data-step-indicator="4">5 <small>Timer</small></span><span class="wizard-progress-line"></span>
         <span class="wizard-progress-step" data-step-indicator="5">6 <small>Options</small></span>
@@ -143,15 +143,20 @@
       </section>
 
       <section class="wizard-step" data-wizard-step="2" hidden>
-        <h3>Rules</h3>
-        <p class="setup-help"><strong>Lipfty 8 Standard</strong> uses the pinned diagonal-corner opening with Jump, Move, Diagonal, Tight Square and Spaced Square. The switches below remain available for experiments and simpler variants.</p>
-        <fieldset class="setup-fieldset"><legend>Rule switches</legend><div class="toggle-list">
-          <label class="toggle-row"><span><strong>Allow Jump</strong><small>Single opposite-colour Jump with redeployment</small></span><input data-rule-option data-rule-label="Jump" id="setting-allow-jump" type="checkbox"></label>
-          <label class="toggle-row"><span><strong>Allow Move</strong><small>One square in any of eight directions</small></span><input data-rule-option data-rule-label="Move" id="setting-allow-move" type="checkbox"></label>
-          <label class="toggle-row"><span><strong>Allow Diagonal</strong><small>Diagonal four-in-line wins</small></span><input data-rule-option data-rule-label="Diagonal" id="setting-allow-diagonal" type="checkbox"></label>
-          <label class="toggle-row"><span><strong>Allow Square</strong><small>Tight 2×2 square wins</small></span><input data-rule-option data-rule-label="Square" id="setting-allow-square" type="checkbox"></label>
-          <label class="toggle-row"><span><strong>Allow Spaced Square</strong><small>Larger board-aligned square wins</small></span><input data-rule-option data-rule-label="Spaced Square" id="setting-allow-spaced-square" type="checkbox"></label>
+        <h3>Choose Lipfty version</h3>
+        <p class="setup-help">Move, Jump and diagonal wins are core Lipfty 9 rules. The versions differ only in which extra winning patterns are allowed.</p>
+        <fieldset class="setup-fieldset"><legend>Winning patterns</legend><div class="mode-choice-grid">
+          <label class="mode-choice"><input checked name="gameVersion" type="radio" value="standard"><span><strong>Standard</strong><small>Horizontal, vertical or diagonal four-in-line</small></span></label>
+          <label class="mode-choice"><input name="gameVersion" type="radio" value="advanced"><span><strong>Advanced</strong><small>Standard plus a tight 2×2 square</small></span></label>
+          <label class="mode-choice"><input name="gameVersion" type="radio" value="extreme"><span><strong>Extreme</strong><small>Advanced plus larger board-aligned spaced squares</small></span></label>
         </div></fieldset>
+        <div hidden aria-hidden="true">
+          <input data-rule-option data-rule-label="Jump" id="setting-allow-jump" type="checkbox">
+          <input data-rule-option data-rule-label="Move" id="setting-allow-move" type="checkbox">
+          <input data-rule-option data-rule-label="Diagonal" id="setting-allow-diagonal" type="checkbox">
+          <input data-rule-option data-rule-label="Square" id="setting-allow-square" type="checkbox">
+          <input data-rule-option data-rule-label="Spaced Square" id="setting-allow-spaced-square" type="checkbox">
+        </div>
       </section>
 
       <section class="wizard-step" data-wizard-step="3" hidden>
@@ -218,13 +223,14 @@
 
   <dialog id="help-dialog">
     <div class="dialog-heading">
-      <div><p class="dialog-eyebrow">How to play</p><h2>Lipfty 8</h2></div>
+      <div><p class="dialog-eyebrow">How to play</p><h2>Lipfty 9</h2></div>
       <button class="dialog-close" id="close-help" type="button" aria-label="Close">×</button>
     </div>
     <div class="rules-copy">
-      <p><strong>Objective.</strong> Lipfty uses a standard 8×8 draughts/checkers board and full 32-piece set. Play takes place on the inner 6×6 area. The pieces are shared by both players rather than owned by one player. Win by making four matching-colour pieces horizontally, vertically or diagonally, or by making the four corners of a tight 2×2 square or a larger board-aligned spaced square.</p>
+      <p><strong>Objective.</strong> Lipfty uses a standard 8×8 draughts/checkers board and full 32-piece set. Play takes place on the inner 6×6 area. The pieces are shared by both players rather than owned by one player. In <strong>Standard</strong>, win by making four matching-colour pieces horizontally, vertically or diagonally.</p>
+      <p><strong>Lipfty 9 versions.</strong> <strong>Standard</strong> uses horizontal, vertical and diagonal four-in-line wins. <strong>Advanced</strong> adds the tight 2×2 square. <strong>Extreme</strong> adds larger board-aligned spaced squares as well. Move, Jump, the pinned opening, one-colour finish and Final Four are identical in all three versions.</p>
       <p><strong>Piece groups.</strong> Four pieces begin automatically on the four corners of the inner 6×6 as the <strong>Opening Four anchors</strong>. The outer ring holds 24 <strong>normal reserve</strong> pieces (12 of each colour), plus four corner pieces which become the <strong>Final Four</strong>.</p>
-      <p><strong>Opening Four.</strong> Before either player starts, the four opening pieces are placed automatically on the four corners of the inner 6×6. Matching colours are diagonally opposite. These four pieces are permanent anchors: they cannot Move or Jump, and no Jump may pass over them. They still count normally in every winning pattern.</p>
+      <p><strong>Opening Four.</strong> Before either player starts, the four opening pieces are placed automatically on the four corners of the inner 6×6. Matching colours are diagonally opposite. These four pieces are permanent anchors: they cannot Move or Jump, and no Jump may pass over them. They still count normally in every winning pattern allowed by the selected version.</p>
       <p><strong>First turn and normal handover.</strong> After the anchors are in place, the starting player is selected according to the game setup. The opponent chooses the first normal reserve piece and hands it to the starting player. After that, the player who has just completed a normal turn chooses an actual normal reserve piece and hands it to the opponent. Its colour is the colour the receiving player must use. While both normal reserve colours remain, the receiver may either place that handed piece, Move a matching movable board piece, or make one legal Jump with a matching movable board piece.</p>
       <p><strong>Move.</strong> Move one movable board piece of the handed colour exactly one square to any empty adjacent square: horizontal, vertical or diagonal. The four opening anchors can never Move or Jump. You may not Move or Jump the exact board piece your opponent moved on their immediately preceding turn.</p>
       <p><strong>Move consequence.</strong> A non-winning Move does not consume the handed reserve piece. Instead, the opponent chooses a normal reserve piece and immediately places it. If that does not win, the same opponent chooses another remaining normal reserve piece for the original mover, who places it. If neither placement wins, the opponent takes the next normal turn.</p>
@@ -233,9 +239,9 @@
       <p><strong>One-colour finish.</strong> As soon as either normal reserve colour is exhausted, Move and Jump stop completely. The remaining normal reserve pieces must be placed, one per normal turn, until the normal reserve is empty. If a two-placement Move consequence has already started, finish that consequence first.</p>
       <p><strong>Final Four.</strong> When the normal reserve is empty, the four corner pieces become playable. Final Four is placement-only. On each turn the player chooses one of the remaining Final Four pieces and places it anywhere empty. If all four are placed without a win, the game is a draw.</p>
       <p><strong>Immediate wins.</strong> A win ends the game immediately whether it is made by a normal placement, Move, Jump, Jump redeployment, compulsory placement or Final Four placement.</p>
-      <p><strong>Standard and variants.</strong> Lipfty 8 Standard uses the automatic pinned diagonal-corner opening, with Move, Jump, Diagonal, Tight Square and Spaced Square. Diamonds and spaced diamonds are not part of Lipfty 8. The setup Rules page retains switches only for simpler variants of the standard rules.</p>
       <p><strong>Undo and chess clock.</strong> Ordinary Lipfty has no timer. An optional chess-style clock can give each player 5, 10, 15, 30 or 60 minutes, with an optional 5- or 10-second increment. Only the player currently making the decision has their clock running. Running out of time loses the game. Undo restores the clocks with the restored decision.</p>
-      <p><a class="button button--secondary" href="Lipfty-Rules.pdf" target="_blank" rel="noopener">Printable Lipfty 8 rules (PDF)</a></p>
+      <p class="setup-help">The printable PDF currently describes the previous Lipfty 8 rules and will be replaced separately.</p>
+      <p><a class="button button--secondary" href="Lipfty-Rules.pdf" target="_blank" rel="noopener">Printable Lipfty 8 rules (previous version)</a></p>
     </div>
   </dialog>
 
@@ -252,6 +258,170 @@
   </dialog>
 
   <script src="js/rules.js"></script>
+  <script>
+  (function () {
+    "use strict";
+
+    const STORAGE_KEY = "lipfty-settings";
+    const LIPFTY9_VERSION_BASELINE = 1;
+    const VERSION_RULES = {
+      standard: { allowSquare: false, allowSpacedSquare: false },
+      advanced: { allowSquare: true, allowSpacedSquare: false },
+      extreme: { allowSquare: true, allowSpacedSquare: true }
+    };
+    const VERSION_LABELS = { standard: "Standard", advanced: "Advanced", extreme: "Extreme" };
+
+    function readSettings() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); }
+      catch (_) { return {}; }
+    }
+
+    function writeSettings(value) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
+    }
+
+    function inferVersion(value) {
+      if (VERSION_RULES[value?.gameVersion]) return value.gameVersion;
+      if (value?.allowSpacedSquare) return "extreme";
+      if (value?.allowSquare) return "advanced";
+      return "standard";
+    }
+
+    function applyVersionRules(value, version) {
+      const selected = VERSION_RULES[version] ? version : "standard";
+      const versionRules = VERSION_RULES[selected];
+      return Object.assign(value, {
+        gameVersion: selected,
+        lipfty9GameVersionBaseline: LIPFTY9_VERSION_BASELINE,
+        // app.js still owns the Lipfty 8 mechanics baseline; Lipfty 9 changes
+        // only the available winning-pattern sets.
+        rulesBaseline: 8,
+        allowJump: true,
+        allowMove: true,
+        allowDiagonal: true,
+        allowSquare: versionRules.allowSquare,
+        allowSpacedSquare: versionRules.allowSpacedSquare,
+        allowDiamond: false,
+        allowSpacedDiamond: false
+      });
+    }
+
+    let stored = readSettings();
+    if (stored.lipfty9GameVersionBaseline !== LIPFTY9_VERSION_BASELINE) {
+      stored = applyVersionRules(stored, "standard");
+    } else {
+      stored = applyVersionRules(stored, inferVersion(stored));
+    }
+    writeSettings(stored);
+
+    function selectedVersion(form) {
+      return form.querySelector('[name="gameVersion"]:checked')?.value || "standard";
+    }
+
+    function applyVersionToHidden(form, version) {
+      const selected = VERSION_RULES[version] ? version : "standard";
+      const config = VERSION_RULES[selected];
+      const values = {
+        "setting-allow-jump": true,
+        "setting-allow-move": true,
+        "setting-allow-diagonal": true,
+        "setting-allow-square": config.allowSquare,
+        "setting-allow-spaced-square": config.allowSpacedSquare
+      };
+      Object.entries(values).forEach(([id, checked]) => {
+        const input = document.getElementById(id);
+        if (input) input.checked = checked;
+      });
+      const spaced = document.getElementById("setting-allow-spaced-square");
+      if (spaced) spaced.disabled = !config.allowSquare;
+    }
+
+    function syncRadioFromRules(form) {
+      const square = !!document.getElementById("setting-allow-square")?.checked;
+      const spaced = !!document.getElementById("setting-allow-spaced-square")?.checked;
+      const version = spaced ? "extreme" : square ? "advanced" : "standard";
+      const radio = form.querySelector(`[name="gameVersion"][value="${version}"]`);
+      if (radio) radio.checked = true;
+      return version;
+    }
+
+    function updateQuickRules(version) {
+      const selected = VERSION_RULES[version] ? version : "standard";
+      const title = document.getElementById("quick-rules-title");
+      const win = document.getElementById("quick-win-rule");
+      if (title) title.textContent = `Lipfty 9 · ${VERSION_LABELS[selected]}`;
+      if (!win) return;
+      if (selected === "advanced") {
+        win.innerHTML = "<strong>Win:</strong> make four in a horizontal, vertical or diagonal line, or a tight 2×2 square.";
+      } else if (selected === "extreme") {
+        win.innerHTML = "<strong>Win:</strong> make four in a horizontal, vertical or diagonal line, a tight 2×2 square, or a larger board-aligned spaced square.";
+      } else {
+        win.innerHTML = "<strong>Win:</strong> make four in a horizontal, vertical or diagonal line.";
+      }
+    }
+
+    function rewriteSummary(form) {
+      const summary = document.getElementById("setup-summary");
+      if (!summary?.textContent) return;
+      const parts = summary.textContent.split(" · ");
+      if (parts.length < 4) return;
+      const replacementIndex = parts.length - 2;
+      const replacement = VERSION_LABELS[selectedVersion(form)];
+      if (parts[replacementIndex] === replacement) return;
+      parts[replacementIndex] = replacement;
+      summary.textContent = parts.join(" · ");
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      const form = document.getElementById("settings-form");
+      const settingsButton = document.getElementById("settings-button");
+      if (!form) return;
+
+      const initial = inferVersion(readSettings());
+      const initialRadio = form.querySelector(`[name="gameVersion"][value="${initial}"]`);
+      if (initialRadio) initialRadio.checked = true;
+      applyVersionToHidden(form, initial);
+      updateQuickRules(initial);
+
+      form.querySelectorAll('[name="gameVersion"]').forEach(radio => {
+        radio.addEventListener("change", () => {
+          const version = selectedVersion(form);
+          applyVersionToHidden(form, version);
+          updateQuickRules(version);
+          rewriteSummary(form);
+        });
+      });
+
+      // app.js owns the modal opening. This listener runs afterwards and maps
+      // its hidden rule switches back to the Lipfty 9 version selector.
+      settingsButton?.addEventListener("click", () => {
+        const version = syncRadioFromRules(form);
+        updateQuickRules(version);
+      });
+
+      // Apply the selected version before the existing app.js submit handler
+      // reads its rule inputs.
+      form.addEventListener("submit", () => {
+        applyVersionToHidden(form, selectedVersion(form));
+      }, true);
+
+      // app.js saves the normal settings first. Then persist the Lipfty 9
+      // version label alongside the rule flags for the next launch.
+      form.addEventListener("submit", () => {
+        const version = selectedVersion(form);
+        const saved = applyVersionRules(readSettings(), version);
+        writeSettings(saved);
+        updateQuickRules(version);
+      });
+
+      const summary = document.getElementById("setup-summary");
+      if (summary) {
+        const observer = new MutationObserver(() => rewriteSummary(form));
+        observer.observe(summary, { childList: true, characterData: true, subtree: true });
+      }
+    });
+  })();
+  </script>
   <script src="js/app.js"></script>
 </body>
 </html>

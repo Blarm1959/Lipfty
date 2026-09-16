@@ -2,7 +2,7 @@
   "id": "./",
   "name": "Lipfty",
   "short_name": "Lipfty",
-  "description": "Place, move and jump shared pieces to make four of one colour in a row.",
+  "description": "Lipfty 9 is a shared-piece strategy game with Standard, Advanced and Extreme winning-pattern versions.",
   "lang": "en-GB",
   "dir": "ltr",
   "start_url": "./?source=pwa",
