@@ -12,7 +12,11 @@ const S = require("./lipfty7-simulator.js");
 function arg(name, fallback) { const i = process.argv.indexOf(`--${name}`); return i >= 0 ? process.argv[i + 1] : fallback; }
 const games = Number(arg("games", "1000"));
 const maxTurns = Number(arg("max-turns", "500"));
-const outDir = arg("out", path.join(process.cwd(), "Simulation-Results"));
+function defaultOutDir() {
+  const drive = fs.existsSync("D:\\") ? "D:" : "C:";
+  return path.win32.join(`${drive}\\`, "bxd", "Blarm1959", "Lipfty", "Simulation-Results");
+}
+const outDir = arg("out", defaultOutDir());
 if (!Number.isInteger(games) || games < 1) throw new Error("--games must be a positive whole number.");
 if (!Number.isInteger(maxTurns) || maxTurns < 1) throw new Error("--max-turns must be a positive whole number.");
 
@@ -89,24 +93,33 @@ function aggregate(label, kind, play, rules, progress) {
     a.turns+=r.turns; for(const key of ["placements","moves","jumps","redeployments"]) a[key]+=r.stats[key];
     if(r.stats.oneColour) a.oneColour++; if(r.stats.finalFour) a.finalFour++;
     for(const [name,n] of Object.entries(r.stats.formations)) a.formations[name]=(a.formations[name]||0)+n;
-    progress();
+    progress(a);
   }
   a.p1ScorePct=100*(a.wins[0]+a.draws/2)/games; a.p2ScorePct=100-a.p1ScorePct; a.avgTurns=a.turns/games;
   return a;
 }
 function archivePrior() {
   fs.mkdirSync(outDir,{recursive:true}); const old=path.join(outDir,"old"); fs.mkdirSync(old,{recursive:true});
-  for(const file of fs.readdirSync(outDir)) if(file.startsWith("lipfty10-tactical-no-return-")) fs.renameSync(path.join(outDir,file),path.join(old,`${Date.now()}-${file}`));
+  let moved=0;
+  for(const entry of fs.readdirSync(outDir,{withFileTypes:true})) {
+    if(!entry.isFile()) continue;
+    let target=path.join(old,entry.name),n=2;
+    while(fs.existsSync(target)) { const ext=path.extname(entry.name),base=path.basename(entry.name,ext); target=path.join(old,`${base}-${n++}${ext}`); }
+    fs.renameSync(path.join(outDir,entry.name),target); moved++;
+  }
+  return moved;
 }
-archivePrior();
+const archived=archivePrior();
 const total=games*6, started=Date.now(); let done=0,last=0;
-function progress() {
+function progress(active) {
+  if(!active) { console.log(`0/${total.toLocaleString()} | 0.0% | waiting for first game | elapsed 0s | ETA establishing after first game`); return; }
   done++; const now=Date.now(); if(done!==total && now-last<5000) return; last=now;
   const elapsed=now-started, rate=done/(elapsed||1), remaining=(total-done)/rate;
-  console.log(`${done.toLocaleString()}/${total.toLocaleString()} | ${(100*done/total).toFixed(1)}% | elapsed ${fmtDuration(elapsed)} | ETA ${fmtDuration(remaining)} | finish ${fmtFinish(remaining)}`);
+  const live=active ? `${active.label} ${active.kind}: P1/P2/D ${active.wins[0]}/${active.wins[1]}/${active.draws} | score ${((active.wins[0]+active.draws/2)*100/active.games).toFixed(1)}% | avg ${(active.turns/active.games).toFixed(1)} turns | M/J ${active.moves}/${active.jumps}` : "waiting for first game";
+  console.log(`${done.toLocaleString()}/${total.toLocaleString()} | ${(100*done/total).toFixed(1)}% | ${live} | elapsed ${fmtDuration(elapsed)} | ETA ${fmtDuration(remaining)} | finish ${fmtFinish(remaining)}`);
 }
 console.log(`Lipfty 10 full tactical comparison: ${games.toLocaleString()} games per set, ${total.toLocaleString()} total.`);
-console.log(`Results: ${outDir}`); progress();
+console.log(`Results: ${outDir}`); console.log(`Archived ${archived} prior result file${archived===1?"":"s"} to ${path.join(outDir,"old")}.`); progress();
 const report=[];
 for(const [label,raw] of versions) {
   const rules=S.normaliseRules(raw);
