@@ -748,7 +748,8 @@ const mobileVersionElement = document.getElementById("mobile-version");
     computerMoveVisual = {
       type: action.type,
       from: action.from ?? null,
-      to: action.to
+      to: action.to,
+      over: action.over ?? null
     };
     setStatus(`Computer will ${actionName}.`);
     render();
@@ -826,6 +827,8 @@ const mobileVersionElement = document.getElementById("mobile-version");
       if (state.jumpFlashIndex === index) cell.classList.add("board-cell--jumped-flash");
       if (computerMoveVisual?.from === index) cell.classList.add("board-cell--computer-source");
       if (computerMoveVisual?.to === index) cell.classList.add("board-cell--computer-target");
+      if (computerMoveVisual?.type === "jump" && computerMoveVisual.to === index) cell.classList.add("board-cell--computer-jump-target");
+      if (computerMoveVisual?.type === "jump" && computerMoveVisual.over === index) cell.classList.add("board-cell--computer-jumped");
       if (!state.board[index] && !state.choosingColour && !computerBusy && !isComputer(state.currentPlayer) && state.selectedPieceIndex === null) {
         if (state.redeployPiece || state.finalFourPhase || state.selectedReserveIndex !== null) cell.classList.add("board-cell--place");
       }
@@ -858,13 +861,22 @@ const mobileVersionElement = document.getElementById("mobile-version");
     const y2 = toRect.top + toRect.height / 2 - boardRect.top;
     const dx = x2 - x1, dy = y2 - y1;
     const arrow = document.createElement("span");
-    arrow.className = "computer-move-arrow";
+    arrow.className = `computer-move-arrow${computerMoveVisual.type === "jump" ? " computer-move-arrow--jump" : ""}`;
     arrow.setAttribute("aria-hidden", "true");
     arrow.style.left = `${x1}px`;
     arrow.style.top = `${y1}px`;
     arrow.style.width = `${Math.hypot(dx, dy)}px`;
     arrow.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
     boardElement.appendChild(arrow);
+    if (computerMoveVisual.type === "jump") {
+      const label = document.createElement("span");
+      label.className = "computer-jump-label";
+      label.textContent = "JUMP!";
+      label.setAttribute("aria-hidden", "true");
+      label.style.left = `${(x1 + x2) / 2}px`;
+      label.style.top = `${(y1 + y2) / 2}px`;
+      boardElement.appendChild(label);
+    }
   }
 
   function activeColourTotal(colour) {

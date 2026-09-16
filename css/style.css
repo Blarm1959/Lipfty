@@ -179,6 +179,30 @@ body{
   animation:computer-target-pulse .65s ease-in-out infinite alternate;
   z-index:2;
 }
+.board-cell--computer-jump-target{
+  background:#fff7cd;
+  box-shadow:inset 0 0 0 5px rgba(230,169,31,.96),0 0 0 4px rgba(230,169,31,.28),0 0 24px 9px rgba(230,169,31,.55);
+  animation:computer-jump-landing .65s ease-in-out infinite alternate;
+}
+.board-cell--computer-jumped{
+  z-index:3;
+  box-shadow:inset 0 0 0 5px rgba(230,169,31,.96),0 0 0 4px rgba(230,169,31,.28),0 0 22px 8px rgba(230,169,31,.42);
+  animation:computer-jumped-burst .65s ease-out infinite;
+}
+.board-cell--computer-jumped::before{
+  content:"✦ ✦ ✦";
+  position:absolute;
+  inset:4%;
+  display:grid;
+  place-items:center;
+  color:#f3bd2b;
+  font-size:clamp(13px,2.2vw,22px);
+  letter-spacing:.2em;
+  text-shadow:0 1px 4px rgba(74,47,0,.65),0 0 10px #fff;
+  pointer-events:none;
+  z-index:5;
+  animation:computer-sparkle-burst .65s ease-out infinite;
+}
 .computer-move-arrow{
   position:absolute;
   height:8px;
@@ -190,6 +214,30 @@ body{
   pointer-events:none;
   z-index:5;
   animation:computer-arrow-appear .22s ease-out;
+}
+.computer-move-arrow--jump{
+  height:10px;
+  margin-top:-5px;
+  background:#e6a91f;
+  box-shadow:0 0 0 5px rgba(255,255,255,.84),0 2px 13px rgba(177,116,0,.66),0 0 20px rgba(244,190,47,.8);
+}
+.computer-move-arrow--jump::after{border-top-color:#e6a91f;border-right-color:#e6a91f}
+.computer-jump-label{
+  position:absolute;
+  transform:translate(-50%,-50%) rotate(-5deg);
+  padding:3px 7px;
+  border:2px solid #8e5c00;
+  border-radius:8px;
+  background:#fff4be;
+  color:#754b00;
+  font-size:clamp(10px,1.8vw,15px);
+  font-weight:900;
+  letter-spacing:.08em;
+  line-height:1;
+  box-shadow:0 2px 7px rgba(69,46,0,.35);
+  pointer-events:none;
+  z-index:7;
+  animation:computer-jump-label-pop .65s ease-out;
 }
 .computer-move-arrow::after{
   content:"";
@@ -204,7 +252,11 @@ body{
   border-radius:2px;
 }
 @keyframes computer-target-pulse{from{filter:brightness(1)}to{filter:brightness(.88);background:#eaf3fc}}
+@keyframes computer-jump-landing{from{transform:scale(.94);filter:brightness(1)}to{transform:scale(1.08);filter:brightness(1.18)}}
 @keyframes computer-arrow-appear{from{opacity:0}to{opacity:1}}
+@keyframes computer-jumped-burst{0%{transform:scale(.94)}45%{transform:scale(1.08);filter:brightness(1.3)}100%{transform:scale(1)}}
+@keyframes computer-sparkle-burst{0%{opacity:0;transform:scale(.3) rotate(-15deg)}40%{opacity:1;transform:scale(1.18) rotate(5deg)}100%{opacity:.2;transform:scale(1.5) rotate(15deg)}}
+@keyframes computer-jump-label-pop{0%{opacity:0;transform:translate(-50%,-50%) scale(.35) rotate(-12deg)}45%{opacity:1;transform:translate(-50%,-50%) scale(1.18) rotate(-4deg)}100%{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(-5deg)}}
 
 /* Quarto dialog foundation */
 dialog{border:0;border-radius:20px;padding:0;box-shadow:0 24px 70px rgba(15,36,57,.30)}
