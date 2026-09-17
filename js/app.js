@@ -352,7 +352,12 @@ const mobileVersionElement = document.getElementById("mobile-version");
     const colours = availableChoiceColours();
     if (colours.length !== 1) return false;
     const colour = colours[0];
-    const index = state.finalFourPhase ? firstFinalCornerIndex(colour) : firstNormalReserveIndex(colour);
+    // During a Move consequence the original handed piece is being held for
+    // the mover's second placement.  It must never be selected for the
+    // opponent's compulsory placement, even if both pieces have the same
+    // colour.
+    const index = state.finalFourPhase ? firstFinalCornerIndex(colour) :
+      activeReserveIndices(colour).find(i => i !== state.consequence?.heldReserveIndex);
     if (index === null) return false;
     state.selectedReserveIndex = index;
     state.assignedColour = colour;
@@ -723,7 +728,10 @@ const mobileVersionElement = document.getElementById("mobile-version");
       if (safe.length) pool = safe;
     }
     const colour = pool[Math.floor(Math.random() * pool.length)];
-    const index = state.finalFourPhase ? firstFinalCornerIndex(colour) : firstNormalReserveIndex(colour);
+    // As above, choose a genuinely different reserve piece when a Move has
+    // left the original handed piece in the mover's hand.
+    const index = state.finalFourPhase ? firstFinalCornerIndex(colour) :
+      activeReserveIndices(colour).find(i => i !== state.consequence?.heldReserveIndex);
     flowTimer = setTimeout(() => {
       computerBusy = false;
       state.selectedReserveIndex = index;
