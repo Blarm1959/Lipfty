@@ -1070,3 +1070,74 @@ dialog::backdrop{background:rgba(13,28,42,.45)}
   .stage-info-card { order:6; }
   .action-bar { order:7; }
 }
+
+/* Lipfty 10.0.12 — keep the S23 game controls together, not in a long
+   column below the board.  The decision card and the two colour counters form
+   one compact strip; the board caption and duplicate normal-play explanation
+   are unnecessary on this small screen. */
+@media (max-width:560px) {
+  .game-layout {
+    grid-template-columns:minmax(82px,.62fr) minmax(0,1fr) minmax(0,1fr);
+    gap:4px;
+  }
+  .board-frame { width:97%; }
+  .board-note { display:none; }
+
+  .turn-message-card {
+    min-height:32px;
+    padding:4px 8px;
+    border-radius:10px;
+  }
+  .turn-message-card p {
+    font-size:.75rem;
+    line-height:1.12;
+  }
+
+  /* A small "Decision" card immediately beside the red and blue counters. */
+  .player-status-card {
+    grid-column:1 !important;
+    order:3;
+    min-height:48px;
+    padding:5px 7px;
+    border-radius:10px;
+  }
+  .player-status-card strong { font-size:.86rem; }
+  .player-status-card .turn-label { font-size:.54rem; }
+  .reserve-panel {
+    grid-column:2 / -1 !important;
+    order:3;
+    width:auto !important;
+    min-height:48px;
+    padding:0 !important;
+    border:0;
+    border-radius:0;
+    background:transparent;
+    box-shadow:none;
+  }
+  .reserve-panel h2 { display:none; }
+  .reserve-grid { height:100%; grid-template-columns:1fr 1fr; gap:4px; }
+  .reserve-button {
+    min-height:48px;
+    padding:4px 5px;
+    gap:5px;
+    border-radius:10px;
+  }
+  .reserve-button .piece { width:26px; height:26px; min-width:26px; }
+  .reserve-button strong { font-size:.68rem; }
+  .reserve-button small { font-size:.56rem; line-height:1; }
+
+  /* The status strip already explains normal play.  Show this card only when
+     it contains an important compulsory-placement warning. */
+  .stage-info-card { display:none; }
+  .stage-info-card:has(.placement-alert:not([hidden])) {
+    display:block;
+    order:6;
+    padding:6px 8px;
+    border-radius:10px;
+  }
+  .stage-info-card .panel-help { display:none; }
+  .placement-alert { margin:0; padding:6px 8px; font-size:.72rem; }
+
+  .action-bar { min-height:40px; padding:4px 6px; }
+  .action-bar .button { min-height:32px; font-size:.76rem; }
+}
