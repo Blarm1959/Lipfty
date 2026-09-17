@@ -2,7 +2,7 @@
   "id": "./",
   "name": "Lipfty",
   "short_name": "Lipfty",
-  "description": "Lipfty 9 is a shared-piece strategy game with Standard, Advanced and Extreme winning-pattern versions.",
+  "description": "Lipfty is a shared-piece strategy game with Learning, Standard and Extreme versions.",
   "lang": "en-GB",
   "dir": "ltr",
   "start_url": "./?source=pwa",
