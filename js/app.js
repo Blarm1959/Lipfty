@@ -801,6 +801,17 @@ const mobileVersionElement = document.getElementById("mobile-version");
     chooseColour(colour, displayIndex);
   }
 
+  // On a phone the compact Red/Blue cards are the clearest way to make the
+  // choice.  Selecting one commits the first eligible physical reserve piece
+  // of that colour, exactly as tapping that piece on the outer board ring.
+  function chooseReserveColourFromPanel(colour) {
+    if (state.winner !== null || computerBusy || !state.choosingColour || isComputer(state.colourChooser)) return;
+    if (!availableChoiceColours().includes(colour)) return;
+    const index = state.finalFourPhase ? firstFinalCornerIndex(colour) :
+      activeReserveIndices(colour).find(i => i !== state.consequence?.heldReserveIndex);
+    chooseColour(colour, index);
+  }
+
   function renderBoard() {
     boardElement.replaceChildren();
     const winning = new Set(state.winningCells);
@@ -937,8 +948,13 @@ const mobileVersionElement = document.getElementById("mobile-version");
     }
     const reserveHeading = document.getElementById("reserve-heading");
     if (reserveHeading) reserveHeading.textContent = state.redeployPiece ? "Piece to redeploy" : "Colour to use";
-    blackButton.disabled = true; whiteButton.disabled = true;
-    const assigned = state.redeployPiece?.colour || state.assignedColour;
+    const humanChoosingColour = state.winner === null && state.choosingColour && !computerBusy && !isComputer(state.colourChooser);
+    const choices = humanChoosingColour ? availableChoiceColours() : [];
+    blackButton.disabled = !choices.includes("black");
+    whiteButton.disabled = !choices.includes("white");
+    // While choosing a new piece after a Move, the original held piece is not
+    // the new choice.  Do not paint its colour as though it were selected.
+    const assigned = humanChoosingColour ? null : (state.redeployPiece?.colour || state.assignedColour);
     blackButton.classList.toggle("reserve-button--assigned", !!assigned && assigned === "black");
     whiteButton.classList.toggle("reserve-button--assigned", !!assigned && assigned === "white");
     blackButton.classList.toggle("reserve-button--not-assigned", !!assigned && assigned !== "black");
@@ -1110,8 +1126,8 @@ const mobileVersionElement = document.getElementById("mobile-version");
     }
   }
 
-  blackButton.addEventListener("click", () => {});
-  whiteButton.addEventListener("click", () => {});
+  blackButton.addEventListener("click", () => chooseReserveColourFromPanel("black"));
+  whiteButton.addEventListener("click", () => chooseReserveColourFromPanel("white"));
   document.getElementById("new-game").addEventListener("click", startNewGame);
   document.getElementById("end-test").addEventListener("click", jumpToFinalFourTest);
   undoButton.addEventListener("click", undo);
