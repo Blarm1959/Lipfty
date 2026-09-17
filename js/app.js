@@ -815,7 +815,6 @@ const mobileVersionElement = document.getElementById("mobile-version");
   function renderBoard() {
     boardElement.replaceChildren();
     const winning = new Set(state.winningCells);
-    const hiddenMarkers = new Set(CORNERS.slice(0, Math.min(2, state.compulsoryPlacementsRemaining)));
     for (let displayIndex = 0; displayIndex < 64; displayIndex += 1) {
       const dr = Math.floor(displayIndex / 8), dc = displayIndex % 8;
       const inner = dr >= 1 && dr <= 6 && dc >= 1 && dc <= 6;
@@ -828,8 +827,10 @@ const mobileVersionElement = document.getElementById("mobile-version");
         const slot = corner ? CORNERS.indexOf(displayIndex) : -1;
         const finalAvailable = corner && state.finalCornersPrepared ? state.finalCornerPieces[slot] : state.reserveLayout.locked[displayIndex];
         const picked = state.selectedReserveIndex === displayIndex;
-        const markerAway = corner && hiddenMarkers.has(displayIndex) && !state.finalFourPhase;
-        if (corner && finalAvailable && !markerAway && !(picked && state.finalFourPhase)) {
+        // Final Four pieces remain visibly locked on all four physical
+        // corners throughout normal play.  Compulsory placements never use
+        // or hide them.
+        if (corner && finalAvailable && !(picked && state.finalFourPhase)) {
           const marker = document.createElement("span");
           marker.className = `piece piece--${finalAvailable} piece--locked-corner`; marker.setAttribute("aria-hidden", "true");
           cell.appendChild(marker);
@@ -838,7 +839,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
           const disc = document.createElement("span");
           disc.className = `piece piece--${activeColour}`; disc.setAttribute("aria-hidden", "true");
           cell.appendChild(disc);
-        } else if (!corner || markerAway) cell.classList.add("board-cell--reserve-empty");
+        } else if (!corner) cell.classList.add("board-cell--reserve-empty");
 
         let selectable = null;
         const humanChooser = state.winner === null && state.choosingColour && !computerBusy && !isComputer(state.colourChooser);
