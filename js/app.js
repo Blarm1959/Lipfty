@@ -339,6 +339,15 @@ const mobileVersionElement = document.getElementById("mobile-version");
       index = state.finalFourPhase ? firstFinalCornerIndex(colour) : activeReserveIndices(colour).find(i => i !== state.consequence?.heldReserveIndex);
     }
     if (index === null) return false;
+    if (state.finalFourPhase) {
+      const slot = CORNERS.indexOf(index);
+      if (slot < 0 || state.finalCornerPieces[slot] !== colour) return false;
+    } else {
+      // A Move keeps its originally handed piece in the mover's hand.  The
+      // first compulsory placement must use another physical reserve piece.
+      if (CORNERS.includes(index) || state.reserveLayout.active[index] !== colour ||
+          index === state.consequence?.heldReserveIndex) return false;
+    }
     state.selectedReserveIndex = index;
     state.assignedColour = colour;
     state.choosingColour = false;
@@ -467,7 +476,9 @@ const mobileVersionElement = document.getElementById("mobile-version");
     const responder = otherPlayer(mover);
     state.consequence = { type: "move", step: 1, mover, responder, protectedPieceId: movedPieceId, heldReserveIndex, heldColour };
     state.currentPlayer = responder;
-    state.colourChooser = responder;
+    // The player who made the Move chooses the opponent's compulsory piece.
+    // This also lets a computer Move choose automatically for the player.
+    state.colourChooser = mover;
     state.protectedPieceId = movedPieceId;
     state.compulsoryPlacementsRemaining = 2;
     state.choosingColour = true;
@@ -784,7 +795,8 @@ const mobileVersionElement = document.getElementById("mobile-version");
       const slot = CORNERS.indexOf(displayIndex);
       if (slot < 0 || state.finalCornerPieces[slot] !== colour) return;
     } else {
-      if (CORNERS.includes(displayIndex) || state.reserveLayout.active[displayIndex] !== colour) return;
+      if (CORNERS.includes(displayIndex) || state.reserveLayout.active[displayIndex] !== colour ||
+          displayIndex === state.consequence?.heldReserveIndex) return;
     }
     chooseColour(colour, displayIndex);
   }
