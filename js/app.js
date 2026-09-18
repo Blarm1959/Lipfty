@@ -250,7 +250,12 @@ const mobileVersionElement = document.getElementById("mobile-version");
       !state.redeployPiece && !oneColourPlacementOnly();
   }
 
-  function firstNormalReserveIndex(colour) { return activeReserveIndices(colour)[0] ?? null; }
+  function randomEligibleReserveIndex(colour) {
+    const candidates = state.finalFourPhase
+      ? CORNERS.filter((index, slot) => state.finalCornerPieces[slot] === colour)
+      : activeReserveIndices(colour).filter(i => i !== state.consequence?.heldReserveIndex);
+    return candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : null;
+  }
   function firstFinalCornerIndex(colour) {
     const slot = state.finalCornerPieces.findIndex(c => c === colour);
     return slot >= 0 ? CORNERS[slot] : null;
@@ -359,7 +364,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
     if (!availableChoiceColours().includes(colour)) return false;
     let index = reserveIndex;
     if (index === null) {
-      index = state.finalFourPhase ? firstFinalCornerIndex(colour) : activeReserveIndices(colour).find(i => i !== state.consequence?.heldReserveIndex);
+      index = randomEligibleReserveIndex(colour);
     }
     if (index === null) return false;
     if (state.finalFourPhase) {
@@ -388,8 +393,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
     // the mover's second placement.  It must never be selected for the
     // opponent's compulsory placement, even if both pieces have the same
     // colour.
-    const index = state.finalFourPhase ? firstFinalCornerIndex(colour) :
-      activeReserveIndices(colour).find(i => i !== state.consequence?.heldReserveIndex);
+    const index = randomEligibleReserveIndex(colour);
     if (index === null) return false;
     state.selectedReserveIndex = index;
     state.assignedColour = colour;
@@ -765,8 +769,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
     const colour = pool[Math.floor(Math.random() * pool.length)];
     // As above, choose a genuinely different reserve piece when a Move has
     // left the original handed piece in the mover's hand.
-    const index = state.finalFourPhase ? firstFinalCornerIndex(colour) :
-      activeReserveIndices(colour).find(i => i !== state.consequence?.heldReserveIndex);
+    const index = randomEligibleReserveIndex(colour);
     flowTimer = setTimeout(() => {
       computerBusy = false;
       state.selectedReserveIndex = index;
@@ -825,14 +828,13 @@ const mobileVersionElement = document.getElementById("mobile-version");
     chooseColour(colour, displayIndex);
   }
 
-  // On a phone the compact Red/Blue cards are the clearest way to make the
-  // choice.  Selecting one commits the first eligible physical reserve piece
-  // of that colour, exactly as tapping that piece on the outer board ring.
+  // On a phone the compact colour cards are the clearest way to make the
+  // choice. Selecting one chooses uniformly from every eligible physical
+  // reserve piece of that colour, so the outer ring empties naturally.
   function chooseReserveColourFromPanel(colour) {
     if (state.winner !== null || computerBusy || !state.choosingColour || isComputer(state.colourChooser)) return;
     if (!availableChoiceColours().includes(colour)) return;
-    const index = state.finalFourPhase ? firstFinalCornerIndex(colour) :
-      activeReserveIndices(colour).find(i => i !== state.consequence?.heldReserveIndex);
+    const index = randomEligibleReserveIndex(colour);
     chooseColour(colour, index);
   }
 
