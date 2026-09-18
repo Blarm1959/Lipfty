@@ -856,7 +856,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
         // or hide them.
         if (corner && finalAvailable && !(picked && state.finalFourPhase)) {
           const marker = document.createElement("span");
-          marker.className = `piece piece--${finalAvailable} piece--locked-corner piece--special-pawn`; marker.setAttribute("aria-hidden", "true");
+          marker.className = `piece piece--${finalAvailable} piece--locked-corner piece--special-square`; marker.setAttribute("aria-hidden", "true");
           cell.appendChild(marker);
         }
         if (activeColour && !picked) {
@@ -896,7 +896,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
       const piece = state.board[index];
       if (piece) {
         const disc = document.createElement("span");
-        disc.className = `piece piece--${piece.colour}${piece.special ? " piece--special-pawn" : ""}`;
+        disc.className = `piece piece--${piece.colour}${piece.special ? " piece--special-square" : ""}`;
         disc.setAttribute("aria-hidden", "true");
         cell.appendChild(disc);
         const pieceRole = piece.pinned ? " pinned opening anchor" : piece.special ? " special Final Four piece" : " piece";
@@ -955,8 +955,8 @@ const mobileVersionElement = document.getElementById("mobile-version");
     renderChessClocks();
     blackRemainingElement.textContent = state.finalFourPhase ? `${state.finalCornerPieces.filter(c => c === "black").length} final remaining` : `${activeColourTotal("black")} remaining`;
     whiteRemainingElement.textContent = state.finalFourPhase ? `${state.finalCornerPieces.filter(c => c === "white").length} final remaining` : `${activeColourTotal("white")} remaining`;
-    blackButton.querySelector(".piece")?.classList.toggle("piece--special-pawn", state.finalFourPhase && !isLipfty24());
-    whiteButton.querySelector(".piece")?.classList.toggle("piece--special-pawn", state.finalFourPhase && !isLipfty24());
+    blackButton.querySelector(".piece")?.classList.toggle("piece--special-square", state.finalFourPhase && !isLipfty24());
+    whiteButton.querySelector(".piece")?.classList.toggle("piece--special-square", state.finalFourPhase && !isLipfty24());
     boardElement.setAttribute("aria-label", `${gameFormatTitle()} eight by eight board with inner six by six playing area`);
     document.getElementById("colour1-name").textContent = COLOURS[settings.colour1][0];
     document.getElementById("colour2-name").textContent = COLOURS[settings.colour2][0];
