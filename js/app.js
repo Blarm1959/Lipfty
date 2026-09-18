@@ -57,7 +57,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
   function loadSettings() {
     const defaults = {
       mode: "computer", player1: "Player", player2: "Player 2", level: "standard",
-      starter: "random", undo: true, language: "en-GB", colour1: "red", colour2: "blue",
+      gameFormat: "lipfty", starter: "random", undo: true, language: "en-GB", colour1: "red", colour2: "blue",
       clockMinutes: 0, clockIncrement: 0, sound: true, animations: true, undoPreviousJump: false,
       rulesBaseline: 10,
       ...STANDARD_RULES
@@ -74,7 +74,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
       }
       delete saved.winLevel;
       // Diamonds were experimental in earlier versions and are no longer part
-      // of Lipfty. Remove any legacy saved switches and always keep them off.
+      // of Lipfty 8. Remove any legacy saved switches and always keep them off.
       const hadLegacyDiamondSettings = Object.prototype.hasOwnProperty.call(saved, "allowDiamond") ||
         Object.prototype.hasOwnProperty.call(saved, "allowSpacedDiamond");
       delete saved.allowDiamond;
@@ -85,6 +85,10 @@ const mobileVersionElement = document.getElementById("mobile-version");
       if (saved.clockMinutes === undefined) saved.clockMinutes = 0;
       if (saved.clockIncrement === undefined) saved.clockIncrement = 0;
       delete saved.timer;
+      // Lipfty 11 adds Lipfty24 as a second game format. Existing players
+      // remain on full Lipfty unless they explicitly choose Lipfty24.
+      const needsFormatMigration = !["lipfty", "lipfty24"].includes(saved.gameFormat);
+      if (needsFormatMigration) saved.gameFormat = "lipfty";
       // Lipfty 10 introduces the Learning / Standard / Extreme version set.
       // Existing saved settings migrate safely to Standard.
       const needsRulesBaselineMigration = saved.rulesBaseline !== 10;
@@ -92,7 +96,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
         Object.assign(saved, STANDARD_RULES, { rulesBaseline: 10 });
       }
       const migrated = { ...defaults, ...saved, allowDiamond: false, allowSpacedDiamond: false };
-      if (hadLegacyDiamondSettings || needsRulesBaselineMigration) {
+      if (hadLegacyDiamondSettings || needsRulesBaselineMigration || needsFormatMigration) {
         localStorage.setItem("lipfty-settings", JSON.stringify(migrated));
       }
       return migrated;
@@ -115,6 +119,8 @@ const mobileVersionElement = document.getElementById("mobile-version");
     document.documentElement.style.setProperty("--piece-black", COLOURS[settings.colour1][1]);
     document.documentElement.style.setProperty("--piece-white", COLOURS[settings.colour2][1]);
   }
+  function isLipfty24() { return settings.gameFormat === "lipfty24"; }
+  function gameFormatTitle() { return isLipfty24() ? "Lipfty24" : "Lipfty"; }
 
   function shuffled(values) {
     const result = [...values];
@@ -140,18 +146,22 @@ const mobileVersionElement = document.getElementById("mobile-version");
     shuffled([...Array(12).fill("black"), ...Array(12).fill("white")])
       .forEach((colour, i) => { active[nonCorners[i]] = colour; });
 
-    // Final Four remains unchanged from Lipfty 7: two pieces of each colour
-    // sit under the four reserve-corner markers until the normal reserve ends.
-    shuffled(["black", "black", "white", "white"])
-      .forEach((colour, i) => { locked[CORNERS[i]] = colour; });
+    // Full Lipfty keeps four special Final Four pieces in the physical board
+    // corners. Lipfty24 uses only the 24 ordinary draughts/checkers pieces,
+    // so all four physical corners remain empty throughout that game.
+    if (!isLipfty24()) {
+      shuffled(["black", "black", "white", "white"])
+        .forEach((colour, i) => { locked[CORNERS[i]] = colour; });
+    }
 
     return { active, locked };
   }
 
   function makeAutomaticAnchorBoard() {
     const board = Array(BOARD_CELLS).fill(null);
+    if (isLipfty24()) return board;
     for (const anchor of ANCHOR_SETUP) {
-      board[anchor.index] = { id: nextPieceId++, colour: anchor.colour, pinned: true };
+      board[anchor.index] = { id: nextPieceId++, colour: anchor.colour, pinned: true, special: true };
     }
     return board;
   }
@@ -208,6 +218,19 @@ const mobileVersionElement = document.getElementById("mobile-version");
   }
   function beginFinalFourIfReady() {
     if (state.finalFourPhase || state.consequence || state.redeployPiece || normalReserveTotal() !== 0) return false;
+    if (isLipfty24()) {
+      state.winner = "draw";
+      state.assignedColour = null;
+      state.selectedReserveIndex = null;
+      state.choosingColour = false;
+      state.compulsoryPlacementsRemaining = 0;
+      stopChessClockInterval();
+      clockActivePlayer = null;
+      clockLastTick = null;
+      setStatus("Draw - all 24 Lipfty24 pieces have been played without a win.");
+      maybeShowUpdateDialog();
+      return true;
+    }
     prepareFinalCorners();
     state.finalFourPhase = true;
     state.assignedColour = null;
@@ -405,6 +428,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
     if (state.winner !== null) { render(); return; }
 
     beginFinalFourIfReady();
+    if (state.winner !== null) { render(); return; }
 
     if (state.choosingColour) {
       const colours = availableChoiceColours();
@@ -537,7 +561,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
     if (state.finalFourPhase) {
       const slot = CORNERS.indexOf(state.selectedReserveIndex);
       if (slot < 0 || state.finalCornerPieces[slot] !== colour) return false;
-      state.board[index] = { id: nextPieceId++, colour, pinned: false };
+      state.board[index] = { id: nextPieceId++, colour, pinned: false, special: true };
       state.finalCornerPieces[slot] = null;
       clearHeldPiece();
       if (finishWin()) return true;
@@ -832,7 +856,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
         // or hide them.
         if (corner && finalAvailable && !(picked && state.finalFourPhase)) {
           const marker = document.createElement("span");
-          marker.className = `piece piece--${finalAvailable} piece--locked-corner`; marker.setAttribute("aria-hidden", "true");
+          marker.className = `piece piece--${finalAvailable} piece--locked-corner piece--special-pawn`; marker.setAttribute("aria-hidden", "true");
           cell.appendChild(marker);
         }
         if (activeColour && !picked) {
@@ -872,10 +896,11 @@ const mobileVersionElement = document.getElementById("mobile-version");
       const piece = state.board[index];
       if (piece) {
         const disc = document.createElement("span");
-        disc.className = `piece piece--${piece.colour}`;
+        disc.className = `piece piece--${piece.colour}${piece.special ? " piece--special-pawn" : ""}`;
         disc.setAttribute("aria-hidden", "true");
         cell.appendChild(disc);
-        cell.setAttribute("aria-label", `${colourTitle(piece.colour)}${piece.pinned ? " pinned opening anchor" : " piece"}, row ${row + 1}, column ${col + 1}`);
+        const pieceRole = piece.pinned ? " pinned opening anchor" : piece.special ? " special Final Four piece" : " piece";
+        cell.setAttribute("aria-label", `${colourTitle(piece.colour)}${pieceRole}, row ${row + 1}, column ${col + 1}`);
       } else cell.setAttribute("aria-label", `Empty playing square, row ${row + 1}, column ${col + 1}`);
       cell.disabled = computerBusy;
       cell.addEventListener("click", () => handleCell(index));
@@ -930,6 +955,9 @@ const mobileVersionElement = document.getElementById("mobile-version");
     renderChessClocks();
     blackRemainingElement.textContent = state.finalFourPhase ? `${state.finalCornerPieces.filter(c => c === "black").length} final remaining` : `${activeColourTotal("black")} remaining`;
     whiteRemainingElement.textContent = state.finalFourPhase ? `${state.finalCornerPieces.filter(c => c === "white").length} final remaining` : `${activeColourTotal("white")} remaining`;
+    blackButton.querySelector(".piece")?.classList.toggle("piece--special-pawn", state.finalFourPhase && !isLipfty24());
+    whiteButton.querySelector(".piece")?.classList.toggle("piece--special-pawn", state.finalFourPhase && !isLipfty24());
+    boardElement.setAttribute("aria-label", `${gameFormatTitle()} eight by eight board with inner six by six playing area`);
     document.getElementById("colour1-name").textContent = COLOURS[settings.colour1][0];
     document.getElementById("colour2-name").textContent = COLOURS[settings.colour2][0];
 
@@ -940,7 +968,20 @@ const mobileVersionElement = document.getElementById("mobile-version");
         : state.consequence?.type === "move" ? `Move consequence - opponent placement, then held-piece placement`
         : state.consequence?.type === "jump-held" ? `Jump consequence - place your held piece`
         : oneColourPlacementOnly() ? `One-colour finish - ${normalReserveTotal()} normal reserve pieces left - placement only`
+        : isLipfty24() ? `Main play - empty 6×6 start; opponent hands a reserve piece: Place, Move or Jump with that colour.`
         : `Main play - four pinned opening anchors are in place; opponent hands a reserve piece: Place, Move or Jump with that colour.`;
+    }
+    const boardNote = document.getElementById("board-note");
+    if (boardNote) {
+      boardNote.textContent = isLipfty24()
+        ? "Lipfty24: inner 6×6 starts empty; all 24 draughts/checkers pieces occupy the outer non-corner spaces. There are no special corner pieces."
+        : "Lipfty: inner 6×6 playing area with 4 pinned Opening Four pieces, 24 normal reserve pieces and 4 Final Four corner pieces.";
+    }
+    const quickOpening = document.getElementById("quick-opening-rule");
+    if (quickOpening) {
+      quickOpening.innerHTML = isLipfty24()
+        ? "<strong>Opening:</strong> the inner 6×6 starts empty. All 24 pieces are ordinary shared reserve pieces; there is no Opening Four or Final Four."
+        : "<strong>Opening:</strong> four diagonal-colour special pieces start pinned on the corners of the inner 6×6. They count towards wins but never move and cannot be jumped over.";
     }
     const placementAlert = document.getElementById("placement-alert");
     if (placementAlert) {
@@ -968,19 +1009,38 @@ const mobileVersionElement = document.getElementById("mobile-version");
 
   function jumpToFinalFourTest() {
     clearTimeout(flowTimer); computerBusy = false; computerMoveVisual = null; nextPieceId = 1; checkpoints = []; state = freshState();
-    state.reserveLayout.active.fill(null);
     const anchorBoard = state.board.map(piece => piece ? { ...piece } : null);
     const availableCells = [...Array(BOARD_CELLS).keys()].filter(i => !anchorBoard[i]);
     let attempts = 0;
-    do {
-      state.board = anchorBoard.map(piece => piece ? { ...piece } : null);
-      const occupied = shuffled(availableCells).slice(0, 24);
-      const colours = shuffled([...Array(12).fill("black"), ...Array(12).fill("white")]);
-      occupied.forEach((index, i) => { state.board[index] = { id: nextPieceId++, colour: colours[i], pinned: false }; });
-      attempts += 1;
-    } while (rules.checkWin(state.board, settings) && attempts < 10000);
-    state.currentPlayer = 0; state.colourChooser = 0; state.choosingColour = true;
-    prepareFinalCorners(); state.finalFourPhase = true;
+    if (isLipfty24()) {
+      // Lipfty24 has no Final Four. Leave one ordinary reserve piece so End
+      // remains a useful near-end test without inventing a special phase.
+      const remainingIndex = activeReserveIndices()[0];
+      const remainingColour = state.reserveLayout.active[remainingIndex];
+      state.reserveLayout.active.fill(null);
+      state.reserveLayout.active[remainingIndex] = remainingColour;
+      do {
+        state.board = anchorBoard.map(piece => piece ? { ...piece } : null);
+        const occupied = shuffled(availableCells).slice(0, 23);
+        const colours = shuffled([...Array(12).fill("black"), ...Array(12).fill("white")]);
+        const removeAt = colours.indexOf(remainingColour);
+        if (removeAt >= 0) colours.splice(removeAt, 1);
+        occupied.forEach((index, i) => { state.board[index] = { id: nextPieceId++, colour: colours[i], pinned: false }; });
+        attempts += 1;
+      } while (rules.checkWin(state.board, settings) && attempts < 10000);
+      state.currentPlayer = 0; state.colourChooser = 0; state.choosingColour = true;
+    } else {
+      state.reserveLayout.active.fill(null);
+      do {
+        state.board = anchorBoard.map(piece => piece ? { ...piece } : null);
+        const occupied = shuffled(availableCells).slice(0, 24);
+        const colours = shuffled([...Array(12).fill("black"), ...Array(12).fill("white")]);
+        occupied.forEach((index, i) => { state.board[index] = { id: nextPieceId++, colour: colours[i], pinned: false }; });
+        attempts += 1;
+      } while (rules.checkWin(state.board, settings) && attempts < 10000);
+      state.currentPlayer = 0; state.colourChooser = 0; state.choosingColour = true;
+      prepareFinalCorners(); state.finalFourPhase = true;
+    }
     initialiseChessClock();
     processFlow();
   }
@@ -1179,9 +1239,11 @@ const mobileVersionElement = document.getElementById("mobile-version");
     const one = fv("gameMode") === "computer", level = ["", "Beginner", "Standard", "Expert"][Number(difficultyInput.value)];
     const clockMinutes = Number(fv("clockMinutes") || 0), increment = Number(fv("clockIncrement") || 0);
     const clockSummary = clockMinutes ? `${clockMinutes} min each${increment ? ` + ${increment}s` : ""}` : "Clock off";
-    document.getElementById("setup-summary").textContent = `${one ? "Player vs Computer · " + level : "Two players"} · ${COLOURS[fv("colour1")][0]} / ${COLOURS[fv("colour2")][0]} · ${selectedRuleSummary()} · ${clockSummary}`;
+    const format = fv("gameFormat") === "lipfty24" ? "Lipfty24" : "Lipfty";
+    document.getElementById("setup-summary").textContent = `${format} · ${one ? "Player vs Computer · " + level : "Two players"} · ${COLOURS[fv("colour1")][0]} / ${COLOURS[fv("colour2")][0]} · ${selectedRuleSummary()} · ${clockSummary}`;
   }
   function openSettings() {
+    sr("gameFormat", settings.gameFormat || "lipfty");
     sr("gameMode", settings.mode); difficultyInput.value = settings.level === "beginner" ? 1 : settings.level === "expert" ? 3 : 2;
     sr("allowUndo", settings.undo ? "yes" : "no"); sr("colour1", settings.colour1); sr("colour2", settings.colour2);
     player1Input.value = settings.player1; player2Input.value = settings.player2; sr("starter", settings.starter);
@@ -1190,6 +1252,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
     syncRuleDependencies(); document.getElementById("setting-sound").checked = settings.sound; document.getElementById("setting-animations").checked = settings.animations;
     syncMode(); syncDifficulty(); syncClockOptions(); showStep(0); settingsDialog.showModal();
   }
+  settingsForm.querySelectorAll('[name="gameFormat"]').forEach(e => e.addEventListener("change", () => { if (wizardStep === 5) summary(); }));
   settingsForm.querySelectorAll('[name="gameMode"]').forEach(e => e.addEventListener("change", syncMode));
   difficultyInput.addEventListener("input", syncDifficulty);
   function syncClockOptions() {
@@ -1213,7 +1276,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
     if (!ruleSettings.allowSquare) ruleSettings.allowSpacedSquare = false;
     ruleSettings.allowDiamond = false;
     ruleSettings.allowSpacedDiamond = false;
-    settings = { ...settings, ...ruleSettings, mode: fv("gameMode"), player1: player1Input.value.trim() || "Player", player2: player2Input.value.trim() || "Player 2", level: n === 1 ? "beginner" : n === 3 ? "expert" : "standard", starter: fv("starter"), undo: fv("allowUndo") === "yes", colour1: fv("colour1"), colour2: fv("colour2"), clockMinutes: Number(fv("clockMinutes") || 0), clockIncrement: Number(fv("clockIncrement") || 0), sound: document.getElementById("setting-sound").checked, animations: document.getElementById("setting-animations").checked, language: document.getElementById("setting-language").value };
+    settings = { ...settings, ...ruleSettings, gameFormat: fv("gameFormat") || "lipfty", mode: fv("gameMode"), player1: player1Input.value.trim() || "Player", player2: player2Input.value.trim() || "Player 2", level: n === 1 ? "beginner" : n === 3 ? "expert" : "standard", starter: fv("starter"), undo: fv("allowUndo") === "yes", colour1: fv("colour1"), colour2: fv("colour2"), clockMinutes: Number(fv("clockMinutes") || 0), clockIncrement: Number(fv("clockIncrement") || 0), sound: document.getElementById("setting-sound").checked, animations: document.getElementById("setting-animations").checked, language: document.getElementById("setting-language").value };
     saveSettings(); settingsDialog.close(); startNewGame();
   });
 

@@ -1141,3 +1141,26 @@ dialog::backdrop{background:rgba(13,28,42,.45)}
   .action-bar { min-height:40px; padding:4px 6px; }
   .action-bar .button { min-height:32px; font-size:.76rem; }
 }
+
+/* Lipfty 11 — special pieces in full Lipfty mirror chess pawns in a combined
+   chess/draughts set. Lipfty24 never uses this class. */
+.piece--black.piece--special-pawn { --special-piece-colour: var(--piece-black,#d6423a); }
+.piece--white.piece--special-pawn { --special-piece-colour: var(--piece-white,#2d65ad); }
+.piece--special-pawn {
+  position:relative;
+  display:grid;
+  place-items:center;
+  background:transparent !important;
+  border:0 !important;
+  border-radius:0;
+  box-shadow:none;
+  font-family:"Segoe UI Symbol","Noto Sans Symbols 2","DejaVu Sans",serif;
+  font-size:clamp(24px,7.2vw,48px);
+  line-height:1;
+  color:var(--special-piece-colour);
+  text-shadow:0 0 1px rgba(0,0,0,.9),0 2px 2px rgba(0,0,0,.2);
+}
+.piece--special-pawn::before { content:"♟"; }
+@media (max-width:560px) {
+  .reserve-button .piece--special-pawn { font-size:30px; }
+}
