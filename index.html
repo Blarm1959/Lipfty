@@ -366,8 +366,12 @@
       if (!summary?.textContent) return;
       const parts = summary.textContent.split(" · ");
       if (parts.length < 4) return;
-      parts[0] = FORMAT_LABELS[selectedFormat(form)];
-      parts[parts.length - 2] = VERSION_LABELS[selectedVersion(form)];
+      const format = FORMAT_LABELS[selectedFormat(form)];
+      const versionIndex = parts.length - 2;
+      const version = VERSION_LABELS[selectedVersion(form)];
+      if (parts[0] === format && parts[versionIndex] === version) return;
+      parts[0] = format;
+      parts[versionIndex] = version;
       summary.textContent = parts.join(" · ");
     }
 
