@@ -737,51 +737,517 @@ const mobileVersionElement = document.getElementById("mobile-version");
     if (piece) selectPiece(index);
   }
 
+  const AI_WIN_SCORE = 1000000;
+  const AI_RESPONSE_LIMIT = 8;
+  const AI_PLACEMENT_LIMIT = 4;
+  const AI_TOP_LEVEL_LIMIT = 12;
+
   function cloneBoard(board) { return board.map(piece => piece ? { ...piece } : null); }
-  function boardAfterAction(action) {
-    const board = cloneBoard(state.board);
-    if (["place", "final-place", "redeploy"].includes(action.type)) board[action.to] = { id: -1, colour: action.colour, pinned: false };
-    else { board[action.to] = board[action.from]; board[action.from] = null; }
-    return board;
+
+  function reserveCountsNow() {
+    return { black: normalReserveRemaining("black"), white: normalReserveRemaining("white") };
   }
-  function actionWins(action) { return !!rules.checkWin(boardAfterAction(action), settings); }
-  function actionScore(action) {
-    if (actionWins(action)) return 100000;
-    const r = Math.floor(action.to / rules.SIZE), c = action.to % rules.SIZE;
-    let score = ((r === 2 || r === 3) ? 2 : 0) + ((c === 2 || c === 3) ? 2 : 0) + Math.random();
-    if (action.type === "jump") score += 1.5;
-    if (settings.level === "expert") {
-      const board = boardAfterAction(action);
-      const colour = action.colour || state.board[action.from]?.colour;
-      for (const pattern of rules.WINNING_PATTERNS) {
-        if (!pattern.includes(action.to)) continue;
-        const count = pattern.filter(i => board[i]?.colour === colour).length;
-        score += count * count;
+
+  function cloneCounts(counts) { return { black: counts.black || 0, white: counts.white || 0 }; }
+
+  function decrementCount(counts, colour) {
+    const next = cloneCounts(counts);
+    next[colour] = Math.max(0, (next[colour] || 0) - 1);
+    return next;
+  }
+
+  function availableColoursFromCounts(counts) {
+    return ["black", "white"].filter(colour => Number(counts[colour] || 0) > 0);
+  }
+
+  function oneColourOnlyFromCounts(counts) {
+    return availableColoursFromCounts(counts).length === 1;
+  }
+
+  function giftColoursFromCounts(counts, heldColour) {
+    return ["black", "white"].filter(colour => {
+      const unavailableHeldPiece = colour === heldColour ? 1 : 0;
+      return Number(counts[colour] || 0) - unavailableHeldPiece > 0;
+    });
+  }
+
+  let aiPatternCacheKey = null;
+  let aiPatternCache = null;
+  function enabledAiPatterns() {
+    const key = `${!!settings.allowSquare}:${!!settings.allowSpacedSquare}`;
+    if (aiPatternCacheKey === key && aiPatternCache) return aiPatternCache;
+    const patterns = [...rules.WINNING_LINES];
+    if (settings.allowSquare) {
+      if (settings.allowSpacedSquare) patterns.push(...rules.WINNING_SQUARES);
+      else {
+        patterns.push(...rules.WINNING_SQUARES.filter(pattern => {
+          const rows = pattern.map(i => Math.floor(i / rules.SIZE));
+          const cols = pattern.map(i => i % rules.SIZE);
+          return Math.max(...rows) - Math.min(...rows) === 1 && Math.max(...cols) - Math.min(...cols) === 1;
+        }));
       }
+    }
+    aiPatternCacheKey = key;
+    aiPatternCache = patterns;
+    return patterns;
+  }
+
+  function boardAfterActionOn(board, action, resolveJump = false) {
+    const next = cloneBoard(board);
+    if (["place", "final-place", "redeploy"].includes(action.type)) {
+      next[action.to] = action.piece ? { ...action.piece } : { id: -1, colour: action.colour, pinned: false };
+    } else {
+      next[action.to] = next[action.from];
+      next[action.from] = null;
+      if (resolveJump && action.type === "jump") next[action.over] = null;
+    }
+    return next;
+  }
+
+  function boardAfterAction(action) { return boardAfterActionOn(state.board, action, false); }
+
+  function actionWinsOnBoard(board, action) {
+    return !!rules.checkWin(boardAfterActionOn(board, action, false), settings);
+  }
+
+  function actionWins(action) { return actionWinsOnBoard(state.board, action); }
+
+  function centreBonus(index) {
+    const r = Math.floor(index / rules.SIZE), c = index % rules.SIZE;
+    const rowBonus = r === 2 || r === 3 ? 2 : (r === 1 || r === 4 ? 1 : 0);
+    const colBonus = c === 2 || c === 3 ? 2 : (c === 1 || c === 4 ? 1 : 0);
+    return rowBonus + colBonus;
+  }
+
+  function patternPressure(board, colour, focusIndex) {
+    let score = 0;
+    for (const pattern of enabledAiPatterns()) {
+      if (!pattern.includes(focusIndex)) continue;
+      let matching = 0, blocked = false;
+      for (const index of pattern) {
+        const piece = board[index];
+        if (!piece) continue;
+        if (piece.colour !== colour) { blocked = true; break; }
+        matching += 1;
+      }
+      if (blocked) continue;
+      if (matching >= 3) score += 18;
+      else if (matching === 2) score += 6;
+      else if (matching === 1) score += 1.5;
     }
     return score;
   }
+
+  function localActionHeuristic(board, action) {
+    const colour = action.colour || board[action.from]?.colour;
+    const after = boardAfterActionOn(board, action, false);
+    if (rules.checkWin(after, settings)) return AI_WIN_SCORE;
+    let score = centreBonus(action.to) * 1.5 + patternPressure(after, colour, action.to);
+    if (action.type === "jump") score += 2.5;
+    else if (action.type === "move") score += 0.75;
+    return score;
+  }
+
+  function localJumpDestinations(board, from) {
+    const piece = board[from];
+    if (!piece || piece.pinned) return [];
+    return rules.jumpDestinations(board, from).filter(j => {
+      const over = board[j.over];
+      return over && !over.pinned && over.colour !== piece.colour;
+    });
+  }
+
+  function enumerateActionsOnBoard(board, colour, {
+    mustPlace = false,
+    protectedPieceId = null,
+    reserveAvailable = true,
+    allowMove = settings.allowMove,
+    allowJump = settings.allowJump
+  } = {}) {
+    const actions = [];
+    if (colour && reserveAvailable) {
+      for (let to = 0; to < BOARD_CELLS; to += 1) {
+        if (!board[to]) actions.push({ type: "place", to, colour });
+      }
+    }
+    if (mustPlace) return actions;
+
+    for (let from = 0; from < BOARD_CELLS; from += 1) {
+      const piece = board[from];
+      if (!piece || piece.pinned || piece.colour !== colour || piece.id === protectedPieceId) continue;
+      if (allowMove) {
+        for (const to of rules.adjacentDestinations(board, from)) actions.push({ type: "move", from, to, colour });
+      }
+      if (allowJump) {
+        for (const jump of localJumpDestinations(board, from)) {
+          actions.push({ type: "jump", from, to: jump.to, over: jump.over, colour });
+        }
+      }
+    }
+    return actions;
+  }
+
+  function candidateActions(board, colour, options = {}, limit = AI_RESPONSE_LIMIT) {
+    const actions = enumerateActionsOnBoard(board, colour, options);
+    const scored = actions.map(action => ({ action, score: localActionHeuristic(board, action) }));
+    const wins = scored.filter(item => item.score >= AI_WIN_SCORE);
+    if (wins.length) return wins.map(item => item.action);
+    return scored
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map(item => item.action);
+  }
+
+  function candidatePlacements(board, colour, limit = AI_PLACEMENT_LIMIT, piece = null) {
+    const actions = [];
+    for (let to = 0; to < BOARD_CELLS; to += 1) {
+      if (!board[to]) actions.push({ type: "place", to, colour, piece });
+    }
+    const scored = actions.map(action => ({ action, score: localActionHeuristic(board, action) }));
+    const wins = scored.filter(item => item.score >= AI_WIN_SCORE);
+    if (wins.length) return wins.map(item => item.action);
+    return scored
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map(item => item.action);
+  }
+
+  function shallowReceiverValue(board, counts, colour, receiverIsComputer, protectedPieceId = null, forcePlacement = false) {
+    const mustPlace = forcePlacement || oneColourOnlyFromCounts(counts);
+    const actions = candidateActions(board, colour, {
+      mustPlace,
+      protectedPieceId,
+      reserveAvailable: Number(counts[colour] || 0) > 0,
+      allowMove: settings.allowMove && !mustPlace,
+      allowJump: settings.allowJump && !mustPlace
+    });
+    if (!actions.length) return 0;
+
+    const values = actions.map(action => {
+      if (actionWinsOnBoard(board, action)) return receiverIsComputer ? AI_WIN_SCORE : -AI_WIN_SCORE;
+      const value = localActionHeuristic(board, action);
+      return receiverIsComputer ? value : -value;
+    });
+    return receiverIsComputer ? Math.max(...values) : Math.min(...values);
+  }
+
+  // At a normal turn boundary the chooser controls which colour the next
+  // player receives. These two helpers deliberately model that Lipfty-specific
+  // handover rather than treating colours as player-owned pieces.
+  function futureHumanTurnUnderComputerChoice(board, counts, protectedPieceId = null, expert = false) {
+    const colours = availableColoursFromCounts(counts);
+    if (!colours.length) return 0;
+    const values = colours.map(colour => expert
+      ? expertHumanTurnValue(board, counts, colour, protectedPieceId)
+      : shallowReceiverValue(board, counts, colour, false, protectedPieceId));
+    return Math.max(...values);
+  }
+
+  function futureComputerTurnUnderHumanChoice(board, counts, protectedPieceId = null) {
+    const colours = availableColoursFromCounts(counts);
+    if (!colours.length) return 0;
+    return Math.min(...colours.map(colour => shallowReceiverValue(board, counts, colour, true, protectedPieceId)));
+  }
+
+  function evaluateComputerHeldPlacement(board, counts, heldColour, protectedPieceId = null, nextHumanTurn = true, expertNext = false) {
+    const afterHeldCounts = decrementCount(counts, heldColour);
+    const placements = candidatePlacements(board, heldColour);
+    if (!placements.length) return nextHumanTurn
+      ? futureHumanTurnUnderComputerChoice(board, afterHeldCounts, protectedPieceId, expertNext)
+      : futureComputerTurnUnderHumanChoice(board, afterHeldCounts, protectedPieceId);
+
+    let best = -Infinity;
+    for (const placement of placements) {
+      if (actionWinsOnBoard(board, placement)) return AI_WIN_SCORE;
+      const after = boardAfterActionOn(board, placement, false);
+      const value = nextHumanTurn
+        ? futureHumanTurnUnderComputerChoice(after, afterHeldCounts, protectedPieceId, expertNext)
+        : futureComputerTurnUnderHumanChoice(after, afterHeldCounts, protectedPieceId);
+      best = Math.max(best, value + localActionHeuristic(board, placement) * 0.2);
+    }
+    return best;
+  }
+
+  function evaluateHumanHeldPlacement(board, counts, heldColour, protectedPieceId = null) {
+    const afterHeldCounts = decrementCount(counts, heldColour);
+    const placements = candidatePlacements(board, heldColour);
+    if (!placements.length) return futureComputerTurnUnderHumanChoice(board, afterHeldCounts, protectedPieceId);
+
+    let worst = Infinity;
+    for (const placement of placements) {
+      if (actionWinsOnBoard(board, placement)) return -AI_WIN_SCORE;
+      const after = boardAfterActionOn(board, placement, false);
+      const value = futureComputerTurnUnderHumanChoice(after, afterHeldCounts, protectedPieceId) -
+        localActionHeuristic(board, placement) * 0.2;
+      worst = Math.min(worst, value);
+    }
+    return worst;
+  }
+
+  function computerMoveGiftValue(boardAfterMove, counts, heldColour, giftColour, protectedPieceId, expert = true) {
+    const afterGiftCounts = decrementCount(counts, giftColour);
+    const humanPlacements = candidatePlacements(boardAfterMove, giftColour, expert ? AI_PLACEMENT_LIMIT : 5);
+    if (!humanPlacements.length) return evaluateComputerHeldPlacement(boardAfterMove, afterGiftCounts, heldColour, protectedPieceId, true);
+
+    let worst = Infinity;
+    for (const placement of humanPlacements) {
+      if (actionWinsOnBoard(boardAfterMove, placement)) return -AI_WIN_SCORE;
+      const afterHuman = boardAfterActionOn(boardAfterMove, placement, false);
+      const value = evaluateComputerHeldPlacement(afterHuman, afterGiftCounts, heldColour, protectedPieceId, true, false);
+      worst = Math.min(worst, value - localActionHeuristic(boardAfterMove, placement) * 0.15);
+    }
+    return worst;
+  }
+
+  function evaluateComputerMoveConsequence(board, action, counts, heldColour, expert = true) {
+    const movedPieceId = board[action.from]?.id ?? null;
+    const afterMove = boardAfterActionOn(board, action, false);
+    const gifts = giftColoursFromCounts(counts, heldColour);
+    if (!gifts.length) return localActionHeuristic(board, action);
+    return Math.max(...gifts.map(giftColour =>
+      computerMoveGiftValue(afterMove, counts, heldColour, giftColour, movedPieceId, expert)));
+  }
+
+  function evaluateComputerJumpConsequence(board, action, counts, heldColour, expert = true) {
+    const jumpedPiece = board[action.over];
+    const movedPieceId = board[action.from]?.id ?? null;
+    if (!jumpedPiece) return -AI_WIN_SCORE / 2;
+    const afterJump = boardAfterActionOn(board, action, true);
+    const humanRedeployments = candidatePlacements(afterJump, jumpedPiece.colour, expert ? AI_PLACEMENT_LIMIT : 5, jumpedPiece);
+    if (!humanRedeployments.length) return evaluateComputerHeldPlacement(afterJump, counts, heldColour, movedPieceId, true);
+
+    let worst = Infinity;
+    for (const redeploy of humanRedeployments) {
+      if (actionWinsOnBoard(afterJump, redeploy)) return -AI_WIN_SCORE;
+      const afterRedeploy = boardAfterActionOn(afterJump, redeploy, false);
+      const value = evaluateComputerHeldPlacement(afterRedeploy, counts, heldColour, movedPieceId, true, false);
+      worst = Math.min(worst, value - localActionHeuristic(afterJump, redeploy) * 0.15);
+    }
+    return worst;
+  }
+
+  function evaluateHumanMoveConsequence(board, action, counts, heldColour) {
+    const movedPieceId = board[action.from]?.id ?? null;
+    const afterMove = boardAfterActionOn(board, action, false);
+    const gifts = giftColoursFromCounts(counts, heldColour);
+    if (!gifts.length) return -localActionHeuristic(board, action);
+
+    // Human mover chooses the reserve piece for the computer, so choose the
+    // gift that is worst from the computer's point of view.
+    let humanChoice = Infinity;
+    for (const giftColour of gifts) {
+      const afterGiftCounts = decrementCount(counts, giftColour);
+      const computerPlacements = candidatePlacements(afterMove, giftColour);
+      let computerBest = -Infinity;
+      for (const placement of computerPlacements) {
+        if (actionWinsOnBoard(afterMove, placement)) { computerBest = AI_WIN_SCORE; break; }
+        const afterComputer = boardAfterActionOn(afterMove, placement, false);
+        const value = evaluateHumanHeldPlacement(afterComputer, afterGiftCounts, heldColour, movedPieceId);
+        computerBest = Math.max(computerBest, value + localActionHeuristic(afterMove, placement) * 0.15);
+      }
+      if (computerBest === -Infinity) computerBest = evaluateHumanHeldPlacement(afterMove, afterGiftCounts, heldColour, movedPieceId);
+      humanChoice = Math.min(humanChoice, computerBest);
+    }
+    return humanChoice;
+  }
+
+  function evaluateHumanJumpConsequence(board, action, counts, heldColour) {
+    const jumpedPiece = board[action.over];
+    const movedPieceId = board[action.from]?.id ?? null;
+    if (!jumpedPiece) return 0;
+    const afterJump = boardAfterActionOn(board, action, true);
+
+    // The computer redeploys the exact jumped piece and therefore chooses the
+    // best redeployment square before the human jumper must place the held piece.
+    const computerRedeployments = candidatePlacements(afterJump, jumpedPiece.colour, AI_PLACEMENT_LIMIT, jumpedPiece);
+    let computerBest = -Infinity;
+    for (const redeploy of computerRedeployments) {
+      if (actionWinsOnBoard(afterJump, redeploy)) return AI_WIN_SCORE;
+      const afterRedeploy = boardAfterActionOn(afterJump, redeploy, false);
+      const value = evaluateHumanHeldPlacement(afterRedeploy, counts, heldColour, movedPieceId);
+      computerBest = Math.max(computerBest, value + localActionHeuristic(afterJump, redeploy) * 0.15);
+    }
+    return computerBest === -Infinity ? evaluateHumanHeldPlacement(afterJump, counts, heldColour, movedPieceId) : computerBest;
+  }
+
+  function expertHumanTurnValue(board, counts, colour, protectedPieceId = null) {
+    const mustPlace = oneColourOnlyFromCounts(counts);
+    const actions = candidateActions(board, colour, {
+      mustPlace,
+      protectedPieceId,
+      reserveAvailable: Number(counts[colour] || 0) > 0,
+      allowMove: settings.allowMove && !mustPlace,
+      allowJump: settings.allowJump && !mustPlace
+    });
+    if (!actions.length) return 0;
+
+    let worst = Infinity;
+    for (const action of actions) {
+      if (actionWinsOnBoard(board, action)) return -AI_WIN_SCORE;
+      let value;
+      if (action.type === "place") {
+        const after = boardAfterActionOn(board, action, false);
+        const afterCounts = decrementCount(counts, colour);
+        value = futureComputerTurnUnderHumanChoice(after, afterCounts, null) - localActionHeuristic(board, action) * 0.25;
+      } else if (action.type === "move") {
+        value = evaluateHumanMoveConsequence(board, action, counts, colour);
+      } else {
+        value = evaluateHumanJumpConsequence(board, action, counts, colour);
+      }
+      worst = Math.min(worst, value);
+    }
+    return worst;
+  }
+
+  function standardActionScore(action) {
+    const board = state.board;
+    if (actionWinsOnBoard(board, action)) return AI_WIN_SCORE;
+    const counts = reserveCountsNow();
+    let value = localActionHeuristic(board, action);
+
+    if (action.type === "place") {
+      const after = boardAfterActionOn(board, action, false);
+      const afterCounts = decrementCount(counts, action.colour);
+      value += futureHumanTurnUnderComputerChoice(after, afterCounts, null, false) * 0.8;
+    } else if (action.type === "move") {
+      value += evaluateComputerMoveConsequence(board, action, counts, state.assignedColour, false) * 0.7;
+    } else if (action.type === "jump") {
+      value += evaluateComputerJumpConsequence(board, action, counts, state.assignedColour, false) * 0.7;
+    }
+    return value + Math.random() * 0.35;
+  }
+
+  function expertActionScore(action) {
+    const board = state.board;
+    if (actionWinsOnBoard(board, action)) return AI_WIN_SCORE;
+    const counts = reserveCountsNow();
+    let value = localActionHeuristic(board, action) * 0.35;
+
+    if (state.redeployPiece && action.type === "redeploy") {
+      const c = state.consequence;
+      if (!c) return value;
+      const after = boardAfterActionOn(board, action, false);
+      if (actionWinsOnBoard(board, action)) return AI_WIN_SCORE;
+      return evaluateHumanHeldPlacement(after, counts, c.heldColour, c.protectedPieceId) + value;
+    }
+
+    if (action.type === "place") {
+      const after = boardAfterActionOn(board, action, false);
+      const afterCounts = decrementCount(counts, action.colour);
+
+      if (state.consequence?.type === "move" && state.consequence.step === 1) {
+        // Computer is the responder to a human Move. After this compulsory
+        // placement the human mover must place the originally held piece.
+        return evaluateHumanHeldPlacement(after, afterCounts, state.consequence.heldColour, state.consequence.protectedPieceId) + value;
+      }
+
+      if (state.consequence?.type === "move" && state.consequence.step === 2) {
+        return futureHumanTurnUnderComputerChoice(after, afterCounts, state.consequence.protectedPieceId, true) + value;
+      }
+
+      if (state.consequence?.type === "jump-held") {
+        return futureHumanTurnUnderComputerChoice(after, afterCounts, state.consequence.protectedPieceId, true) + value;
+      }
+
+      if (state.finalFourPhase) return value;
+      return futureHumanTurnUnderComputerChoice(after, afterCounts, null, true) + value;
+    }
+
+    if (action.type === "move") {
+      return evaluateComputerMoveConsequence(board, action, counts, state.assignedColour, true) + value;
+    }
+    if (action.type === "jump") {
+      return evaluateComputerJumpConsequence(board, action, counts, state.assignedColour, true) + value;
+    }
+    return value;
+  }
+
+  function actionScore(action) {
+    if (settings.level === "expert") return expertActionScore(action);
+    return standardActionScore(action);
+  }
+
   function pickComputerAction(actions) {
     if (!actions.length) return null;
     const wins = actions.filter(actionWins);
     if (wins.length) return wins[Math.floor(Math.random() * wins.length)];
     if (settings.level === "beginner") return actions[Math.floor(Math.random() * actions.length)];
-    return [...actions].sort((a, b) => actionScore(b) - actionScore(a))[0];
+
+    // Expert does its expensive look-ahead only on the strongest tactical
+    // candidates. This keeps the phone responsive while still considering
+    // every immediate win before pruning. Standard remains cheap enough to
+    // score every legal action.
+    const candidates = settings.level === "expert"
+      ? actions
+          .map(action => ({ action, score: localActionHeuristic(state.board, action) }))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, AI_TOP_LEVEL_LIMIT)
+          .map(item => item.action)
+      : actions;
+    return candidates
+      .map(action => ({ action, score: actionScore(action) }))
+      .sort((a, b) => b.score - a.score)[0].action;
   }
 
   function enumerateActions(colour, mustPlace = false) {
-    const actions = [];
-    if (colour && normalReserveRemaining(colour) > 0) {
-      for (let to = 0; to < BOARD_CELLS; to += 1) if (!state.board[to]) actions.push({ type: "place", to, colour });
+    return enumerateActionsOnBoard(state.board, colour, {
+      mustPlace,
+      protectedPieceId: state.protectedPieceId,
+      reserveAvailable: colour ? normalReserveRemaining(colour) > 0 : false,
+      allowMove: moveAllowedNow(),
+      allowJump: jumpAllowedNow()
+    });
+  }
+
+  function bestSelfChoiceColour(colours) {
+    let bestColour = colours[0], bestValue = -Infinity;
+    for (const colour of colours) {
+      const placements = candidatePlacements(state.board, colour);
+      let value = -Infinity;
+      for (const placement of placements) {
+        if (actionWinsOnBoard(state.board, placement)) { value = AI_WIN_SCORE; break; }
+        value = Math.max(value, localActionHeuristic(state.board, placement));
+      }
+      if (value > bestValue) { bestValue = value; bestColour = colour; }
     }
-    if (mustPlace || oneColourPlacementOnly()) return actions;
-    for (let from = 0; from < BOARD_CELLS; from += 1) {
-      const piece = state.board[from];
-      if (!piece || piece.pinned || piece.colour !== colour || piece.id === state.protectedPieceId) continue;
-      if (moveAllowedNow()) for (const to of rules.adjacentDestinations(state.board, from)) actions.push({ type: "move", from, to, colour });
-      if (jumpAllowedNow()) for (const j of legalSingleJumps(from)) actions.push({ type: "jump", from, to: j.to, over: j.over, colour });
+    return bestColour;
+  }
+
+  function chooseComputerHandoverColour(colours) {
+    if (!colours.length) return null;
+    if (chooserIsChoosingForSelf()) {
+      // Even Beginner takes an immediately visible win; otherwise Beginner
+      // remains deliberately loose while Standard/Expert choose tactically.
+      const winning = colours.filter(colour => candidatePlacements(state.board, colour).some(p => actionWinsOnBoard(state.board, p)));
+      if (winning.length) return winning[Math.floor(Math.random() * winning.length)];
+      return settings.level === "beginner"
+        ? colours[Math.floor(Math.random() * colours.length)]
+        : bestSelfChoiceColour(colours);
     }
-    return actions;
+
+    if (settings.level === "beginner") return colours[Math.floor(Math.random() * colours.length)];
+
+    const counts = reserveCountsNow();
+    let bestColour = colours[0], bestValue = -Infinity;
+    for (const colour of colours) {
+      let value;
+      if (state.consequence?.type === "move" && state.consequence.step === 1 && state.consequence.mover === 1) {
+        value = computerMoveGiftValue(
+          state.board,
+          counts,
+          state.consequence.heldColour,
+          colour,
+          state.consequence.protectedPieceId,
+          settings.level === "expert"
+        );
+      } else if (settings.level === "expert") {
+        value = expertHumanTurnValue(state.board, counts, colour, state.protectedPieceId);
+      } else {
+        value = shallowReceiverValue(state.board, counts, colour, false, state.protectedPieceId);
+      }
+      if (value > bestValue) { bestValue = value; bestColour = colour; }
+    }
+    return bestColour;
   }
 
   function computerChooseColour() {
@@ -789,30 +1255,8 @@ const mobileVersionElement = document.getElementById("mobile-version");
     computerBusy = true; render();
     const colours = availableChoiceColours();
     if (!colours.length) { computerBusy = false; processFlow(); return; }
-    let pool = colours;
-    if (chooserIsChoosingForSelf()) {
-      const winning = colours.filter(colour => {
-        for (let to = 0; to < BOARD_CELLS; to += 1) {
-          if (state.board[to]) continue;
-          if (rules.checkWin(Object.assign(cloneBoard(state.board), { [to]: { id: -1, colour, pinned: false } }), settings)) return true;
-        }
-        return false;
-      });
-      if (winning.length) pool = winning;
-    } else {
-      const safe = colours.filter(colour => {
-        for (let to = 0; to < BOARD_CELLS; to += 1) {
-          if (state.board[to]) continue;
-          const board = cloneBoard(state.board); board[to] = { id: -1, colour, pinned: false };
-          if (rules.checkWin(board, settings)) return false;
-        }
-        return true;
-      });
-      if (safe.length) pool = safe;
-    }
-    const colour = pool[Math.floor(Math.random() * pool.length)];
-    // As above, choose a genuinely different reserve piece when a Move has
-    // left the original handed piece in the mover's hand.
+
+    const colour = chooseComputerHandoverColour(colours);
     const index = randomEligibleReserveIndex(colour);
     flowTimer = setTimeout(() => {
       computerBusy = false;
