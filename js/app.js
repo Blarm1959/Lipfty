@@ -53,7 +53,12 @@ const mobileVersionElement = document.getElementById("mobile-version");
 
   let nextPieceId = 1;
   let state = null;
-  let settings = loadSettings();
+  // `settings` belongs to the game currently being played. `savedSettings`
+  // belongs to the Settings wizard / next game. Keeping them separate means
+  // Save can never turn an in-progress Lipfty board into Lipfty24 (or change
+  // its version, colours, timer or AI) without starting a new game.
+  let savedSettings = loadSettings();
+  let settings = { ...savedSettings };
   let computerBusy = false;
   // App-only aid: retained only while the computer is showing its chosen action.
   // It deliberately does not participate in the rules, saved game state or AI choice.
@@ -133,7 +138,11 @@ const mobileVersionElement = document.getElementById("mobile-version");
     }
   }
 
-  function saveSettings() { localStorage.setItem("lipfty-settings", JSON.stringify(settings)); }
+  function saveSettings() { localStorage.setItem("lipfty-settings", JSON.stringify(savedSettings)); }
+  function useSavedSettingsForNewGame() {
+    settings = { ...savedSettings };
+    startNewGame();
+  }
   function isComputer(playerIndex) { return settings.mode === "computer" && playerIndex === 1; }
   function participantName(playerIndex) {
     if (isComputer(playerIndex)) return "Computer";
@@ -1487,6 +1496,11 @@ const mobileVersionElement = document.getElementById("mobile-version");
         ? "Lipfty24: inner 6×6 starts empty; all 24 draughts/checkers pieces occupy the outer non-corner spaces. There are no special corner pieces."
         : "Lipfty: inner 6×6 playing area with 4 pinned Opening Four pieces, 24 normal reserve pieces and 4 Final Four corner pieces.";
     }
+    const quickRulesTitle = document.getElementById("quick-rules-title");
+    if (quickRulesTitle) {
+      const versionTitle = settings.allowSquare ? "Extreme" : (settings.allowMove || settings.allowJump) ? "Standard" : "Learning";
+      quickRulesTitle.textContent = `${gameFormatTitle()} · ${versionTitle}`;
+    }
     const quickOpening = document.getElementById("quick-opening-rule");
     if (quickOpening) {
       quickOpening.innerHTML = isLipfty24()
@@ -1699,7 +1713,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
 
   blackButton.addEventListener("click", () => chooseReserveColourFromPanel("black"));
   whiteButton.addEventListener("click", () => chooseReserveColourFromPanel("white"));
-  document.getElementById("new-game").addEventListener("click", startNewGame);
+  document.getElementById("new-game").addEventListener("click", useSavedSettingsForNewGame);
   document.getElementById("end-test").addEventListener("click", jumpToFinalFourTest);
   undoButton.addEventListener("click", undo);
   finishJumpButton.addEventListener("click", () => {});
@@ -1788,13 +1802,15 @@ const mobileVersionElement = document.getElementById("mobile-version");
     document.getElementById("setup-summary").textContent = `${format} · ${one ? "Player vs Computer · " + level : "Two players"} · ${COLOURS[fv("colour1")][0]} / ${COLOURS[fv("colour2")][0]} · ${selectedRuleSummary()} · ${clockSummary}`;
   }
   function openSettings() {
-    sr("gameFormat", settings.gameFormat || "lipfty");
-    sr("gameMode", settings.mode); difficultyInput.value = settings.level === "beginner" ? 1 : settings.level === "expert" ? 3 : 2;
-    sr("allowUndo", settings.undo ? "yes" : "no"); sr("colour1", settings.colour1); sr("colour2", settings.colour2);
-    player1Input.value = settings.player1; player2Input.value = settings.player2; sr("starter", settings.starter);
-    sr("clockMinutes", String(settings.clockMinutes || 0)); sr("clockIncrement", String(settings.clockIncrement || 0));
-    ruleOptionIds.forEach(k => { const e = document.getElementById(ruleId(k)); if (e) e.checked = !!settings[k]; });
-    syncRuleDependencies(); document.getElementById("setting-sound").checked = settings.sound; document.getElementById("setting-animations").checked = settings.animations;
+    // Show the saved / next-game choices, not the immutable settings snapshot
+    // belonging to the board that is already in progress.
+    sr("gameFormat", savedSettings.gameFormat || "lipfty");
+    sr("gameMode", savedSettings.mode); difficultyInput.value = savedSettings.level === "beginner" ? 1 : savedSettings.level === "expert" ? 3 : 2;
+    sr("allowUndo", savedSettings.undo ? "yes" : "no"); sr("colour1", savedSettings.colour1); sr("colour2", savedSettings.colour2);
+    player1Input.value = savedSettings.player1; player2Input.value = savedSettings.player2; sr("starter", savedSettings.starter);
+    sr("clockMinutes", String(savedSettings.clockMinutes || 0)); sr("clockIncrement", String(savedSettings.clockIncrement || 0));
+    ruleOptionIds.forEach(k => { const e = document.getElementById(ruleId(k)); if (e) e.checked = !!savedSettings[k]; });
+    syncRuleDependencies(); document.getElementById("setting-sound").checked = savedSettings.sound; document.getElementById("setting-animations").checked = savedSettings.animations;
     syncMode(); syncDifficulty(); syncClockOptions(); showStep(0); settingsDialog.showModal();
   }
   settingsForm.querySelectorAll('[name="gameFormat"]').forEach(e => e.addEventListener("change", () => { if (wizardStep === 5) summary(); }));
@@ -1818,28 +1834,25 @@ const mobileVersionElement = document.getElementById("mobile-version");
       setStatus("Choose two different piece colours.");
       return false;
     }
-    const previousClockMinutes = Number(settings.clockMinutes || 0);
-    const previousClockIncrement = Number(settings.clockIncrement || 0);
     const n = Number(difficultyInput.value), ruleSettings = {};
     ruleOptionIds.forEach(k => { ruleSettings[k] = document.getElementById(ruleId(k)).checked; });
     if (!ruleSettings.allowSquare) ruleSettings.allowSpacedSquare = false;
     ruleSettings.allowDiamond = false;
     ruleSettings.allowSpacedDiamond = false;
-    settings = { ...settings, ...ruleSettings, gameFormat: fv("gameFormat") || "lipfty", mode: fv("gameMode"), player1: player1Input.value.trim() || "Player", player2: player2Input.value.trim() || "Player 2", level: n === 1 ? "beginner" : n === 3 ? "expert" : "standard", starter: fv("starter"), undo: fv("allowUndo") === "yes", colour1: fv("colour1"), colour2: fv("colour2"), clockMinutes: Number(fv("clockMinutes") || 0), clockIncrement: Number(fv("clockIncrement") || 0), sound: document.getElementById("setting-sound").checked, animations: document.getElementById("setting-animations").checked, language: document.getElementById("setting-language").value };
+
+    // Save these choices for the next game, but do not mutate the settings
+    // snapshot used by the board already in progress.
+    savedSettings = { ...savedSettings, ...ruleSettings, gameFormat: fv("gameFormat") || "lipfty", mode: fv("gameMode"), player1: player1Input.value.trim() || "Player", player2: player2Input.value.trim() || "Player 2", level: n === 1 ? "beginner" : n === 3 ? "expert" : "standard", starter: fv("starter"), undo: fv("allowUndo") === "yes", colour1: fv("colour1"), colour2: fv("colour2"), clockMinutes: Number(fv("clockMinutes") || 0), clockIncrement: Number(fv("clockIncrement") || 0), sound: document.getElementById("setting-sound").checked, animations: document.getElementById("setting-animations").checked, language: document.getElementById("setting-language").value };
     saveSettings();
     settingsDialog.close();
     if (startFreshGame) {
-      startNewGame();
+      useSavedSettingsForNewGame();
       return true;
     }
 
-    applyPieceColours();
-    if (previousClockMinutes !== Number(settings.clockMinutes || 0) ||
-        previousClockIncrement !== Number(settings.clockIncrement || 0)) {
-      initialiseChessClock();
-    }
-    clockSuppressIncrementOnce = true;
-    processFlow("Settings saved.");
+    // Save returns to exactly the same current game. Its format, rules, piece
+    // colours, timer and computer strength remain unchanged until New Game.
+    render();
     return true;
   }
 
