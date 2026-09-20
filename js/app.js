@@ -1532,14 +1532,38 @@ const mobileVersionElement = document.getElementById("mobile-version");
   }
 
   function jumpToFinalFourTest() {
-    // Developer shortcut only: Lipfty24 deliberately has no Final Four.
-    // Refuse the shortcut before changing any game state.
+    // Hidden near-end test shortcut. Full Lipfty jumps to the Final Four.
+    // Lipfty24 instead leaves four ordinary reserve pieces (two of each
+    // colour) so its genuine no-Final-Four ending can be played through.
+    clearTimeout(flowTimer); computerBusy = false; computerMoveVisual = null; nextPieceId = 1; checkpoints = []; state = freshState();
+
     if (isLipfty24()) {
-      setStatus("Final Four test is only available in Lipfty.");
-      return false;
+      const keepIndices = new Set([
+        ...shuffled(activeReserveIndices("black")).slice(0, 2),
+        ...shuffled(activeReserveIndices("white")).slice(0, 2)
+      ]);
+      for (let i = 0; i < state.reserveLayout.active.length; i += 1) {
+        if (!keepIndices.has(i)) state.reserveLayout.active[i] = null;
+      }
+
+      const availableCells = [...Array(BOARD_CELLS).keys()];
+      let attempts = 0;
+      do {
+        state.board = Array(BOARD_CELLS).fill(null);
+        const occupied = shuffled(availableCells).slice(0, 20);
+        const colours = shuffled([...Array(10).fill("black"), ...Array(10).fill("white")]);
+        occupied.forEach((index, i) => { state.board[index] = { id: nextPieceId++, colour: colours[i], pinned: false }; });
+        attempts += 1;
+      } while (rules.checkWin(state.board, settings) && attempts < 10000);
+
+      state.currentPlayer = 0;
+      state.colourChooser = otherPlayer(state.currentPlayer);
+      state.choosingColour = true;
+      initialiseChessClock();
+      processFlow();
+      return true;
     }
 
-    clearTimeout(flowTimer); computerBusy = false; computerMoveVisual = null; nextPieceId = 1; checkpoints = []; state = freshState();
     const anchorBoard = state.board.map(piece => piece ? { ...piece } : null);
     const availableCells = [...Array(BOARD_CELLS).keys()].filter(i => !anchorBoard[i]);
     let attempts = 0;
