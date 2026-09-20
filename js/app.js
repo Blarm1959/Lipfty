@@ -111,7 +111,23 @@ const mobileVersionElement = document.getElementById("mobile-version");
       if (hadLegacyDiamondSettings || needsRulesBaselineMigration || needsFormatMigration) {
         localStorage.setItem("lipfty-settings", JSON.stringify(migrated));
       }
-      return migrated;
+
+      // Lipfty 12 startup defaults: every fresh app start opens as the full
+      // Lipfty Standard game with Red / Blue pieces and the chess clock off.
+      // Other preferences (player names, one/two-player mode, difficulty,
+      // starter, undo, sound and animations) can still persist normally.
+      return {
+        ...migrated,
+        gameFormat: "lipfty",
+        colour1: "red",
+        colour2: "blue",
+        clockMinutes: 0,
+        clockIncrement: 0,
+        ...STANDARD_RULES,
+        rulesBaseline: 10,
+        allowDiamond: false,
+        allowSpacedDiamond: false
+      };
     } catch (_) {
       return defaults;
     }
@@ -843,31 +859,9 @@ const mobileVersionElement = document.getElementById("mobile-version");
     }, settings.animations ? 650 : 0);
   }
 
-  function canHumanReselectAssignedReservePiece(displayIndex, colour) {
-    return state.winner === null && !computerBusy && !state.choosingColour &&
-      settings.mode === "computer" && state.currentPlayer === 0 && !isComputer(state.currentPlayer) &&
-      !state.finalFourPhase && !state.consequence && !state.redeployPiece &&
-      state.selectedReserveIndex !== null && state.assignedColour === colour &&
-      !CORNERS.includes(displayIndex) && state.reserveLayout.active[displayIndex] === colour;
-  }
-
   function chooseReservePiece(displayIndex, colour) {
-    if (state.winner !== null || computerBusy) return;
-
-    // When the computer has handed the human a colour, let the human choose
-    // which physical outside piece of that colour to use. This changes only
-    // the physical reserve index; the handed colour and all game rules stay
-    // exactly the same.
-    if (!state.choosingColour) {
-      if (!canHumanReselectAssignedReservePiece(displayIndex, colour)) return;
-      state.selectedReserveIndex = displayIndex;
-      clearSelection();
-      setStatus(actionPrompt());
-      render();
-      return;
-    }
-
-    if (isComputer(state.colourChooser) || !availableChoiceColours().includes(colour)) return;
+    if (state.winner !== null || computerBusy || !state.choosingColour || isComputer(state.colourChooser)) return;
+    if (!availableChoiceColours().includes(colour)) return;
     if (state.finalFourPhase) {
       const slot = CORNERS.indexOf(displayIndex);
       if (slot < 0 || state.finalCornerPieces[slot] !== colour) return;
@@ -942,8 +936,6 @@ const mobileVersionElement = document.getElementById("mobile-version");
         if (humanChooser) {
           if (state.finalFourPhase && corner && state.finalCornerPieces[slot]) selectable = state.finalCornerPieces[slot];
           else if (!state.finalFourPhase && !corner && activeColour) selectable = activeColour;
-        } else if (!corner && activeColour && canHumanReselectAssignedReservePiece(displayIndex, activeColour)) {
-          selectable = activeColour;
         }
         cell.disabled = !selectable;
         if (selectable) {
