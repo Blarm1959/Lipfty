@@ -1532,41 +1532,30 @@ const mobileVersionElement = document.getElementById("mobile-version");
   }
 
   function jumpToFinalFourTest() {
+    // Developer shortcut only: Lipfty24 deliberately has no Final Four.
+    // Refuse the shortcut before changing any game state.
+    if (isLipfty24()) {
+      setStatus("Final Four test is only available in Lipfty.");
+      return false;
+    }
+
     clearTimeout(flowTimer); computerBusy = false; computerMoveVisual = null; nextPieceId = 1; checkpoints = []; state = freshState();
     const anchorBoard = state.board.map(piece => piece ? { ...piece } : null);
     const availableCells = [...Array(BOARD_CELLS).keys()].filter(i => !anchorBoard[i]);
     let attempts = 0;
-    if (isLipfty24()) {
-      // Lipfty24 has no Final Four. Leave one ordinary reserve piece so End
-      // remains a useful near-end test without inventing a special phase.
-      const remainingIndex = activeReserveIndices()[0];
-      const remainingColour = state.reserveLayout.active[remainingIndex];
-      state.reserveLayout.active.fill(null);
-      state.reserveLayout.active[remainingIndex] = remainingColour;
-      do {
-        state.board = anchorBoard.map(piece => piece ? { ...piece } : null);
-        const occupied = shuffled(availableCells).slice(0, 23);
-        const colours = shuffled([...Array(12).fill("black"), ...Array(12).fill("white")]);
-        const removeAt = colours.indexOf(remainingColour);
-        if (removeAt >= 0) colours.splice(removeAt, 1);
-        occupied.forEach((index, i) => { state.board[index] = { id: nextPieceId++, colour: colours[i], pinned: false }; });
-        attempts += 1;
-      } while (rules.checkWin(state.board, settings) && attempts < 10000);
-      state.currentPlayer = 0; state.colourChooser = 0; state.choosingColour = true;
-    } else {
-      state.reserveLayout.active.fill(null);
-      do {
-        state.board = anchorBoard.map(piece => piece ? { ...piece } : null);
-        const occupied = shuffled(availableCells).slice(0, 24);
-        const colours = shuffled([...Array(12).fill("black"), ...Array(12).fill("white")]);
-        occupied.forEach((index, i) => { state.board[index] = { id: nextPieceId++, colour: colours[i], pinned: false }; });
-        attempts += 1;
-      } while (rules.checkWin(state.board, settings) && attempts < 10000);
-      state.currentPlayer = 0; state.colourChooser = 0; state.choosingColour = true;
-      prepareFinalCorners(); state.finalFourPhase = true;
-    }
+    state.reserveLayout.active.fill(null);
+    do {
+      state.board = anchorBoard.map(piece => piece ? { ...piece } : null);
+      const occupied = shuffled(availableCells).slice(0, 24);
+      const colours = shuffled([...Array(12).fill("black"), ...Array(12).fill("white")]);
+      occupied.forEach((index, i) => { state.board[index] = { id: nextPieceId++, colour: colours[i], pinned: false }; });
+      attempts += 1;
+    } while (rules.checkWin(state.board, settings) && attempts < 10000);
+    state.currentPlayer = 0; state.colourChooser = 0; state.choosingColour = true;
+    prepareFinalCorners(); state.finalFourPhase = true;
     initialiseChessClock();
     processFlow();
+    return true;
   }
 
   function resolvedStarterIndex() {
@@ -1714,7 +1703,24 @@ const mobileVersionElement = document.getElementById("mobile-version");
   blackButton.addEventListener("click", () => chooseReserveColourFromPanel("black"));
   whiteButton.addEventListener("click", () => chooseReserveColourFromPanel("white"));
   document.getElementById("new-game").addEventListener("click", useSavedSettingsForNewGame);
-  document.getElementById("end-test").addEventListener("click", jumpToFinalFourTest);
+
+  // The old visible End button was only ever a development shortcut. Remove it
+  // from the normal interface, but retain the useful Final Four test as a
+  // deliberately hidden five-tap/click Easter egg on either version display.
+  document.getElementById("end-test")?.remove();
+  let versionTestTaps = [];
+  function handleVersionTestTap() {
+    const now = Date.now();
+    versionTestTaps = versionTestTaps.filter(time => now - time <= 3000);
+    versionTestTaps.push(now);
+    if (versionTestTaps.length < 5) return;
+    versionTestTaps = [];
+    jumpToFinalFourTest();
+  }
+  [document.getElementById("app-version"), mobileVersionElement]
+    .filter(Boolean)
+    .forEach(element => element.addEventListener("click", handleVersionTestTap));
+
   undoButton.addEventListener("click", undo);
   finishJumpButton.addEventListener("click", () => {});
 
