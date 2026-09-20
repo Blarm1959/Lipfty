@@ -1730,8 +1730,11 @@ const mobileVersionElement = document.getElementById("mobile-version");
   wizardDefault.textContent = "Default";
   wizardDefault.style.marginRight = "auto";
   wizardActions.prepend(wizardDefault);
-  wizardSave.textContent = "Save";
-  wizardStart.textContent = "New Game";
+  // Lipfty 12: Settings has one Save action. The old Save button is removed;
+  // the existing submit button is now Save and starts a fresh game using the
+  // settings shown in the wizard.
+  wizardSave.remove();
+  wizardStart.textContent = "Save";
   const difficultyInput = document.getElementById("difficulty-input"), difficultyField = document.getElementById("difficulty-field");
   const player1Input = document.getElementById("setting-player1"), player2Input = document.getElementById("setting-player2"), player2Label = document.getElementById("player2-label");
   let wizardStep = 0;
@@ -1764,11 +1767,32 @@ const mobileVersionElement = document.getElementById("mobile-version");
   function showStep(n) {
     wizardStep = Math.max(0, Math.min(5, n));
     wizardSteps.forEach((e, i) => e.hidden = i !== wizardStep);
-    wizardIndicators.forEach((e, i) => { e.classList.toggle("wizard-progress-step--active", i === wizardStep); e.classList.toggle("wizard-progress-step--complete", i < wizardStep); });
+    wizardIndicators.forEach((e, i) => {
+      e.classList.toggle("wizard-progress-step--active", i === wizardStep);
+      e.classList.toggle("wizard-progress-step--complete", i < wizardStep);
+      if (i === wizardStep) e.setAttribute("aria-current", "step");
+      else e.removeAttribute("aria-current");
+    });
     wizardDefault.hidden = wizardStep !== 0;
     wizardBack.hidden = wizardStep === 0; wizardNext.hidden = wizardStep === 5; wizardStart.hidden = false;
     if (wizardStep === 5) summary();
   }
+  // The six page names at the top of Settings are direct navigation as well
+  // as progress indicators. Keep keyboard access too because the HTML uses
+  // spans rather than native buttons.
+  wizardIndicators.forEach((indicator, index) => {
+    const pageName = indicator.querySelector("small")?.textContent?.trim() || `page ${index + 1}`;
+    indicator.setAttribute("role", "button");
+    indicator.setAttribute("tabindex", "0");
+    indicator.setAttribute("aria-label", `Go to Settings page ${index + 1}: ${pageName}`);
+    indicator.style.cursor = "pointer";
+    indicator.addEventListener("click", () => showStep(index));
+    indicator.addEventListener("keydown", event => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      showStep(index);
+    });
+  });
   function resetSettingsFormToDefaults() {
     sr("gameFormat", "lipfty");
     sr("gameMode", "computer");
@@ -1828,7 +1852,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
   wizardDefault.addEventListener("click", resetSettingsFormToDefaults);
   wizardNext.addEventListener("click", () => { if (wizardStep === 1 && !coloursValid()) { setStatus("Choose two different piece colours."); return; } showStep(wizardStep + 1); });
   wizardBack.addEventListener("click", () => showStep(wizardStep - 1));
-  function commitSettingsFromForm(startFreshGame) {
+  function commitSettingsFromForm() {
     if (!coloursValid()) {
       showStep(1);
       setStatus("Choose two different piece colours.");
@@ -1840,28 +1864,20 @@ const mobileVersionElement = document.getElementById("mobile-version");
     ruleSettings.allowDiamond = false;
     ruleSettings.allowSpacedDiamond = false;
 
-    // Save these choices for the next game, but do not mutate the settings
-    // snapshot used by the board already in progress.
+    // The single Settings Save action stores the wizard values and immediately
+    // starts a fresh game using them.
     savedSettings = { ...savedSettings, ...ruleSettings, gameFormat: fv("gameFormat") || "lipfty", mode: fv("gameMode"), player1: player1Input.value.trim() || "Player", player2: player2Input.value.trim() || "Player 2", level: n === 1 ? "beginner" : n === 3 ? "expert" : "standard", starter: fv("starter"), undo: fv("allowUndo") === "yes", colour1: fv("colour1"), colour2: fv("colour2"), clockMinutes: Number(fv("clockMinutes") || 0), clockIncrement: Number(fv("clockIncrement") || 0), sound: document.getElementById("setting-sound").checked, animations: document.getElementById("setting-animations").checked, language: document.getElementById("setting-language").value };
     saveSettings();
     settingsDialog.close();
-    if (startFreshGame) {
-      useSavedSettingsForNewGame();
-      return true;
-    }
-
-    // Save returns to exactly the same current game. Its format, rules, piece
-    // colours, timer and computer strength remain unchanged until New Game.
-    render();
+    useSavedSettingsForNewGame();
     return true;
   }
 
   document.getElementById("settings-button").addEventListener("click", openSettings);
   document.getElementById("close-settings").addEventListener("click", () => settingsDialog.close());
-  wizardSave.addEventListener("click", () => commitSettingsFromForm(false));
   settingsForm.addEventListener("submit", e => {
     e.preventDefault();
-    commitSettingsFromForm(true);
+    commitSettingsFromForm();
   });
 
   const statisticsDialog = document.getElementById("statistics-dialog");
