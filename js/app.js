@@ -33,6 +33,18 @@ const mobileVersionElement = document.getElementById("mobile-version");
   const finishJumpButton = document.getElementById("finish-jump");
   const undoButton = document.getElementById("undo");
 
+  // Lipfty 12: the physical reserve piece that must be played now stays on
+  // the outside ring and flashes until it is actually placed.
+  const activeReserveStyle = document.createElement("style");
+  activeReserveStyle.textContent = `
+    @keyframes lipfty-active-reserve-flash {
+      from { filter: brightness(.82); box-shadow: 0 0 0 2px rgba(36,91,150,.18), 0 2px 5px rgba(0,0,0,.24); }
+      to { filter: brightness(1.18); box-shadow: 0 0 0 7px rgba(36,91,150,.42), 0 0 18px rgba(36,91,150,.45), 0 2px 5px rgba(0,0,0,.24); }
+    }
+    .piece--active-reserve { animation: lipfty-active-reserve-flash .7s ease-in-out infinite alternate !important; }
+  `;
+  document.head.appendChild(activeReserveStyle);
+
   const COLOURS = {
     red: ["Red", "#d6423a"], blue: ["Blue", "#2d65ad"], green: ["Green", "#318653"],
     yellow: ["Yellow", "#e2ad34"], purple: ["Purple", "#7955a6"], orange: ["Orange", "#d97832"],
@@ -259,6 +271,22 @@ const mobileVersionElement = document.getElementById("mobile-version");
   function firstFinalCornerIndex(colour) {
     const slot = state.finalCornerPieces.findIndex(c => c === colour);
     return slot >= 0 ? CORNERS[slot] : null;
+  }
+
+  function jumpedPieceReserveDisplayIndex() {
+    if (!state.redeployPiece) return null;
+    for (let i = 0; i < 64; i += 1) {
+      const row = Math.floor(i / 8), col = i % 8;
+      const outer = row === 0 || row === 7 || col === 0 || col === 7;
+      if (outer && !CORNERS.includes(i) && !state.reserveLayout.active[i]) return i;
+    }
+    return null;
+  }
+
+  function activeReserveDisplayIndex() {
+    if (state.winner !== null || state.choosingColour) return null;
+    if (state.redeployPiece) return jumpedPieceReserveDisplayIndex();
+    return state.selectedReserveIndex;
   }
 
   function clearSelection() {
@@ -815,9 +843,31 @@ const mobileVersionElement = document.getElementById("mobile-version");
     }, settings.animations ? 650 : 0);
   }
 
+  function canHumanReselectAssignedReservePiece(displayIndex, colour) {
+    return state.winner === null && !computerBusy && !state.choosingColour &&
+      settings.mode === "computer" && state.currentPlayer === 0 && !isComputer(state.currentPlayer) &&
+      !state.finalFourPhase && !state.consequence && !state.redeployPiece &&
+      state.selectedReserveIndex !== null && state.assignedColour === colour &&
+      !CORNERS.includes(displayIndex) && state.reserveLayout.active[displayIndex] === colour;
+  }
+
   function chooseReservePiece(displayIndex, colour) {
-    if (state.winner !== null || computerBusy || !state.choosingColour || isComputer(state.colourChooser)) return;
-    if (!availableChoiceColours().includes(colour)) return;
+    if (state.winner !== null || computerBusy) return;
+
+    // When the computer has handed the human a colour, let the human choose
+    // which physical outside piece of that colour to use. This changes only
+    // the physical reserve index; the handed colour and all game rules stay
+    // exactly the same.
+    if (!state.choosingColour) {
+      if (!canHumanReselectAssignedReservePiece(displayIndex, colour)) return;
+      state.selectedReserveIndex = displayIndex;
+      clearSelection();
+      setStatus(actionPrompt());
+      render();
+      return;
+    }
+
+    if (isComputer(state.colourChooser) || !availableChoiceColours().includes(colour)) return;
     if (state.finalFourPhase) {
       const slot = CORNERS.indexOf(displayIndex);
       if (slot < 0 || state.finalCornerPieces[slot] !== colour) return;
@@ -841,6 +891,8 @@ const mobileVersionElement = document.getElementById("mobile-version");
   function renderBoard() {
     boardElement.replaceChildren();
     const winning = new Set(state.winningCells);
+    const activeOuterIndex = activeReserveDisplayIndex();
+    const jumpedOuterIndex = state.redeployPiece ? jumpedPieceReserveDisplayIndex() : null;
     for (let displayIndex = 0; displayIndex < 64; displayIndex += 1) {
       const dr = Math.floor(displayIndex / 8), dc = displayIndex % 8;
       const inner = dr >= 1 && dr <= 6 && dc >= 1 && dc <= 6;
@@ -852,26 +904,46 @@ const mobileVersionElement = document.getElementById("mobile-version");
         const activeColour = state.reserveLayout.active[displayIndex];
         const slot = corner ? CORNERS.indexOf(displayIndex) : -1;
         const finalAvailable = corner && state.finalCornersPrepared ? state.finalCornerPieces[slot] : state.reserveLayout.locked[displayIndex];
-        const picked = state.selectedReserveIndex === displayIndex;
-        // Final Four pieces remain visibly locked on all four physical
-        // corners throughout normal play.  Compulsory placements never use
-        // or hide them.
-        if (corner && finalAvailable && !(picked && state.finalFourPhase)) {
+        let visiblePiece = null;
+
+        // A selected reserve piece is no longer hidden immediately. It stays
+        // in its physical outer-ring position until placeAt() actually uses it.
+        if (corner && finalAvailable) {
           const marker = document.createElement("span");
-          marker.className = `piece piece--${finalAvailable} piece--locked-corner piece--special-square`; marker.setAttribute("aria-hidden", "true");
+          marker.className = `piece piece--${finalAvailable} piece--locked-corner piece--special-square`;
+          marker.setAttribute("aria-hidden", "true");
           cell.appendChild(marker);
-        }
-        if (activeColour && !picked) {
+          visiblePiece = marker;
+        } else if (activeColour) {
           const disc = document.createElement("span");
-          disc.className = `piece piece--${activeColour}`; disc.setAttribute("aria-hidden", "true");
+          disc.className = `piece piece--${activeColour}`;
+          disc.setAttribute("aria-hidden", "true");
           cell.appendChild(disc);
-        } else if (!corner) cell.classList.add("board-cell--reserve-empty");
+          visiblePiece = disc;
+        } else if (!corner && jumpedOuterIndex === displayIndex && state.redeployPiece) {
+          // The exact jumped piece is temporarily shown in a free outside-ring
+          // space while it waits for the opponent's compulsory redeployment.
+          const disc = document.createElement("span");
+          disc.className = `piece piece--${state.redeployPiece.colour}`;
+          disc.setAttribute("aria-hidden", "true");
+          cell.appendChild(disc);
+          visiblePiece = disc;
+        } else if (!corner) {
+          cell.classList.add("board-cell--reserve-empty");
+        }
+
+        if (visiblePiece && activeOuterIndex === displayIndex) {
+          visiblePiece.classList.add("piece--active-reserve");
+          cell.setAttribute("aria-current", "true");
+        }
 
         let selectable = null;
         const humanChooser = state.winner === null && state.choosingColour && !computerBusy && !isComputer(state.colourChooser);
         if (humanChooser) {
           if (state.finalFourPhase && corner && state.finalCornerPieces[slot]) selectable = state.finalCornerPieces[slot];
           else if (!state.finalFourPhase && !corner && activeColour) selectable = activeColour;
+        } else if (!corner && activeColour && canHumanReselectAssignedReservePiece(displayIndex, activeColour)) {
+          selectable = activeColour;
         }
         cell.disabled = !selectable;
         if (selectable) {
@@ -1199,6 +1271,9 @@ const mobileVersionElement = document.getElementById("mobile-version");
   const settingsDialog = document.getElementById("settings-dialog"), settingsForm = document.getElementById("settings-form");
   const wizardSteps = [...document.querySelectorAll("[data-wizard-step]")], wizardIndicators = [...document.querySelectorAll("[data-step-indicator]")];
   const wizardBack = document.getElementById("wizard-back"), wizardNext = document.getElementById("wizard-next"), wizardStart = document.getElementById("wizard-start");
+  const wizardSave = document.getElementById("cancel-settings");
+  wizardSave.textContent = "Save";
+  wizardStart.textContent = "New Game";
   const difficultyInput = document.getElementById("difficulty-input"), difficultyField = document.getElementById("difficulty-field");
   const player1Input = document.getElementById("setting-player1"), player2Input = document.getElementById("setting-player2"), player2Label = document.getElementById("player2-label");
   let wizardStep = 0;
@@ -1232,7 +1307,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
     wizardStep = Math.max(0, Math.min(5, n));
     wizardSteps.forEach((e, i) => e.hidden = i !== wizardStep);
     wizardIndicators.forEach((e, i) => { e.classList.toggle("wizard-progress-step--active", i === wizardStep); e.classList.toggle("wizard-progress-step--complete", i < wizardStep); });
-    wizardBack.hidden = wizardStep === 0; wizardNext.hidden = wizardStep === 5; wizardStart.hidden = wizardStep !== 5;
+    wizardBack.hidden = wizardStep === 0; wizardNext.hidden = wizardStep === 5; wizardStart.hidden = false;
     if (wizardStep === 5) summary();
   }
   function coloursValid() { return fv("colour1") !== fv("colour2"); }
@@ -1268,18 +1343,43 @@ const mobileVersionElement = document.getElementById("mobile-version");
   settingsForm.querySelectorAll('[name="clockIncrement"]').forEach(e => e.addEventListener("change", () => { if (wizardStep === 5) summary(); }));
   wizardNext.addEventListener("click", () => { if (wizardStep === 1 && !coloursValid()) { setStatus("Choose two different piece colours."); return; } showStep(wizardStep + 1); });
   wizardBack.addEventListener("click", () => showStep(wizardStep - 1));
-  document.getElementById("settings-button").addEventListener("click", openSettings);
-  document.getElementById("close-settings").addEventListener("click", () => settingsDialog.close());
-  document.getElementById("cancel-settings").addEventListener("click", () => settingsDialog.close());
-  settingsForm.addEventListener("submit", e => {
-    e.preventDefault(); if (!coloursValid()) { showStep(1); return; }
+  function commitSettingsFromForm(startFreshGame) {
+    if (!coloursValid()) {
+      showStep(1);
+      setStatus("Choose two different piece colours.");
+      return false;
+    }
+    const previousClockMinutes = Number(settings.clockMinutes || 0);
+    const previousClockIncrement = Number(settings.clockIncrement || 0);
     const n = Number(difficultyInput.value), ruleSettings = {};
     ruleOptionIds.forEach(k => { ruleSettings[k] = document.getElementById(ruleId(k)).checked; });
     if (!ruleSettings.allowSquare) ruleSettings.allowSpacedSquare = false;
     ruleSettings.allowDiamond = false;
     ruleSettings.allowSpacedDiamond = false;
     settings = { ...settings, ...ruleSettings, gameFormat: fv("gameFormat") || "lipfty", mode: fv("gameMode"), player1: player1Input.value.trim() || "Player", player2: player2Input.value.trim() || "Player 2", level: n === 1 ? "beginner" : n === 3 ? "expert" : "standard", starter: fv("starter"), undo: fv("allowUndo") === "yes", colour1: fv("colour1"), colour2: fv("colour2"), clockMinutes: Number(fv("clockMinutes") || 0), clockIncrement: Number(fv("clockIncrement") || 0), sound: document.getElementById("setting-sound").checked, animations: document.getElementById("setting-animations").checked, language: document.getElementById("setting-language").value };
-    saveSettings(); settingsDialog.close(); startNewGame();
+    saveSettings();
+    settingsDialog.close();
+    if (startFreshGame) {
+      startNewGame();
+      return true;
+    }
+
+    applyPieceColours();
+    if (previousClockMinutes !== Number(settings.clockMinutes || 0) ||
+        previousClockIncrement !== Number(settings.clockIncrement || 0)) {
+      initialiseChessClock();
+    }
+    clockSuppressIncrementOnce = true;
+    processFlow("Settings saved.");
+    return true;
+  }
+
+  document.getElementById("settings-button").addEventListener("click", openSettings);
+  document.getElementById("close-settings").addEventListener("click", () => settingsDialog.close());
+  wizardSave.addEventListener("click", () => commitSettingsFromForm(false));
+  settingsForm.addEventListener("submit", e => {
+    e.preventDefault();
+    commitSettingsFromForm(true);
   });
 
   const statisticsDialog = document.getElementById("statistics-dialog");
