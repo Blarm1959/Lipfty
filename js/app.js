@@ -1708,6 +1708,14 @@ const mobileVersionElement = document.getElementById("mobile-version");
   const wizardSteps = [...document.querySelectorAll("[data-wizard-step]")], wizardIndicators = [...document.querySelectorAll("[data-step-indicator]")];
   const wizardBack = document.getElementById("wizard-back"), wizardNext = document.getElementById("wizard-next"), wizardStart = document.getElementById("wizard-start");
   const wizardSave = document.getElementById("cancel-settings");
+  const wizardActions = settingsForm.querySelector(".wizard-actions");
+  const wizardDefault = document.createElement("button");
+  wizardDefault.className = "button button--secondary";
+  wizardDefault.id = "wizard-default";
+  wizardDefault.type = "button";
+  wizardDefault.textContent = "Default";
+  wizardDefault.style.marginRight = "auto";
+  wizardActions.prepend(wizardDefault);
   wizardSave.textContent = "Save";
   wizardStart.textContent = "New Game";
   const difficultyInput = document.getElementById("difficulty-input"), difficultyField = document.getElementById("difficulty-field");
@@ -1743,8 +1751,32 @@ const mobileVersionElement = document.getElementById("mobile-version");
     wizardStep = Math.max(0, Math.min(5, n));
     wizardSteps.forEach((e, i) => e.hidden = i !== wizardStep);
     wizardIndicators.forEach((e, i) => { e.classList.toggle("wizard-progress-step--active", i === wizardStep); e.classList.toggle("wizard-progress-step--complete", i < wizardStep); });
+    wizardDefault.hidden = wizardStep !== 0;
     wizardBack.hidden = wizardStep === 0; wizardNext.hidden = wizardStep === 5; wizardStart.hidden = false;
     if (wizardStep === 5) summary();
+  }
+  function resetSettingsFormToDefaults() {
+    sr("gameFormat", "lipfty");
+    sr("gameMode", "computer");
+    difficultyInput.value = 2;
+    sr("allowUndo", "yes");
+    sr("colour1", "red");
+    sr("colour2", "blue");
+    sr("gameVersion", "standard");
+    player1Input.value = "Player";
+    player2Input.value = "Player 2";
+    sr("starter", "random");
+    sr("clockMinutes", "0");
+    sr("clockIncrement", "0");
+    const defaultRules = { allowJump: true, allowMove: true, allowDiagonal: true, allowSquare: false, allowSpacedSquare: false };
+    ruleOptionIds.forEach(k => { const e = document.getElementById(ruleId(k)); if (e) e.checked = defaultRules[k]; });
+    document.getElementById("setting-sound").checked = true;
+    document.getElementById("setting-animations").checked = true;
+    document.getElementById("setting-language").value = "en-GB";
+    syncRuleDependencies();
+    syncMode();
+    syncDifficulty();
+    syncClockOptions();
   }
   function coloursValid() { return fv("colour1") !== fv("colour2"); }
   function selectedRuleSummary() { const labels = []; document.querySelectorAll("[data-rule-option]:checked").forEach(e => labels.push(e.dataset.ruleLabel)); return labels.length ? labels.join(", ") : "Basic placement only"; }
@@ -1777,6 +1809,7 @@ const mobileVersionElement = document.getElementById("mobile-version");
   }
   settingsForm.querySelectorAll('[name="clockMinutes"]').forEach(e => e.addEventListener("change", syncClockOptions));
   settingsForm.querySelectorAll('[name="clockIncrement"]').forEach(e => e.addEventListener("change", () => { if (wizardStep === 5) summary(); }));
+  wizardDefault.addEventListener("click", resetSettingsFormToDefaults);
   wizardNext.addEventListener("click", () => { if (wizardStep === 1 && !coloursValid()) { setStatus("Choose two different piece colours."); return; } showStep(wizardStep + 1); });
   wizardBack.addEventListener("click", () => showStep(wizardStep - 1));
   function commitSettingsFromForm(startFreshGame) {
