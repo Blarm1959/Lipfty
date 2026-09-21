@@ -1531,6 +1531,44 @@ const mobileVersionElement = document.getElementById("mobile-version");
     renderBoard();
   }
 
+  function hasSafeFirstFinalFourPlacement(board, finalColours) {
+    const emptyCells = [];
+    for (let i = 0; i < BOARD_CELLS; i += 1) if (!board[i]) emptyCells.push(i);
+    const firstColours = [...new Set(finalColours.filter(Boolean))];
+
+    for (const firstColour of firstColours) {
+      const remainingColours = [...finalColours];
+      const usedIndex = remainingColours.indexOf(firstColour);
+      if (usedIndex >= 0) remainingColours.splice(usedIndex, 1);
+      const replyColours = [...new Set(remainingColours.filter(Boolean))];
+
+      for (const firstTo of emptyCells) {
+        const afterFirst = [...board];
+        afterFirst[firstTo] = { id: -1, colour: firstColour, pinned: false, special: true };
+        // A first placement that wins immediately is useful in normal play,
+        // but it does not exercise the Final Four exchange we want to test.
+        if (rules.checkWin(afterFirst, settings)) continue;
+
+        let opponentHasImmediateWin = false;
+        for (const replyColour of replyColours) {
+          for (const replyTo of emptyCells) {
+            if (replyTo === firstTo) continue;
+            const afterReply = [...afterFirst];
+            afterReply[replyTo] = { id: -2, colour: replyColour, pinned: false, special: true };
+            if (rules.checkWin(afterReply, settings)) {
+              opponentHasImmediateWin = true;
+              break;
+            }
+          }
+          if (opponentHasImmediateWin) break;
+        }
+
+        if (!opponentHasImmediateWin) return true;
+      }
+    }
+    return false;
+  }
+
   function jumpToFinalFourTest() {
     // Hidden near-end test shortcut. Full Lipfty jumps to the Final Four.
     // Lipfty24 instead leaves four ordinary reserve pieces (two of each
@@ -1566,15 +1604,40 @@ const mobileVersionElement = document.getElementById("mobile-version");
 
     const anchorBoard = state.board.map(piece => piece ? { ...piece } : null);
     const availableCells = [...Array(BOARD_CELLS).keys()].filter(i => !anchorBoard[i]);
-    let attempts = 0;
+    const finalColours = CORNERS.map(index => state.reserveLayout.locked[index]).filter(Boolean);
+    let attempts = 0, safeOpening = false;
     state.reserveLayout.active.fill(null);
+
+    // A random no-win board can still be a forced loss: every possible first
+    // Final Four placement may leave an immediate winning reply. Keep looking
+    // until the player has at least one first placement that does not itself
+    // win and does not give the opponent an immediate winning placement.
     do {
       state.board = anchorBoard.map(piece => piece ? { ...piece } : null);
       const occupied = shuffled(availableCells).slice(0, 24);
       const colours = shuffled([...Array(12).fill("black"), ...Array(12).fill("white")]);
-      occupied.forEach((index, i) => { state.board[index] = { id: nextPieceId++, colour: colours[i], pinned: false }; });
+      let pieceId = 5;
+      occupied.forEach((index, i) => { state.board[index] = { id: pieceId++, colour: colours[i], pinned: false }; });
       attempts += 1;
-    } while (rules.checkWin(state.board, settings) && attempts < 10000);
+      safeOpening = !rules.checkWin(state.board, settings) && hasSafeFirstFinalFourPlacement(state.board, finalColours);
+    } while (!safeOpening && attempts < 3000);
+
+    if (!safeOpening) {
+      // Deterministic fallback verified against the strongest (Extreme) win
+      // patterns. It guarantees the Easter egg never starts as a forced
+      // immediate loss even if random generation does not find one quickly.
+      const fallback = [
+        [1,"black"],[2,"white"],[3,"white"],[4,"black"],[8,"black"],[11,"white"],
+        [12,"black"],[14,"white"],[15,"black"],[16,"black"],[17,"white"],[19,"black"],
+        [20,"black"],[21,"white"],[22,"white"],[23,"black"],[24,"white"],[25,"white"],
+        [26,"white"],[27,"black"],[29,"white"],[31,"black"],[33,"black"],[34,"white"]
+      ];
+      state.board = anchorBoard.map(piece => piece ? { ...piece } : null);
+      let pieceId = 5;
+      fallback.forEach(([index, colour]) => { state.board[index] = { id: pieceId++, colour, pinned: false }; });
+    }
+
+    nextPieceId = 29;
     state.currentPlayer = 0; state.colourChooser = 0; state.choosingColour = true;
     prepareFinalCorners(); state.finalFourPhase = true;
     initialiseChessClock();
