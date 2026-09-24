@@ -1,6 +1,7 @@
-const mobileVersionElement = document.getElementById("mobile-version");
 (function () {
   "use strict";
+
+  const mobileVersionElement = document.getElementById("mobile-version");
 
   const rules = window.LipftyRules;
   const BOARD_CELLS = rules.SIZE * rules.SIZE;

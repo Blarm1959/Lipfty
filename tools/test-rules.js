@@ -43,16 +43,15 @@ board[7]=piece("black"); assert.equal(R.jumpDestinations(board,0).some(j=>j.to==
 
 const fs = require("node:fs");
 const appSource = fs.readFileSync(require.resolve("../js/app.js"), "utf8");
-// Jump and move are independent optional rules.
-assert.match(appSource, /function jumpAllowed\(\)\{return !!settings\.allowJump;\}/);
-assert.match(appSource, /function moveAllowed\(\)\{return !!settings\.allowMove;\}/);
-// Exactly one remaining normal reserve piece is automatically picked up.
-assert.match(appSource, /normalReserveRemaining\("black"\) \+ normalReserveRemaining\("white"\) === 1/);
+// Jump and move are independent optional rules, each also gated by the current phase.
+assert.match(appSource, /function jumpAllowedNow\(\) \{\s*return !!settings\.allowJump &&/);
+assert.match(appSource, /function moveAllowedNow\(\) \{\s*return !!settings\.allowMove &&/);
+// When only one reserve colour remains, the piece is selected automatically.
+assert.match(appSource, /if \(autoChooseIfNoMeaningfulChoice\(\)\)/);
 // The exact normal reserve-ring piece selected must be the one consumed on placement.
-assert.match(appSource, /function consumeSelectedNormalReservePiece\(colour\)/);
-assert.match(appSource, /state\.reserveLayout\.active\[pickedIndex\] = null;/);
-assert.match(appSource, /if \(!cornerOpeningPlacement\) consumeSelectedNormalReservePiece\(colour\);/);
-assert.match(appSource, /if \(!cornerOpeningPlacement\) consumeSelectedNormalReservePiece\(action\.colour\);/);
+assert.match(appSource, /function consumeSelectedActivePiece\(\)/);
+assert.match(appSource, /state\.reserveLayout\.active\[index\] = null;/);
+assert.match(appSource, /if \(!consumeSelectedActivePiece\(\)\) return false;/);
 // Undo snapshots must preserve the physical reserve layout after exact pieces are consumed.
 assert.match(appSource, /active: \[\.\.\.state\.reserveLayout\.active\]/);
 assert.match(appSource, /active: \[\.\.\.snap\.state\.reserveLayout\.active\]/);
@@ -61,4 +60,4 @@ assert.match(appSource, /active: \[\.\.\.snap\.state\.reserveLayout\.active\]/);
 assert.match(appSource, /undoButton\.disabled = computerBusy \|\| checkpoints\.length === 0;/);
 assert.doesNotMatch(appSource, /undoButton\.disabled[^;]*(selectedReserveIndex|selectedPieceIndex)/);
 
-console.log("Lipfty 5 switchable rules, exact reserve-piece identity, final-reserve auto-pick and Undo regression tests passed.");
+console.log("Lipfty switchable rules, exact reserve-piece identity, single-colour auto-pick and Undo regression tests passed.");
